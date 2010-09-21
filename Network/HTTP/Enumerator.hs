@@ -72,6 +72,7 @@ data Request = Request
     , port :: Int
     , secure :: Bool
     , headers :: [(S.ByteString, S.ByteString)]
+    , path :: S.ByteString
     }
 
 http :: Request -> IO ([Header], S.ByteString)
@@ -87,7 +88,11 @@ http (Request {..}) = do
         | port == 443 && secure = host
         | otherwise = host `S.append` S8.pack (':' : show port)
     go hc = do
-        hcWrite hc "GET / HTTP/1.1\r\n"
+        hcWrite hc $ S.concat
+            [ "GET "
+            , path
+            , " HTTP/1.1\r\n"
+            ]
         let headers' = ("Host", hh) : headers
         forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
             [ k

@@ -6,7 +6,13 @@ import qualified Data.ByteString as S
 
 main :: IO ()
 main = withSocketsDo $ withOpenSSL $ do
-    (hs, b) <- http $ Request "localhost" 80 False []
+    (hs, b) <- http $ Request
+        { host = "localhost"
+        , port = 80
+        , secure = False
+        , headers = []
+        , path = "/"
+        }
     mapM_ (\(x, y) -> do
         S.putStr x
         putStr ": "
