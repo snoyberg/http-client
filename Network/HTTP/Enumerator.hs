@@ -20,6 +20,7 @@ import Control.Exception (throwIO)
 import Control.Arrow (first)
 import Data.Char (toLower)
 import Control.Monad (forM_)
+import Control.Monad.IO.Class (liftIO)
 
 getSocket :: String -> Int -> IO Socket
 getSocket host' port' = do
@@ -80,15 +81,15 @@ data Request = Request
     , method :: S.ByteString
     }
 
-data Response = Response
+data Response a = Response
     { statusCode :: Int
     , statusMessage :: S.ByteString
     , responseHeaders :: [(S.ByteString, S.ByteString)]
-    , responseBody :: L.ByteString
+    , responseBody :: a
     }
 
-http :: Request -> IO Response
-http (Request {..}) = do
+http :: Request -> Iteratee S.ByteString IO a -> IO (Response a)
+http (Request {..}) bodyIter = do
     let h' = S8.unpack host
     res <- (if secure then withOpenSslConn else withSocketConn) h' port go
     case res of
@@ -119,7 +120,7 @@ http (Request {..}) = do
         mapM_ (hcWrite hc) $ L.toChunks requestBody
         run $ connToEnum hc $$ do
             ((_, sc, sm), hs) <- iterHeaders
-            let hs' = map (first $ S8.map toLower) hs -- FIXME use wai CIByteString?
+            let hs' = map (first $ S8.map toLower) hs
             let mcl = lookup "content-length" hs'
             body' <-
                 if ("transfer-encoding", "chunked") `elem` hs'
@@ -127,12 +128,16 @@ http (Request {..}) = do
                     else case mcl >>= readMay . S8.unpack of
                         Just len -> takeLBS len
                         Nothing -> return [] -- FIXME read in body anyways?
-            return $ Response
-                { statusCode = sc
-                , statusMessage = sm
-                , responseHeaders = hs
-                , responseBody = L.fromChunks body'
-                }
+            ebody'' <- liftIO $ run $ enumList 1 body' $$ bodyIter
+            case ebody'' of
+                Left err -> liftIO $ throwIO err
+                Right body'' ->
+                    return $ Response
+                        { statusCode = sc
+                        , statusMessage = sm
+                        , responseHeaders = hs
+                        , responseBody = body''
+                        }
 
 takeLBS :: Monad m => Int -> Iteratee S.ByteString m [S.ByteString]
 takeLBS 0 = return []
