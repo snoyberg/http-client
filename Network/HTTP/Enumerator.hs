@@ -5,31 +5,29 @@ module Network.HTTP.Enumerator
     ) where
 
 import qualified OpenSSL.Session as SSL
-import OpenSSL
 import Network.Socket
-import Network.BSD
 import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import Data.Enumerator hiding (head)
+import Data.Enumerator hiding (head, map)
 import qualified Data.Enumerator as E
 import Http
 import Safe
 import Control.Exception (throwIO)
+import Control.Arrow (first)
+import Data.Char (toLower)
 
 getSocket :: String -> Int -> IO Socket
-getSocket host port = do
-    proto <- getProtocolNumber "tcp"
-    let hints = defaultHints { addrFlags = [AI_PASSIVE] }
-    addrs <- getAddrInfo Nothing (Just host) (Just $ show port)
+getSocket host' port' = do
+    addrs <- getAddrInfo Nothing (Just host') (Just $ show port')
     let addr = head addrs
     sock <- socket (addrFamily addr) Stream defaultProtocol
     connect sock (addrAddress addr)
     return sock
 
 withSocketConn :: String -> Int -> (HttpConn -> IO a) -> IO a
-withSocketConn host port f = do
-    sock <- getSocket host port
+withSocketConn host' port' f = do
+    sock <- getSocket host' port'
     a <- f HttpConn
         { hcRead = B.recv sock
         , hcWrite = B.sendAll sock
@@ -38,9 +36,9 @@ withSocketConn host port f = do
     return a
 
 withOpenSslConn :: String -> Int -> (HttpConn -> IO a) -> IO a
-withOpenSslConn host port f = do
+withOpenSslConn host' port' f = do
     ctx <- SSL.context
-    sock <- getSocket host port
+    sock <- getSocket host' port'
     ssl <- SSL.connection ctx sock
     SSL.connect ssl
     a <- f HttpConn
@@ -73,8 +71,9 @@ data Request = Request
     , secure :: Bool
     }
 
+http :: Request -> IO ([Header], S.ByteString)
 http (Request h p s) = do
-    res <- (if s then withOpenSslConn else withSocketConn) h p $ go hh
+    res <- (if s then withOpenSslConn else withSocketConn) h p go
     case res of
         Left e -> throwIO e
         Right x -> return x
@@ -83,23 +82,25 @@ http (Request h p s) = do
         | p == 80 && not s = h
         | p == 443 && s = h
         | otherwise = h ++ ':' : show p
+    go hc = do
+        mapM_ (hcWrite hc)
+            [ "GET / HTTP/1.1\r\nHost: "
+            , S8.pack hh
+            , "\r\n\r\n"
+            ]
+        run $ connToEnum hc $$ do
+            (_FIXMEstatus, hs) <- iterHeaders
+            let hs' = map (first $ S8.map toLower) hs -- FIXME use wai CIByteString?
+            let mcl = lookup "content-length" hs'
+            body <-
+                if ("transfer-encoding", "chunked") `elem` hs'
+                    then iterChunks
+                    else case mcl >>= readMay . S8.unpack of
+                        Just len -> takeLBS len
+                        Nothing -> return [] -- FIXME read in body anyways?
+            return (hs, S.concat body)
 
-go hh hc = do
-    mapM_ (hcWrite hc)
-        [ "GET / HTTP/1.1\r\nHost: "
-        , S8.pack hh
-        , "\r\n\r\n"
-        ]
-    run $ connToEnum hc $$ do
-        (status, hs) <- iterHeaders
-        body <-
-            if ("Transfer-Encoding", "chunked") `elem` hs
-                then iterChunks
-                else case lookup "Content-Length" hs >>= readMay . S8.unpack of
-                    Just len -> takeLBS len
-                    Nothing -> return []
-        return (hs, S.concat body)
-
+takeLBS :: Monad m => Int -> Iteratee S.ByteString m [S.ByteString]
 takeLBS 0 = return []
 takeLBS len = do
     mbs <- E.head

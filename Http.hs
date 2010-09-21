@@ -5,9 +5,9 @@ import Prelude hiding (take)
 import Data.Attoparsec
 import Data.Attoparsec.Enumerator
 import Data.Enumerator (Iteratee)
-import qualified Data.Enumerator as E
 import qualified Data.ByteString as S
 import Control.Applicative
+import Data.Word (Word8)
 
 type Header = (S.ByteString, S.ByteString)
 
@@ -19,6 +19,8 @@ parseHeader = do
     v <- takeWhile1 notNewline
     newline
     return (k, v)
+
+notNewlineColon, isSpace, notNewline :: Word8 -> Bool
 
 notNewlineColon 10 = False -- LF
 notNewlineColon 13 = False -- CR
@@ -36,7 +38,6 @@ newline :: Parser ()
 newline =
     lf <|> (cr >> lf)
   where
-    blank = lf <|> (cr >> lf)
     word8' x = word8 x >> return ()
     lf = word8' 10
     cr = word8' 13
@@ -82,15 +83,18 @@ parseChunk = do
     newline
     return bs
 
+attribs :: Parser ()
 attribs = do
     _ <- word8 59 -- colon
     skipWhile notNewline
     newline
 
+hexs :: Parser Int
 hexs = do
     ws <- many1 hex
     return $ foldl1 (\a b -> a * 16 + b) $ map fromIntegral ws
 
+hex :: Parser Word8
 hex =
     (digit <|> upper <|> lower) <?> "Hexadecimal digit"
   where
