@@ -73,6 +73,7 @@ data Request = Request
     , secure :: Bool
     , headers :: [(S.ByteString, S.ByteString)]
     , path :: S.ByteString
+    , queryString :: [(S.ByteString, S.ByteString)]
     }
 
 http :: Request -> IO ([Header], S.ByteString)
@@ -89,10 +90,9 @@ http (Request {..}) = do
         | otherwise = host `S.append` S8.pack (':' : show port)
     go hc = do
         hcWrite hc $ S.concat
-            [ "GET "
-            , path
-            , " HTTP/1.1\r\n"
-            ]
+            $ "GET "
+            : path
+            : renderQS queryString [" HTTP/1.1\r\n"]
         let headers' = ("Host", hh) : headers
         forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
             [ k
@@ -123,3 +123,34 @@ takeLBS len = do
             let len' = len - S.length bs
             rest <- takeLBS len'
             return $ bs : rest
+
+renderQS :: [(S.ByteString, S.ByteString)]
+         -> [S.ByteString]
+         -> [S.ByteString]
+renderQS [] x = x
+renderQS (p:ps) x =
+    go "?" p ++ concatMap (go "&") ps ++ x
+  where
+    go sep (k, v) = [sep, escape k, "=", escape v]
+    escape = S8.concatMap (S8.pack . encodeUrlChar)
+
+encodeUrlChar :: Char -> String
+encodeUrlChar c
+    -- List of unreserved characters per RFC 3986
+    -- Gleaned from http://en.wikipedia.org/wiki/Percent-encoding
+    | 'A' <= c && c <= 'Z' = [c]
+    | 'a' <= c && c <= 'z' = [c]
+    | '0' <= c && c <= '9' = [c]
+encodeUrlChar c@'-' = [c]
+encodeUrlChar c@'_' = [c]
+encodeUrlChar c@'.' = [c]
+encodeUrlChar c@'~' = [c]
+encodeUrlChar ' ' = "+"
+encodeUrlChar y =
+    let (a, c) = fromEnum y `divMod` 16
+        b = a `mod` 16
+        showHex' x -- FIXME just use Numeric version?
+            | x < 10 = toEnum $ x + (fromEnum '0')
+            | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
+            | otherwise = error $ "Invalid argument to showHex: " ++ show x
+     in ['%', showHex' b, showHex' c]

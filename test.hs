@@ -12,6 +12,7 @@ main = withSocketsDo $ withOpenSSL $ do
         , secure = False
         , headers = []
         , path = "/"
+        , queryString = [("foo", "bar")]
         }
     mapM_ (\(x, y) -> do
         S.putStr x
