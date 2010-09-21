@@ -9,6 +9,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator hiding (head)
 import qualified Data.Enumerator as E
 import Http
+import Safe
 
 getSocket :: String -> Int -> IO Socket
 getSocket host port = do
@@ -53,29 +54,35 @@ connToEnum (HttpConn r _) =
     Iteratee . loop
   where
     loop (Continue k) = do
-        putStrLn "reading 2 bytes"
         bs <- r 2 -- FIXME better size
         if S.null bs
             then return $ Continue k
             else do
-                S.putStr bs
                 runIteratee (k $ Chunks [bs]) >>= loop
-    loop step = do
-        putStrLn "here"
-        return step
+    loop step = return step
 
-main = withSocketsDo $ withOpenSSL $ withOpenSslConn "localhost" 443 go
+main = do
+    Right (hs, b) <-
+        withSocketsDo $ withOpenSSL $ withSocketConn "www.google.co.il" 80 go
+    mapM_ (\(x, y) -> do
+        S.putStr x
+        putStr ": "
+        S.putStr y
+        putStrLn "") hs
+    putStrLn ""
+    S.putStr b
 
 go hc = do
-    hcWrite hc "GET / HTTP/1.1\nHost: www.google.com\n\n"
+    hcWrite hc "GET / HTTP/1.1\nHost: www.google.co.il\n\n"
     run $ connToEnum hc $$ do
         (status, hs) <- iterHeaders
-        let Just lenBS = lookup "Content-Length" hs
-        let len = read $ S8.unpack lenBS
-        body <- takeLBS len
-        return (hs, body)
-    --run $ connToEnum hc $$ E.head
-    --run $ enumEOF $$ E.head
+        body <-
+            if ("Transfer-Encoding", "chunked") `elem` hs
+                then iterChunks
+                else case lookup "Content-Length" hs >>= readMay . S8.unpack of
+                    Just len -> takeLBS len
+                    Nothing -> return []
+        return (hs, S.concat body)
 
 takeLBS 0 = return []
 takeLBS len = do

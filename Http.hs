@@ -65,6 +65,9 @@ parseStatus = do
         then newline >> parseStatus
         else return (ver, statCode, statMsg)
 
+iterChunks :: Monad m => Iteratee S.ByteString m [S.ByteString]
+iterChunks = iterParser parseChunks
+
 parseChunks :: Parser [S.ByteString]
 parseChunks = manyTill parseChunk zeroChunk
 
