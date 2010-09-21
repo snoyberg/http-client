@@ -1,4 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RecordWildCards #-}
 module Network.HTTP.Enumerator
     ( Request (..)
     , http
@@ -16,6 +17,7 @@ import Safe
 import Control.Exception (throwIO)
 import Control.Arrow (first)
 import Data.Char (toLower)
+import Control.Monad (forM_)
 
 getSocket :: String -> Int -> IO Socket
 getSocket host' port' = do
@@ -69,26 +71,31 @@ data Request = Request
     { host :: S.ByteString
     , port :: Int
     , secure :: Bool
+    , headers :: [(S.ByteString, S.ByteString)]
     }
 
 http :: Request -> IO ([Header], S.ByteString)
-http (Request h p s) = do
-    let h' = S8.unpack h
-    res <- (if s then withOpenSslConn else withSocketConn) h' p go
+http (Request {..}) = do
+    let h' = S8.unpack host
+    res <- (if secure then withOpenSslConn else withSocketConn) h' port go
     case res of
         Left e -> throwIO e
         Right x -> return x
   where
     hh
-        | p == 80 && not s = h
-        | p == 443 && s = h
-        | otherwise = h `S.append` S8.pack (':' : show p)
+        | port == 80 && not secure = host
+        | port == 443 && secure = host
+        | otherwise = host `S.append` S8.pack (':' : show port)
     go hc = do
-        mapM_ (hcWrite hc)
-            [ "GET / HTTP/1.1\r\nHost: "
-            , hh
-            , "\r\n\r\n"
+        hcWrite hc "GET / HTTP/1.1\r\n"
+        let headers' = ("Host", hh) : headers
+        forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
+            [ k
+            , ": "
+            , v
+            , "\r\n"
             ]
+        hcWrite hc "\r\n"
         run $ connToEnum hc $$ do
             (_FIXMEstatus, hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs -- FIXME use wai CIByteString?
