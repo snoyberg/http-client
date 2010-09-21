@@ -6,6 +6,7 @@ import Data.Attoparsec
 import Data.Attoparsec.Enumerator
 import Data.Enumerator (Iteratee)
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import Control.Applicative
 import Data.Word (Word8)
 
@@ -51,7 +52,7 @@ parseHeaders = do
 iterHeaders :: Monad m => Iteratee S.ByteString m (Status, [Header])
 iterHeaders = iterParser parseHeaders
 
-type Status = (S.ByteString, S.ByteString, S.ByteString)
+type Status = (S.ByteString, Int, S.ByteString)
 
 parseStatus :: Parser Status
 parseStatus = do
@@ -59,12 +60,16 @@ parseStatus = do
     ver <- takeWhile1 $ not . isSpace
     _ <- word8 32 -- space
     statCode <- takeWhile1 $ not . isSpace
+    statCode' <-
+        case reads $ S8.unpack statCode of
+            [] -> fail $ "Invalid status code: " ++ S8.unpack statCode
+            (x, _):_ -> return x
     _ <- word8 32
     statMsg <- takeWhile1 $ notNewline
     newline
     if (statCode == "100")
         then newline >> parseStatus
-        else return (ver, statCode, statMsg)
+        else return (ver, statCode', statMsg)
 
 iterChunks :: Monad m => Iteratee S.ByteString m [S.ByteString]
 iterChunks = iterParser parseChunks

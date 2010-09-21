@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 module Network.HTTP.Enumerator
     ( Request (..)
+    , Response (..)
     , http
     ) where
 
@@ -72,14 +73,21 @@ data Request = Request
     { host :: S.ByteString
     , port :: Int
     , secure :: Bool
-    , headers :: [(S.ByteString, S.ByteString)]
+    , requestHeaders :: [(S.ByteString, S.ByteString)]
     , path :: S.ByteString
     , queryString :: [(S.ByteString, S.ByteString)]
-    , body :: L.ByteString
+    , requestBody :: L.ByteString
     , method :: S.ByteString
     }
 
-http :: Request -> IO ([Header], S.ByteString)
+data Response = Response
+    { statusCode :: Int
+    , statusMessage :: S.ByteString
+    , responseHeaders :: [(S.ByteString, S.ByteString)]
+    , responseBody :: L.ByteString
+    }
+
+http :: Request -> IO Response
 http (Request {..}) = do
     let h' = S8.unpack host
     res <- (if secure then withOpenSslConn else withSocketConn) h' port go
@@ -98,8 +106,9 @@ http (Request {..}) = do
             : path
             : renderQS queryString [" HTTP/1.1\r\n"]
         let headers' = ("Host", hh)
-                     : ("Content-Length", S8.pack $ show $ L.length body)
-                     : headers
+                     : ("Content-Length", S8.pack $ show
+                                                  $ L.length requestBody)
+                     : requestHeaders
         forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
             [ k
             , ": "
@@ -107,9 +116,9 @@ http (Request {..}) = do
             , "\r\n"
             ]
         hcWrite hc "\r\n"
-        mapM_ (hcWrite hc) $ L.toChunks body
+        mapM_ (hcWrite hc) $ L.toChunks requestBody
         run $ connToEnum hc $$ do
-            (_FIXMEstatus, hs) <- iterHeaders
+            ((_, sc, sm), hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs -- FIXME use wai CIByteString?
             let mcl = lookup "content-length" hs'
             body' <-
@@ -118,7 +127,12 @@ http (Request {..}) = do
                     else case mcl >>= readMay . S8.unpack of
                         Just len -> takeLBS len
                         Nothing -> return [] -- FIXME read in body anyways?
-            return (hs, S.concat body')
+            return $ Response
+                { statusCode = sc
+                , statusMessage = sm
+                , responseHeaders = hs
+                , responseBody = L.fromChunks body'
+                }
 
 takeLBS :: Monad m => Int -> Iteratee S.ByteString m [S.ByteString]
 takeLBS 0 = return []
