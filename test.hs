@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 import Network.HTTP.Enumerator
 import OpenSSL
 import Network

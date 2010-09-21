@@ -66,14 +66,15 @@ connToEnum (HttpConn r _) =
     loop step = return step
 
 data Request = Request
-    { host :: String
+    { host :: S.ByteString
     , port :: Int
     , secure :: Bool
     }
 
 http :: Request -> IO ([Header], S.ByteString)
 http (Request h p s) = do
-    res <- (if s then withOpenSslConn else withSocketConn) h p go
+    let h' = S8.unpack h
+    res <- (if s then withOpenSslConn else withSocketConn) h' p go
     case res of
         Left e -> throwIO e
         Right x -> return x
@@ -81,11 +82,11 @@ http (Request h p s) = do
     hh
         | p == 80 && not s = h
         | p == 443 && s = h
-        | otherwise = h ++ ':' : show p
+        | otherwise = h `S.append` S8.pack (':' : show p)
     go hc = do
         mapM_ (hcWrite hc)
             [ "GET / HTTP/1.1\r\nHost: "
-            , S8.pack hh
+            , hh
             , "\r\n\r\n"
             ]
         run $ connToEnum hc $$ do
