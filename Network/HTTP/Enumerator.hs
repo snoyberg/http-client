@@ -9,6 +9,7 @@ import qualified OpenSSL.Session as SSL
 import Network.Socket
 import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator hiding (head, map)
 import qualified Data.Enumerator as E
@@ -74,6 +75,8 @@ data Request = Request
     , headers :: [(S.ByteString, S.ByteString)]
     , path :: S.ByteString
     , queryString :: [(S.ByteString, S.ByteString)]
+    , body :: L.ByteString
+    , method :: S.ByteString
     }
 
 http :: Request -> IO ([Header], S.ByteString)
@@ -90,10 +93,13 @@ http (Request {..}) = do
         | otherwise = host `S.append` S8.pack (':' : show port)
     go hc = do
         hcWrite hc $ S.concat
-            $ "GET "
+            $ method
+            : " "
             : path
             : renderQS queryString [" HTTP/1.1\r\n"]
-        let headers' = ("Host", hh) : headers
+        let headers' = ("Host", hh)
+                     : ("Content-Length", S8.pack $ show $ L.length body)
+                     : headers
         forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
             [ k
             , ": "
@@ -101,17 +107,18 @@ http (Request {..}) = do
             , "\r\n"
             ]
         hcWrite hc "\r\n"
+        mapM_ (hcWrite hc) $ L.toChunks body
         run $ connToEnum hc $$ do
             (_FIXMEstatus, hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs -- FIXME use wai CIByteString?
             let mcl = lookup "content-length" hs'
-            body <-
+            body' <-
                 if ("transfer-encoding", "chunked") `elem` hs'
                     then iterChunks
                     else case mcl >>= readMay . S8.unpack of
                         Just len -> takeLBS len
                         Nothing -> return [] -- FIXME read in body anyways?
-            return (hs, S.concat body)
+            return (hs, S.concat body')
 
 takeLBS :: Monad m => Int -> Iteratee S.ByteString m [S.ByteString]
 takeLBS 0 = return []
