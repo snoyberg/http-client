@@ -9,6 +9,7 @@ module Network.HTTP.Enumerator
     , parseUrl
     , httpLbs
     , simpleHttp
+    , withHttpEnumerator
     ) where
 
 import qualified OpenSSL.Session as SSL
@@ -19,8 +20,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator hiding (head, map, break)
 import qualified Data.Enumerator as E
-import Http
-import Safe
+import Network.HTTP.Enumerator.HttpParser
 import Control.Exception (throwIO, Exception)
 import Control.Arrow (first)
 import Data.Char (toLower)
@@ -31,6 +31,20 @@ import Data.Typeable (Typeable)
 import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
+import OpenSSL
+
+-- | The OpenSSL library requires some initialization of variables to be used,
+-- and therefore you must call 'withOpenSSL' before using any of its functions.
+-- As this library uses OpenSSL, you must use 'withOpenSSL' as well. (As a side
+-- note, you'll also want to use the withSocketsDo function for network
+-- activity.)
+--
+-- To future-proof this package against switching to different SSL libraries,
+-- we re-export 'withOpenSSL' under this name. You can call this function as
+-- early as you like; in fact, simply wrapping the do block of your main
+-- function is probably best.
+withHttpEnumerator :: IO a -> IO a
+withHttpEnumerator = withOpenSSL
 
 getSocket :: String -> Int -> IO Socket
 getSocket host' port' = do
@@ -90,6 +104,7 @@ data Request = Request
     , requestBody :: L.ByteString
     , method :: S.ByteString
     }
+    deriving Show
 
 data Response a = Response
     { statusCode :: Int
@@ -98,7 +113,7 @@ data Response a = Response
     }
 
 http :: Request -> Iteratee S.ByteString IO a -> IO (Response a)
-http (Request {..}) bodyIter = do
+http req@(Request {..}) bodyIter = do
     let h' = S8.unpack host
     res <- (if secure then withOpenSslConn else withSocketConn) h' port go
     case res of
@@ -282,3 +297,8 @@ httpLbs = flip http (L.fromChunks `fmap` consume)
 
 simpleHttp :: String -> IO (Response L.ByteString)
 simpleHttp url = parseUrl url >>= httpLbs
+
+readMay :: Read a => String -> Maybe a
+readMay s = case reads s of
+                [] -> Nothing
+                (x, _):_ -> Just x

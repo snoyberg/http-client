@@ -1,0 +1,33 @@
+name:            http-enumerator
+version:         0.0.0
+license:         BSD3
+license-file:    LICENSE
+author:          Michael Snoyman <michael@snoyman.com>
+maintainer:      Michael Snoyman <michael@snoyman.com>
+synopsis:        HTTP client package with enumerator interface and HTTPS support.
+description:
+    This package uses attoparsec for parsing the actual contents of the HTTP connection. The only gotcha is the withHttpEnumerator function, otherwise should do exactly what you expect.
+category:        Web
+stability:       Experimental
+cabal-version:   >= 1.6
+build-type:      Simple
+homepage:        http://github.com/snoyberg/http-enumerator
+
+library
+    build-depends: base                  >= 4       && < 5
+                 , bytestring            >= 0.9.1.4 && < 0.10
+                 , transformers          >= 0.2     && < 0.3
+                 , HsOpenSSL             >= 0.8     && < 0.9
+                 , failure               >= 0.1     && < 0.2
+                 , enumerator            >= 0.4     && < 0.5
+                 , network               >= 2.2.1.7 && < 2.3
+                 , network-bytestring    >= 0.1.3   && < 0.2
+                 , attoparsec            >= 0.8.0.2 && < 0.9
+                 , attoparsec-enumerator >= 0.2     && < 0.3
+    exposed-modules: Network.HTTP.Enumerator
+    other-modules:   Network.HTTP.Enumerator.HttpParser
+    ghc-options:     -Wall
+
+source-repository head
+  type:     git
+  location: git://github.com/snoyberg/http-enumerator.git

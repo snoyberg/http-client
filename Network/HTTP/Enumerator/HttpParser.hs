@@ -1,5 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Http where
+module Network.HTTP.Enumerator.HttpParser
+    ( iterHeaders
+    , iterChunks
+    ) where
 
 import Prelude hiding (take)
 import Data.Attoparsec

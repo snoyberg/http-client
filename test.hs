@@ -9,7 +9,7 @@ import Data.Enumerator (consume, Iteratee)
 import System.Environment (getArgs)
 
 main :: IO ()
-main = withSocketsDo $ withOpenSSL $ do
+main = withSocketsDo $ withHttpEnumerator $ do
     let _req1 = Request
             { host = "localhost"
             , port = 80
