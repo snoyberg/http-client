@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 module Network.HTTP.Enumerator
     ( Request (..)
     , Response (..)
@@ -12,7 +13,16 @@ module Network.HTTP.Enumerator
     , withHttpEnumerator
     ) where
 
+#if OPENSSL
+import OpenSSL
 import qualified OpenSSL.Session as SSL
+#else
+import System.IO (IOMode (ReadWriteMode), hClose)
+import qualified Network.TLS.Client as TLS
+import qualified Control.Monad.State as MTL
+import Data.IORef
+#endif
+
 import Network.Socket
 import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString as S
@@ -31,7 +41,6 @@ import Data.Typeable (Typeable)
 import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
-import OpenSSL
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -44,7 +53,11 @@ import OpenSSL
 -- early as you like; in fact, simply wrapping the do block of your main
 -- function is probably best.
 withHttpEnumerator :: IO a -> IO a
+#if OPENSSL
 withHttpEnumerator = withOpenSSL
+#else
+withHttpEnumerator = id
+#endif
 
 getSocket :: String -> Int -> IO Socket
 getSocket host' port' = do
@@ -64,8 +77,10 @@ withSocketConn host' port' f = do
     sClose sock
     return a
 
-withOpenSslConn :: String -> Int -> (HttpConn -> IO a) -> IO a
-withOpenSslConn host' port' f = do
+withSslConn :: String -> Int -> (HttpConn -> IO a) -> IO a
+withSslConn host' port' f = do
+
+#if OPENSSL
     ctx <- SSL.context
     sock <- getSocket host' port'
     ssl <- SSL.connection ctx sock
@@ -76,6 +91,40 @@ withOpenSslConn host' port' f = do
         }
     SSL.shutdown ssl SSL.Unidirectional
     return a
+#else
+    sock <- getSocket host' port'
+    handle <- socketToHandle sock ReadWriteMode
+    (a, b) <- TLS.runTLSClient (do
+        TLS.connect handle (error "ClientRandom") (error "Word8s")
+        state <- TLS.TLSClient MTL.get
+        istate <- TLS.TLSClient $ MTL.liftIO $ newIORef state
+        a <- TLS.TLSClient $ MTL.liftIO $ f HttpConn
+            { hcRead = \_len -> do
+                state1 <- readIORef istate
+                (a, state2) <-
+                    flip MTL.runStateT state1
+                  $ TLS.runTLSC
+                  $ TLS.recvData handle
+                writeIORef istate state2
+                return $ S.concat $ L.toChunks a
+            , hcWrite = \bs -> do
+                state1 <- readIORef istate
+                state2 <-
+                    flip MTL.execStateT state1
+                  $ TLS.runTLSC
+                  $ TLS.sendData handle
+                  $ L.fromChunks [bs]
+                writeIORef istate state2
+            }
+        state' <- TLS.TLSClient $ MTL.liftIO $ readIORef istate
+        TLS.TLSClient $ MTL.put state'
+        TLS.close handle
+        return a
+        ) (error "TLSClientParams") (error "SRandomGen")
+    hClose handle
+    print b -- FIXME
+    return a
+#endif
 
 data HttpConn = HttpConn
     { hcRead :: Int -> IO S.ByteString
@@ -113,9 +162,9 @@ data Response a = Response
     }
 
 http :: Request -> Iteratee S.ByteString IO a -> IO (Response a)
-http req@(Request {..}) bodyIter = do
+http Request {..} bodyIter = do
     let h' = S8.unpack host
-    res <- (if secure then withOpenSslConn else withSocketConn) h' port go
+    res <- (if secure then withSslConn else withSocketConn) h' port go
     case res of
         Left e -> throwIO e
         Right x -> return x
