@@ -36,7 +36,7 @@ library
     else
         build-depends: tls               >= 0.1.1   && < 0.2
                      , mtl               >= 1.1     && < 1.2
-                     , haskell98
+                     , AES               >= 0.2.7   && < 0.3
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
     ghc-options:     -Wall

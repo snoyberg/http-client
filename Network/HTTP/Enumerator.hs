@@ -17,13 +17,16 @@ module Network.HTTP.Enumerator
 import OpenSSL
 import qualified OpenSSL.Session as SSL
 #else
-import System.IO (IOMode (ReadWriteMode), hClose)
+import System.IO (hClose, hSetBuffering, BufferMode (NoBuffering))
 import qualified Network.TLS.Client as TLS
 import qualified Network.TLS.Struct as TLS
 import qualified Network.TLS.Cipher as TLS
+import qualified Network.TLS.SRandom as TLS
 import qualified Control.Monad.State as MTL
 import Data.IORef
-import Random (newStdGen)
+import Network (connectTo, PortID (PortNumber))
+import qualified Codec.Crypto.AES.Random as AESRand
+import Control.Applicative ((<$>))
 #endif
 
 import Network.Socket
@@ -95,33 +98,29 @@ withSslConn host' port' f = do
     SSL.shutdown ssl SSL.Unidirectional
     return a
 #else
-    putStrLn "here1"
-    sock <- getSocket host' port'
-    putStrLn "here2"
-    handle <- socketToHandle sock ReadWriteMode
-    putStrLn "here3"
-    random <- newStdGen
-    putStrLn "here3.5"
-    let words' = replicate 32 5 -- FIXME
-    let ckey = TLS.ClientKeyData words'
-    Just crandom <- return $ TLS.clientRandom words'
-    putStrLn "here4"
+    ranByte <- S.head <$> AESRand.randBytes 1
+    _ <- AESRand.randBytes (fromIntegral ranByte)
+    Just clientRandom <- TLS.clientRandom . S.unpack <$> AESRand.randBytes 32
+    premasterRandom <- (TLS.ClientKeyData . S.unpack) <$> AESRand.randBytes 46
+    seqInit <- conv . S.unpack <$> AESRand.randBytes 4
+    handle <- connectTo host' (PortNumber $ fromIntegral port')
+    hSetBuffering handle NoBuffering
     let params = TLS.TLSClientParams
             TLS.TLS10
-            [TLS.SSL3, TLS.TLS10, TLS.TLS11, TLS.TLS12]
+            [TLS.TLS10]
             Nothing
-            [TLS.cipher_AES256_SHA256]
+            [ TLS.cipher_AES128_SHA1
+            , TLS.cipher_AES256_SHA1
+            , TLS.cipher_RC4_128_MD5
+            , TLS.cipher_RC4_128_SHA1
+            ]
             Nothing
             (TLS.TLSClientCallbacks Nothing)
 
-    (a, b) <- TLS.runTLSClient (do
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here5"
-        TLS.connect handle crandom ckey
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here6"
+    (a, _) <- TLS.runTLSClient (do
+        TLS.connect handle clientRandom premasterRandom
         state <- TLS.TLSClient MTL.get
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here7"
         istate <- TLS.TLSClient $ MTL.liftIO $ newIORef state
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here8"
         a <- TLS.TLSClient $ MTL.liftIO $ f HttpConn
             { hcRead = \_len -> do
                 state1 <- readIORef istate
@@ -140,18 +139,18 @@ withSslConn host' port' f = do
                   $ L.fromChunks [bs]
                 writeIORef istate state2
             }
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here9"
         state' <- TLS.TLSClient $ MTL.liftIO $ readIORef istate
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here10"
         TLS.TLSClient $ MTL.put state'
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here11"
         TLS.close handle
-        TLS.TLSClient $ MTL.liftIO $ putStrLn "here12"
         return a
-        ) params random
+        ) params $ TLS.makeSRandomGen seqInit
     hClose handle
-    print b -- FIXME
     return a
+
+conv :: [Word8] -> Int
+conv l = (a `shiftL` 24) .|. (b `shiftL` 16) .|. (c `shiftL` 8) .|. d
+    where
+        [a,b,c,d] = map fromIntegral l
 #endif
 
 data HttpConn = HttpConn
