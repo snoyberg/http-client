@@ -86,6 +86,7 @@ zeroChunk = word8 48 >> (newline <|> attribs) -- 0
 parseChunk :: Parser S.ByteString
 parseChunk = do
     len <- hexs
+    skipWhile isSpace
     newline <|> attribs
     bs <- take len
     newline
