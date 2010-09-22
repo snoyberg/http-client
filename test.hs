@@ -1,6 +1,5 @@
 {-# LANGUAGE OverloadedStrings #-}
 import Network.HTTP.Enumerator
-import OpenSSL
 import Network
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L

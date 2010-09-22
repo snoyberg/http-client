@@ -19,8 +19,11 @@ import qualified OpenSSL.Session as SSL
 #else
 import System.IO (IOMode (ReadWriteMode), hClose)
 import qualified Network.TLS.Client as TLS
+import qualified Network.TLS.Struct as TLS
+import qualified Network.TLS.Cipher as TLS
 import qualified Control.Monad.State as MTL
 import Data.IORef
+import Random (newStdGen)
 #endif
 
 import Network.Socket
@@ -92,12 +95,33 @@ withSslConn host' port' f = do
     SSL.shutdown ssl SSL.Unidirectional
     return a
 #else
+    putStrLn "here1"
     sock <- getSocket host' port'
+    putStrLn "here2"
     handle <- socketToHandle sock ReadWriteMode
+    putStrLn "here3"
+    random <- newStdGen
+    putStrLn "here3.5"
+    let words' = replicate 32 5 -- FIXME
+    let ckey = TLS.ClientKeyData words'
+    Just crandom <- return $ TLS.clientRandom words'
+    putStrLn "here4"
+    let params = TLS.TLSClientParams
+            TLS.TLS10
+            [TLS.SSL3, TLS.TLS10, TLS.TLS11, TLS.TLS12]
+            Nothing
+            [TLS.cipher_AES256_SHA256]
+            Nothing
+            (TLS.TLSClientCallbacks Nothing)
+
     (a, b) <- TLS.runTLSClient (do
-        TLS.connect handle (error "ClientRandom") (error "Word8s")
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here5"
+        TLS.connect handle crandom ckey
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here6"
         state <- TLS.TLSClient MTL.get
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here7"
         istate <- TLS.TLSClient $ MTL.liftIO $ newIORef state
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here8"
         a <- TLS.TLSClient $ MTL.liftIO $ f HttpConn
             { hcRead = \_len -> do
                 state1 <- readIORef istate
@@ -116,11 +140,15 @@ withSslConn host' port' f = do
                   $ L.fromChunks [bs]
                 writeIORef istate state2
             }
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here9"
         state' <- TLS.TLSClient $ MTL.liftIO $ readIORef istate
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here10"
         TLS.TLSClient $ MTL.put state'
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here11"
         TLS.close handle
+        TLS.TLSClient $ MTL.liftIO $ putStrLn "here12"
         return a
-        ) (error "TLSClientParams") (error "SRandomGen")
+        ) params random
     hClose handle
     print b -- FIXME
     return a

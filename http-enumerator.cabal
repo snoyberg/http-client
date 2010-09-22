@@ -16,6 +16,9 @@ homepage:        http://github.com/snoyberg/http-enumerator
 flag openssl
   description: Build using the HSOpenSSL library.
   default: False
+flag test
+  description: Build the test executable.
+  default: False
 
 library
     build-depends: base                  >= 4       && < 5
@@ -33,9 +36,17 @@ library
     else
         build-depends: tls               >= 0.1.1   && < 0.2
                      , mtl               >= 1.1     && < 1.2
+                     , haskell98
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
     ghc-options:     -Wall
+
+executable http-enumerator
+    main-is: test.hs
+    if flag(test)
+        Buildable: True
+    else
+        Buildable: False
 
 source-repository head
   type:     git
