@@ -1,7 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Enumerator.HttpParser
     ( iterHeaders
-    , iterChunks
+    , iterChunkHeader
+    , iterNewline
     ) where
 
 import Prelude hiding (take)
@@ -83,11 +84,22 @@ parseChunks = manyTill parseChunk zeroChunk
 zeroChunk :: Parser ()
 zeroChunk = word8 48 >> (newline <|> attribs) -- 0
 
-parseChunk :: Parser S.ByteString
-parseChunk = do
+parseChunkHeader :: Parser Int
+parseChunkHeader = do
     len <- hexs
     skipWhile isSpace
     newline <|> attribs
+    return len
+
+iterChunkHeader :: Monad m => Iteratee S.ByteString m Int
+iterChunkHeader = iterParser parseChunkHeader
+
+iterNewline :: Monad m => Iteratee S.ByteString m ()
+iterNewline = iterParser newline
+
+parseChunk :: Parser S.ByteString
+parseChunk = do
+    len <- parseChunkHeader
     bs <- take len
     newline
     return bs

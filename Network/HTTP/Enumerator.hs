@@ -47,6 +47,7 @@ import Data.Typeable (Typeable)
 import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -163,7 +164,12 @@ connToEnum (HttpConn r _) =
     Iteratee . loop
   where
     loop (Continue k) = do
-        bs <- r 2 -- FIXME better size
+#if DEBUG
+        bs <- r 5
+        putStrLn $ "connToEnum: read 2 bytes: " ++ show bs
+#else
+        bs <- r defaultChunkSize
+#endif
         if S.null bs
             then return $ Continue k
             else do
@@ -224,27 +230,61 @@ http Request {..} bodyIter = do
             ((_, sc, _), hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs
             let mcl = lookup "content-length" hs'
-            body' <-
-                if ("transfer-encoding", "chunked") `elem` hs'
-                    then iterChunks
-                    else case mcl >>= readMay . S8.unpack of
-                        Just len -> takeLBS len
-                        Nothing -> return [] -- FIXME read in body anyways?
-            eres <- liftIO $ run $ enumList 1 body' $$ bodyIter sc hs
+            let body' =
+                    if ("transfer-encoding", "chunked") `elem` hs'
+                        then iterChunks'
+                        else case mcl >>= readMay . S8.unpack of
+                            Just len -> takeLBS len
+                            Nothing -> E.map id
+            bodyStep <- liftIO $ runIteratee $ bodyIter sc hs
+            bodyStep' <- body' bodyStep
+            eres <- liftIO $ run $ Iteratee $ return bodyStep'
             case eres of
                 Left err -> liftIO $ throwIO err
                 Right res -> return res
 
-takeLBS :: Monad m => Int -> Iteratee S.ByteString m [S.ByteString]
-takeLBS 0 = return []
-takeLBS len = do
+iterChunks' :: Enumeratee S.ByteString S.ByteString IO a
+iterChunks' k@(Continue _) = do
+#if DEBUG
+    liftIO $ putStrLn "iterChunkHeader start"
+#endif
+    len <- iterChunkHeader
+#if DEBUG
+    liftIO $ putStrLn $ "iterChunkHeader stop: " ++ show len
+#endif
+    if len == 0
+        then return k
+        else do
+            k' <- takeLBS len k
+#if DEBUG
+            liftIO $ putStrLn "iterNewline start"
+#endif
+            iterNewline
+#if DEBUG
+            liftIO $ putStrLn "iterNewline stop"
+#endif
+            iterChunks' k'
+iterChunks' step = return step
+
+takeLBS :: Int -> Enumeratee S.ByteString S.ByteString IO a
+takeLBS 0 step = return step
+takeLBS len (Continue k) = do
     mbs <- E.head
     case mbs of
-        Nothing -> return []
+        Nothing -> return $ Continue k
         Just bs -> do
-            let len' = len - S.length bs
-            rest <- takeLBS len'
-            return $ bs : rest
+            let (len', chunk, rest) =
+                    if S.length bs > len
+                        then (0, S.take len bs,
+                                if S.length bs == len
+                                    then Chunks []
+                                    else Chunks [S.drop len bs])
+                        else (len - S.length bs, bs, Chunks [])
+            step' <- liftIO $ runIteratee $ k $ Chunks [chunk]
+            if len' == 0
+                then yield step' rest
+                else takeLBS len' step'
+takeLBS _ step = return step
 
 renderQS :: [(S.ByteString, S.ByteString)]
          -> [S.ByteString]
@@ -271,7 +311,7 @@ encodeUrlChar ' ' = "+"
 encodeUrlChar y =
     let (a, c) = fromEnum y `divMod` 16
         b = a `mod` 16
-        showHex' x -- FIXME just use Numeric version?
+        showHex' x
             | x < 10 = toEnum $ x + (fromEnum '0')
             | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
             | otherwise = error $ "Invalid argument to showHex: " ++ show x
@@ -367,8 +407,24 @@ breakDiscard w s =
 
 httpLbs :: Request -> IO Response
 httpLbs = flip http $ \sc hs -> do
+#if DEBUG
+    b <- fmap L.fromChunks consume'
+#else
     b <- fmap L.fromChunks consume
+#endif
     return $ Response sc hs b
+
+#if DEBUG
+consume' =
+    liftI step
+  where
+    step chunk = case chunk of
+        Chunks [] -> Continue $ returnI . step
+        Chunks xs -> Continue $ \stream -> do
+            liftIO $ putStrLn $ "consume': received Chunks: " ++ show xs
+            returnI $ step stream
+        EOF -> Yield [] EOF
+#endif
 
 simpleHttp :: String -> IO Response
 simpleHttp url = parseUrl url >>= httpLbs
