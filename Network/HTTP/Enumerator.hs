@@ -41,7 +41,8 @@ import Control.Exception (throwIO, Exception)
 import Control.Arrow (first)
 import Data.Char (toLower)
 import Control.Monad (forM_)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.Trans.Class (lift)
 import Control.Failure
 import Data.Typeable (Typeable)
 import Data.Word (Word8)
@@ -75,38 +76,38 @@ getSocket host' port' = do
     connect sock (addrAddress addr)
     return sock
 
-withSocketConn :: String -> Int -> (HttpConn -> IO a) -> IO a
+withSocketConn :: MonadIO m => String -> Int -> (HttpConn -> m a) -> m a
 withSocketConn host' port' f = do
-    sock <- getSocket host' port'
+    sock <- liftIO $ getSocket host' port'
     a <- f HttpConn
         { hcRead = B.recv sock
         , hcWrite = B.sendAll sock
         }
-    sClose sock
+    liftIO $ sClose sock
     return a
 
-withSslConn :: String -> Int -> (HttpConn -> IO a) -> IO a
+withSslConn :: MonadIO m => String -> Int -> (HttpConn -> m a) -> m a
 withSslConn host' port' f = do
 
 #if OPENSSL
-    ctx <- SSL.context
-    sock <- getSocket host' port'
-    ssl <- SSL.connection ctx sock
-    SSL.connect ssl
+    ctx <- liftIO $ SSL.context
+    sock <- liftIO $ getSocket host' port'
+    ssl <- liftIO $ SSL.connection ctx sock
+    liftIO $ SSL.connect ssl
     a <- f HttpConn
         { hcRead = SSL.read ssl
         , hcWrite = SSL.write ssl
         }
-    SSL.shutdown ssl SSL.Unidirectional
+    liftIO $ SSL.shutdown ssl SSL.Unidirectional
     return a
 #else
-    ranByte <- S.head <$> AESRand.randBytes 1
-    _ <- AESRand.randBytes (fromIntegral ranByte)
-    Just clientRandom <- TLS.clientRandom . S.unpack <$> AESRand.randBytes 32
-    premasterRandom <- (TLS.ClientKeyData . S.unpack) <$> AESRand.randBytes 46
-    seqInit <- conv . S.unpack <$> AESRand.randBytes 4
-    handle <- connectTo host' (PortNumber $ fromIntegral port')
-    hSetBuffering handle NoBuffering
+    ranByte <- liftIO $ S.head <$> AESRand.randBytes 1
+    _ <- liftIO $ AESRand.randBytes (fromIntegral ranByte)
+    Just clientRandom <- liftIO $ TLS.clientRandom . S.unpack <$> AESRand.randBytes 32
+    premasterRandom <- liftIO $ (TLS.ClientKeyData . S.unpack) <$> AESRand.randBytes 46
+    seqInit <- liftIO $ conv . S.unpack <$> AESRand.randBytes 4
+    handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
+    liftIO $ hSetBuffering handle NoBuffering
     let params = TLS.TLSClientParams
             TLS.TLS10
             [TLS.TLS10]
@@ -119,34 +120,32 @@ withSslConn host' port' f = do
             Nothing
             (TLS.TLSClientCallbacks Nothing)
 
-    (a, _) <- TLS.runTLSClient (do
+    ((), state) <- liftIO $ TLS.runTLSClient (do
         TLS.connect handle clientRandom premasterRandom
-        state <- TLS.TLSClient MTL.get
-        istate <- TLS.TLSClient $ MTL.liftIO $ newIORef state
-        a <- TLS.TLSClient $ MTL.liftIO $ f HttpConn
-            { hcRead = \_len -> do
-                state1 <- readIORef istate
-                (a, state2) <-
-                    flip MTL.runStateT state1
-                  $ TLS.runTLSC
-                  $ TLS.recvData handle
-                writeIORef istate state2
-                return $ S.concat $ L.toChunks a
-            , hcWrite = \bs -> do
-                state1 <- readIORef istate
-                state2 <-
-                    flip MTL.execStateT state1
-                  $ TLS.runTLSC
-                  $ TLS.sendData handle
-                  $ L.fromChunks [bs]
-                writeIORef istate state2
-            }
-        state' <- TLS.TLSClient $ MTL.liftIO $ readIORef istate
-        TLS.TLSClient $ MTL.put state'
-        TLS.close handle
-        return a
         ) params $ TLS.makeSRandomGen seqInit
-    hClose handle
+    istate <- liftIO $ newIORef state
+    a <- f HttpConn
+        { hcRead = \_len -> do
+            state1 <- readIORef istate
+            (a, state2) <-
+                flip MTL.runStateT state1
+              $ TLS.runTLSC
+              $ TLS.recvData handle
+            writeIORef istate state2
+            return $ S.concat $ L.toChunks a
+        , hcWrite = \bs -> do
+            state1 <- readIORef istate
+            state2 <-
+                flip MTL.execStateT state1
+              $ TLS.runTLSC
+              $ TLS.sendData handle
+              $ L.fromChunks [bs]
+            writeIORef istate state2
+        }
+    state' <- liftIO $ readIORef istate
+    _state'' <- liftIO $ flip MTL.execStateT state'
+              $ TLS.runTLSC $ TLS.close handle
+    liftIO $ hClose handle
     return a
 
 conv :: [Word8] -> Int
@@ -160,16 +159,16 @@ data HttpConn = HttpConn
     , hcWrite :: S.ByteString -> IO ()
     }
 
-connToEnum :: HttpConn -> Enumerator S.ByteString IO a
+connToEnum :: MonadIO m => HttpConn -> Enumerator S.ByteString m a
 connToEnum (HttpConn r _) =
     Iteratee . loop
   where
     loop (Continue k) = do
 #if DEBUG
         bs <- r 5
-        putStrLn $ "connToEnum: read 2 bytes: " ++ show bs
+        liftIO $ putStrLn $ "connToEnum: read 2 bytes: " ++ show bs
 #else
-        bs <- r defaultChunkSize
+        bs <- liftIO $ r defaultChunkSize
 #endif
         if S.null bs
             then return $ Continue k
@@ -195,14 +194,16 @@ data Response = Response
     , responseBody :: L.ByteString
     }
 
-http :: Request
-     -> (Int -> [(S.ByteString, S.ByteString)] -> Iteratee S.ByteString IO a)
-     -> IO a
+http :: MonadIO m
+     => Request
+     -> (Int -> [(S.ByteString, S.ByteString)] -> Iteratee S.ByteString m a)
+     -> m a
 http Request {..} bodyIter = do
     let h' = S8.unpack host
-    res <- (if secure then withSslConn else withSocketConn) h' port go
+    let withConn = if secure then withSslConn else withSocketConn
+    res <- withConn h' port go
     case res of
-        Left e -> throwIO e
+        Left e -> liftIO $ throwIO e
         Right x -> return x
   where
     hh
@@ -210,7 +211,7 @@ http Request {..} bodyIter = do
         | port == 443 && secure = host
         | otherwise = host `S.append` S8.pack (':' : show port)
     go hc = do
-        hcWrite hc $ S.concat
+        liftIO $ hcWrite hc $ S.concat
             $ method
             : " "
             : path
@@ -219,14 +220,14 @@ http Request {..} bodyIter = do
                      : ("Content-Length", S8.pack $ show
                                                   $ L.length requestBody)
                      : requestHeaders
-        forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
+        liftIO $ forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
             [ k
             , ": "
             , v
             , "\r\n"
             ]
-        hcWrite hc "\r\n"
-        mapM_ (hcWrite hc) $ L.toChunks requestBody
+        liftIO $ hcWrite hc "\r\n"
+        liftIO $ mapM_ (hcWrite hc) $ L.toChunks requestBody
         run $ connToEnum hc $$ do
             ((_, sc, _), hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs
@@ -237,14 +238,14 @@ http Request {..} bodyIter = do
                         else case mcl >>= readMay . S8.unpack of
                             Just len -> takeLBS len
                             Nothing -> E.map id
-            bodyStep <- liftIO $ runIteratee $ bodyIter sc hs
+            bodyStep <- lift $ runIteratee $ bodyIter sc hs
             bodyStep' <- body' bodyStep
-            eres <- liftIO $ run $ Iteratee $ return bodyStep'
+            eres <- lift $ run $ Iteratee $ return bodyStep'
             case eres of
                 Left err -> liftIO $ throwIO err
                 Right res -> return res
 
-iterChunks' :: Enumeratee S.ByteString S.ByteString IO a
+iterChunks' :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 iterChunks' k@(Continue _) = do
 #if DEBUG
     liftIO $ putStrLn "iterChunkHeader start"
@@ -267,7 +268,7 @@ iterChunks' k@(Continue _) = do
             iterChunks' k'
 iterChunks' step = return step
 
-takeLBS :: Int -> Enumeratee S.ByteString S.ByteString IO a
+takeLBS :: MonadIO m => Int -> Enumeratee S.ByteString S.ByteString m a
 takeLBS 0 step = return step
 takeLBS len (Continue k) = do
     mbs <- E.head
@@ -281,7 +282,7 @@ takeLBS len (Continue k) = do
                                     then Chunks []
                                     else Chunks [S.drop len bs])
                         else (len - S.length bs, bs, Chunks [])
-            step' <- liftIO $ runIteratee $ k $ Chunks [chunk]
+            step' <- lift $ runIteratee $ k $ Chunks [chunk]
             if len' == 0
                 then yield step' rest
                 else takeLBS len' step'
@@ -419,7 +420,7 @@ breakDiscard w s =
     let (x, y) = S.break (== w) s
      in (x, S.drop 1 y)
 
-httpLbs :: Request -> IO Response
+httpLbs :: MonadIO m => Request -> m Response
 httpLbs = flip http $ \sc hs -> do
 #if DEBUG
     b <- fmap L.fromChunks consume'
@@ -440,7 +441,8 @@ consume' =
         EOF -> Yield [] EOF
 #endif
 
-simpleHttp :: String -> IO Response
+simpleHttp :: (Failure InvalidUrlException m, MonadIO m)
+           => String -> m Response
 simpleHttp url = parseUrl url >>= httpLbs
 
 readMay :: Read a => String -> Maybe a
