@@ -48,6 +48,7 @@ import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
+import Codec.Binary.UTF8.String (encodeString)
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -296,6 +297,10 @@ renderQS (p:ps) x =
     go sep (k, v) = [sep, escape k, "=", escape v]
     escape = S8.concatMap (S8.pack . encodeUrlChar)
 
+encodeUrlCharPI :: Char -> String
+encodeUrlCharPI '/' = "/"
+encodeUrlCharPI c = encodeUrlChar c
+
 encodeUrlChar :: Char -> String
 encodeUrlChar c
     -- List of unreserved characters per RFC 3986
@@ -328,15 +333,24 @@ parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
 
 parseUrl1 :: Failure InvalidUrlException m
           => String -> Bool -> String -> m Request
-parseUrl1 full sec s = do
+parseUrl1 full sec s =
+    parseUrl2 full sec s'
+  where
+    s' = encodeString s
+
+parseUrl2 :: Failure InvalidUrlException m
+          => String -> Bool -> String -> m Request
+parseUrl2 full sec s = do
     port' <- mport
     return Request
-        { host = S8.pack hostname -- FIXME check chars
+        { host = S8.pack hostname
         , port = port'
         , secure = sec
         , requestHeaders = []
-        , path = S8.pack $ if null path' then "/" else path' -- FIXME check chars
-        , queryString = parseQueryString $ S8.pack qstring -- FIXME check chars
+        , path = S8.pack $ if null path'
+                            then "/"
+                            else concatMap encodeUrlCharPI path'
+        , queryString = parseQueryString $ S8.pack qstring
         , requestBody = L.empty
         , method = "GET"
         }

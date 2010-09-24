@@ -30,6 +30,7 @@ library
                  , network-bytestring    >= 0.1.3   && < 0.2
                  , attoparsec            >= 0.8.0.2 && < 0.9
                  , attoparsec-enumerator >= 0.2     && < 0.3
+                 , utf8-string           >= 0.3.4   && < 0.4
     if flag(openssl)
         build-depends: HsOpenSSL         >= 0.8     && < 0.9
         cpp-options:   -DOPENSSL

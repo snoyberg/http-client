@@ -6,8 +6,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Data.Enumerator (consume, Iteratee)
-import System.Environment (getArgs)
-import Codec.Binary.UTF8.String
+import System.Environment.UTF8 (getArgs)
 
 main :: IO ()
 main = withSocketsDo $ withHttpEnumerator $ do
@@ -22,7 +21,7 @@ main = withSocketsDo $ withHttpEnumerator $ do
             , method = "POST"
             }
     [url] <- getArgs
-    _req2 <- parseUrl $ decodeString url
+    _req2 <- parseUrl url
     Response sc hs b <- httpLbs _req2
 #if DEBUG
     return ()
