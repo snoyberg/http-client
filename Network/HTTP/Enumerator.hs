@@ -25,6 +25,15 @@
 -- > main = withFile "google.html" WriteMode $ \handle -> do
 -- >     request <- parseUrl "http://google.com/"
 -- >     httpRedirect (\_ _ -> iterHandle handle) request
+--
+-- The following headers are automatically set by this module, and should not
+-- be added to 'requestHeaders':
+--
+-- * Content-Length
+--
+-- * Host
+--
+-- * Accept-Encoding (not currently set, but client usage of this variable /will/ cause breakage).
 module Network.HTTP.Enumerator
     ( -- * Perform a request
       simpleHttp
@@ -167,6 +176,7 @@ withSslConn host' port' f = do
             writeIORef istate state2
             return $ S.concat $ L.toChunks a
         , hcWrite = \bs -> do
+            S.putStr bs
             state1 <- readIORef istate
             state2 <-
                 flip MTL.execStateT state1
