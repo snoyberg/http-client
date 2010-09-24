@@ -3,14 +3,27 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
+-- | This module contains everything you need to initiate HTTP connections.
+-- Make sure to wrap your code with 'withHttpEnumerator'. If you want a simple
+-- interface based on URLs, you can use 'simpleHttp'. If you want raw power,
+-- 'http' is the underlying workhorse of this package.
 module Network.HTTP.Enumerator
-    ( Request (..)
-    , Response (..)
-    , http
-    , parseUrl
+    ( -- * Perform a request
+      simpleHttp
     , httpLbs
-    , simpleHttp
+    , httpLbsRedirect
+    , http
+    , httpRedirect
+      -- * Datatypes
+    , Request (..)
+    , Response (..)
+      -- * Utility functions
+    , parseUrl
     , withHttpEnumerator
+    , lbsIter
+      -- * Exceptions
+    , InvalidUrlException (..)
+    , HttpException (..)
     ) where
 
 #if OPENSSL
@@ -420,14 +433,18 @@ breakDiscard w s =
     let (x, y) = S.break (== w) s
      in (x, S.drop 1 y)
 
-httpLbs :: MonadIO m => Request -> m Response
-httpLbs = flip http $ \sc hs -> do
+lbsIter :: Monad m => Int -> [(S.ByteString, S.ByteString)]
+        -> Iteratee S.ByteString m Response
+lbsIter sc hs = do
 #if DEBUG
     b <- fmap L.fromChunks consume'
 #else
     b <- fmap L.fromChunks consume
 #endif
     return $ Response sc hs b
+
+httpLbs :: MonadIO m => Request -> m Response
+httpLbs = flip http lbsIter
 
 #if DEBUG
 consume' =
@@ -441,9 +458,65 @@ consume' =
         EOF -> Yield [] EOF
 #endif
 
-simpleHttp :: (Failure InvalidUrlException m, MonadIO m)
-           => String -> m Response
-simpleHttp url = parseUrl url >>= httpLbs
+simpleHttp :: ( Failure InvalidUrlException m
+              , Failure HttpException m
+              , MonadIO m)
+           => String -> m L.ByteString
+simpleHttp url = do
+    url' <- parseUrl url
+    Response sc _ b <- httpLbsRedirect url'
+    if 200 <= sc && sc < 300
+        then return b
+        else failure $ HttpException sc b
+
+data HttpException = HttpException Int L.ByteString
+    deriving (Show, Typeable)
+instance Exception HttpException
+
+-- | Same as 'http', but follows all 3xx redirect status codes that contain a
+-- location header.
+httpRedirect
+    :: (MonadIO m, Failure InvalidUrlException m)
+    => Request
+    -> (Int -> [(S.ByteString, S.ByteString)] -> Iteratee S.ByteString m a)
+    -> m a
+httpRedirect req iter =
+    http req iter'
+  where
+    iter' code hs
+        | 300 <= code && code < 400 =
+            case lookup "location" $ map (first $ S8.map toLower) hs of
+                Just l'' -> lift $ do
+                    -- Prepend scheme, host and port if missing
+                    let l' =
+                            case S8.uncons l'' of
+                                Just ('/', _) -> concat
+                                    [ "http"
+                                    , if secure req then "s" else ""
+                                    , "://"
+                                    , S8.unpack $ host req
+                                    , ":"
+                                    , show $ port req
+                                    , S8.unpack l''
+                                    ]
+                                _ -> S8.unpack l''
+                    l <- parseUrl l'
+                    let req' = req
+                            { host = host l
+                            , port = port l
+                            , secure = secure l
+                            , path = path l
+                            , queryString = queryString l
+                            }
+                    http req' iter
+                Nothing -> iter code hs
+        | otherwise = iter code hs
+
+httpLbsRedirect :: ( Failure HttpException m
+                   , Failure InvalidUrlException m
+                   , MonadIO m)
+                => Request -> m Response
+httpLbsRedirect = flip httpRedirect lbsIter
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of

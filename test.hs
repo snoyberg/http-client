@@ -10,19 +10,9 @@ import System.Environment.UTF8 (getArgs)
 
 main :: IO ()
 main = withSocketsDo $ withHttpEnumerator $ do
-    let _req1 = Request
-            { host = "localhost"
-            , port = 80
-            , secure = False
-            , requestHeaders = []
-            , path = "/"
-            , queryString = [("foo", "bar")]
-            , requestBody = L8.pack "baz=bin"
-            , method = "POST"
-            }
     [url] <- getArgs
     _req2 <- parseUrl url
-    Response sc hs b <- httpLbs _req2
+    Response sc hs b <- httpLbsRedirect _req2
 #if DEBUG
     return ()
 #else
