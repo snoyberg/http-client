@@ -182,13 +182,15 @@ data Request = Request
     }
     deriving Show
 
-data Response a = Response
+data Response = Response
     { statusCode :: Int
     , responseHeaders :: [(S.ByteString, S.ByteString)]
-    , responseBody :: a
+    , responseBody :: L.ByteString
     }
 
-http :: Request -> Iteratee S.ByteString IO a -> IO (Response a)
+http :: Request
+     -> (Int -> [(S.ByteString, S.ByteString)] -> Iteratee S.ByteString IO a)
+     -> IO a
 http Request {..} bodyIter = do
     let h' = S8.unpack host
     res <- (if secure then withSslConn else withSocketConn) h' port go
@@ -228,15 +230,10 @@ http Request {..} bodyIter = do
                     else case mcl >>= readMay . S8.unpack of
                         Just len -> takeLBS len
                         Nothing -> return [] -- FIXME read in body anyways?
-            ebody'' <- liftIO $ run $ enumList 1 body' $$ bodyIter
-            case ebody'' of
+            eres <- liftIO $ run $ enumList 1 body' $$ bodyIter sc hs
+            case eres of
                 Left err -> liftIO $ throwIO err
-                Right body'' ->
-                    return $ Response
-                        { statusCode = sc
-                        , responseHeaders = hs
-                        , responseBody = body''
-                        }
+                Right res -> return res
 
 takeLBS :: Monad m => Int -> Iteratee S.ByteString m [S.ByteString]
 takeLBS 0 = return []
@@ -368,10 +365,12 @@ breakDiscard w s =
     let (x, y) = S.break (== w) s
      in (x, S.drop 1 y)
 
-httpLbs :: Request -> IO (Response L.ByteString)
-httpLbs = flip http (L.fromChunks `fmap` consume)
+httpLbs :: Request -> IO Response
+httpLbs = flip http $ \sc hs -> do
+    b <- fmap L.fromChunks consume
+    return $ Response sc hs b
 
-simpleHttp :: String -> IO (Response L.ByteString)
+simpleHttp :: String -> IO Response
 simpleHttp url = parseUrl url >>= httpLbs
 
 readMay :: Read a => String -> Maybe a

@@ -21,7 +21,7 @@ main = withSocketsDo $ withHttpEnumerator $ do
             }
     [url] <- getArgs
     _req2 <- parseUrl url
-    Response sc hs b <- http _req2 toLBS
+    Response sc hs b <- httpLbs _req2
     print sc
     mapM_ (\(x, y) -> do
         S.putStr x
@@ -30,6 +30,3 @@ main = withSocketsDo $ withHttpEnumerator $ do
         putStrLn "") hs
     putStrLn ""
     L.putStr b
-
-toLBS :: Monad m => Iteratee S.ByteString m L.ByteString
-toLBS = L.fromChunks `fmap` consume
