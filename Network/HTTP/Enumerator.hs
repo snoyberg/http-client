@@ -6,7 +6,25 @@
 -- | This module contains everything you need to initiate HTTP connections.
 -- Make sure to wrap your code with 'withHttpEnumerator'. If you want a simple
 -- interface based on URLs, you can use 'simpleHttp'. If you want raw power,
--- 'http' is the underlying workhorse of this package.
+-- 'http' is the underlying workhorse of this package. Some examples:
+--
+-- > -- Just download an HTML document and print it.
+-- > import Network.HTTP.Enumerator
+-- > import qualified Data.ByteString.Lazy as L
+-- >
+-- > main = simpleHttp "http://www.haskell.org/" >>= L.putStr
+--
+-- This example uses interleaved IO to write the response body to a file in
+-- constant memory space. By using 'httpRedirect', it will automatically
+-- follow 3xx redirects.
+--
+-- > import Network.HTTP.Enumerator
+-- > import Data.Enumerator.IO
+-- > import System.IO
+-- >
+-- > main = withFile "google.html" WriteMode $ \handle -> do
+-- >     request <- parseUrl "http://google.com/"
+-- >     httpRedirect (\_ _ -> iterHandle handle) request
 module Network.HTTP.Enumerator
     ( -- * Perform a request
       simpleHttp
@@ -17,6 +35,7 @@ module Network.HTTP.Enumerator
       -- * Datatypes
     , Request (..)
     , Response (..)
+    , Headers
       -- * Utility functions
     , parseUrl
     , withHttpEnumerator
@@ -58,6 +77,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Failure
 import Data.Typeable (Typeable)
+import Data.Data (Data)
 import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
@@ -189,29 +209,51 @@ connToEnum (HttpConn r _) =
                 runIteratee (k $ Chunks [bs]) >>= loop
     loop step = return step
 
+-- | All information on how to connect to a host and what should be sent in the
+-- HTTP request.
+--
+-- If you simply wish to download from a URL, see 'parseUrl'.
 data Request = Request
-    { host :: S.ByteString
+    { method :: S.ByteString -- ^ HTTP request method, eg GET, POST.
+    , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
+    , host :: S.ByteString
     , port :: Int
-    , secure :: Bool
-    , requestHeaders :: [(S.ByteString, S.ByteString)]
-    , path :: S.ByteString
-    , queryString :: [(S.ByteString, S.ByteString)]
+    , path :: S.ByteString -- ^ Everything from the host to the query string.
+    , queryString :: Headers -- ^ Automatically escaped for your convenience.
+    , requestHeaders :: Headers
     , requestBody :: L.ByteString
-    , method :: S.ByteString
     }
-    deriving Show
+    deriving (Show, Read, Eq, Typeable, Data)
 
+-- | A simple representation of the HTTP response created by 'lbsIter'.
 data Response = Response
     { statusCode :: Int
-    , responseHeaders :: [(S.ByteString, S.ByteString)]
+    , responseHeaders :: Headers
     , responseBody :: L.ByteString
     }
+    deriving (Show, Read, Eq, Typeable, Data)
 
+type Headers = [(S.ByteString, S.ByteString)]
+
+-- | The most low-level function for initiating an HTTP request.
+--
+-- The second argument to this function gives a full specification on the
+-- request: the host to connect to, whether to use SSL, headers, etc. Please
+-- see 'Request' for full details.
+--
+-- The first argument specifies how the response should be handled. It's a
+-- function that takes two arguments: the first is the HTTP status code of the
+-- response, and the second is a list of all response headers. This module
+-- exports 'lbsIter', which generates a 'Response' value.
+--
+-- Note that this allows you to have fully interleaved IO actions during your
+-- HTTP download, making it possible to download very large responses in
+-- constant memory.
 http :: MonadIO m
-     => Request
-     -> (Int -> [(S.ByteString, S.ByteString)] -> Iteratee S.ByteString m a)
+     => (Int -> Headers -> Iteratee S.ByteString m a)
+     -> Request
      -> m a
-http Request {..} bodyIter = do
+http bodyIter Request {..} = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
     res <- withConn h' port go
@@ -227,8 +269,10 @@ http Request {..} bodyIter = do
         liftIO $ hcWrite hc $ S.concat
             $ method
             : " "
-            : path
-            : renderQS queryString [" HTTP/1.1\r\n"]
+            : (case S8.uncons path of
+                Just ('/', _) -> (:) path
+                _ -> ((:) "/") . ((:) path))
+            (renderQS queryString [" HTTP/1.1\r\n"])
         let headers' = ("Host", hh)
                      : ("Content-Length", S8.pack $ show
                                                   $ L.length requestBody)
@@ -336,10 +380,21 @@ encodeUrlChar y =
             | otherwise = error $ "Invalid argument to showHex: " ++ show x
      in ['%', showHex' b, showHex' c]
 
+-- | Thrown by 'parseUrl' when a URL could not be parsed correctly.
+--
+-- 'httpRedirect' also uses the 'parseUrl' function to read the location header
+-- from a server, so it can also throw this exception.
 data InvalidUrlException = InvalidUrlException String String
     deriving (Show, Typeable)
 instance Exception InvalidUrlException
 
+-- | Convert a URL into a 'Request'.
+--
+-- This defaults some of the values in 'Request', such as setting 'method' to
+-- GET and 'requestHeaders' to @[]@.
+--
+-- Since this function uses 'Failure', the return monad can be anything that is
+-- an instance of 'Failure', such as 'IO' or 'Maybe'.
 parseUrl :: Failure InvalidUrlException m => String -> m Request
 parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
 parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
@@ -433,8 +488,13 @@ breakDiscard w s =
     let (x, y) = S.break (== w) s
      in (x, S.drop 1 y)
 
-lbsIter :: Monad m => Int -> [(S.ByteString, S.ByteString)]
-        -> Iteratee S.ByteString m Response
+-- | Convert the HTTP response into a 'Response' value.
+--
+-- Even though a 'Response' contains a lazy bytestring, this function does
+-- /not/ utilize lazy I/O, and therefore the entire response body will live in
+-- memory. If you want constant memory usage, you'll need to write your own
+-- iteratee and use 'http' or 'httpRedirect' directly.
+lbsIter :: Monad m => Int -> Headers -> Iteratee S.ByteString m Response
 lbsIter sc hs = do
 #if DEBUG
     b <- fmap L.fromChunks consume'
@@ -443,8 +503,19 @@ lbsIter sc hs = do
 #endif
     return $ Response sc hs b
 
+-- | Download the specified 'Request', returning the results as a 'Response'.
+--
+-- This is a simplified version of 'http' for the common case where you simply
+-- want the response data as a simple datatype. If you want more power, such as
+-- interleaved actions on the response body during download, you'll need to use
+-- 'http' directly. This function is defined as:
+--
+-- @httpLbs = http lbsIter@
+--
+-- Please see 'lbsIter' for more information on how the 'Response' value is
+-- created.
 httpLbs :: MonadIO m => Request -> m Response
-httpLbs = flip http lbsIter
+httpLbs = http lbsIter
 
 #if DEBUG
 consume' =
@@ -458,6 +529,12 @@ consume' =
         EOF -> Yield [] EOF
 #endif
 
+-- | Download the specified URL, following any redirects, and return the
+-- response body.
+--
+-- This function will 'failure' an 'HttpException' for any response with a
+-- non-2xx status code. It uses 'parseUrl' to parse the input. This function
+-- essentially wraps 'httpLbsRedirect'.
 simpleHttp :: ( Failure InvalidUrlException m
               , Failure HttpException m
               , MonadIO m)
@@ -469,6 +546,7 @@ simpleHttp url = do
         then return b
         else failure $ HttpException sc b
 
+-- | Throw by 'simpleHttp' when a response does not have a 2xx status code.
 data HttpException = HttpException Int L.ByteString
     deriving (Show, Typeable)
 instance Exception HttpException
@@ -477,11 +555,11 @@ instance Exception HttpException
 -- location header.
 httpRedirect
     :: (MonadIO m, Failure InvalidUrlException m)
-    => Request
-    -> (Int -> [(S.ByteString, S.ByteString)] -> Iteratee S.ByteString m a)
+    => (Int -> Headers -> Iteratee S.ByteString m a)
+    -> Request
     -> m a
-httpRedirect req iter =
-    http req iter'
+httpRedirect iter req =
+    http iter' req
   where
     iter' code hs
         | 300 <= code && code < 400 =
@@ -508,15 +586,26 @@ httpRedirect req iter =
                             , path = path l
                             , queryString = queryString l
                             }
-                    http req' iter
+                    http iter req'
                 Nothing -> iter code hs
         | otherwise = iter code hs
 
-httpLbsRedirect :: ( Failure HttpException m
-                   , Failure InvalidUrlException m
+-- | Download the specified 'Request', returning the results as a 'Response'
+-- and automatically handling redirects.
+--
+-- This is a simplified version of 'httpRedirect' for the common case where you
+-- simply want the response data as a simple datatype. If you want more power,
+-- such as interleaved actions on the response body during download, you'll
+-- need to use 'httpRedirect' directly. This function is defined as:
+--
+-- @httpLbsRedirect = httpRedirect lbsIter@
+--
+-- Please see 'lbsIter' for more information on how the 'Response' value is
+-- created.
+httpLbsRedirect :: ( Failure InvalidUrlException m
                    , MonadIO m)
                 => Request -> m Response
-httpLbsRedirect = flip httpRedirect lbsIter
+httpLbsRedirect = httpRedirect lbsIter
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
