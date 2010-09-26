@@ -1,5 +1,5 @@
 name:            http-enumerator
-version:         0.1.0
+version:         0.1.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -31,6 +31,7 @@ library
                  , attoparsec            >= 0.8.0.2 && < 0.9
                  , attoparsec-enumerator >= 0.2     && < 0.3
                  , utf8-string           >= 0.3.4   && < 0.4
+                 , blaze-builder         >= 0.1     && < 0.2
     if flag(openssl)
         build-depends: HsOpenSSL         >= 0.8     && < 0.9
         cpp-options:   -DOPENSSL

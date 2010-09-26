@@ -49,6 +49,8 @@ module Network.HTTP.Enumerator
     , parseUrl
     , withHttpEnumerator
     , lbsIter
+      -- * Request bodies
+    , urlEncodedBody
       -- * Exceptions
     , InvalidUrlException (..)
     , HttpException (..)
@@ -92,6 +94,8 @@ import Data.Bits
 import Data.Maybe (fromMaybe)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
+import qualified Text.Blaze.Builder.Core as Blaze
+import Data.Monoid (Monoid (..))
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -621,3 +625,46 @@ readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
                 [] -> Nothing
                 (x, _):_ -> Just x
+
+-- | Add url-encoded paramters to the 'Request'.
+--
+-- This sets a new 'requestBody', adds a content-type request header and
+-- changes the 'method' to POST.
+urlEncodedBody :: Headers -> Request -> Request
+urlEncodedBody headers req = req
+    { requestBody = body
+    , method = "POST"
+    , requestHeaders =
+        (ct, "application/x-www-form-urlencoded")
+      : filter (\(x, _) -> x /= ct) (requestHeaders req)
+    }
+  where
+    ct = "Content-Type"
+    body = Blaze.toLazyByteString $ body' headers
+    body' [] = mempty
+    body' [x] = pair x
+    body' (x:xs) = pair x `mappend` Blaze.singleton 38 `mappend` body' xs
+    pair (x, y)
+        | S.null y = single x
+        | otherwise =
+            single x `mappend` Blaze.singleton 61 `mappend` single y
+    single = Blaze.writeList go . S.unpack
+    go 32 = Blaze.writeByte 43 -- space to plus
+    go c | unreserved c = Blaze.writeByte c
+    go c =
+        let x = shiftR c 4
+            y = c .&. 15
+         in Blaze.writeByte 37 `mappend` hexChar x `mappend` hexChar y
+    unreserved  45 = True -- hyphen
+    unreserved  46 = True -- period
+    unreserved  95 = True -- underscore
+    unreserved 126 = True -- tilde
+    unreserved c
+        | 48 <= c && c <= 57  = True -- 0 - 9
+        | 65 <= c && c <= 90  = True -- A - Z
+        | 97 <= c && c <= 122 = True -- A - Z
+    unreserved _ = False
+    hexChar c
+        | c < 10 = Blaze.writeByte $ c + 48
+        | c < 16 = Blaze.writeByte $ c + 55
+        | otherwise = error $ "hexChar: " ++ show c
