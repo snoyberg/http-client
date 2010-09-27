@@ -150,7 +150,7 @@ withSslConn host' port' f = do
     ranByte <- liftIO $ S.head <$> AESRand.randBytes 1
     _ <- liftIO $ AESRand.randBytes (fromIntegral ranByte)
     Just clientRandom <- liftIO $ TLS.clientRandom . S.unpack <$> AESRand.randBytes 32
-    premasterRandom <- liftIO $ (TLS.ClientKeyData . S.unpack) <$> AESRand.randBytes 46
+    premasterRandom <- liftIO $ TLS.ClientKeyData <$> AESRand.randBytes 46
     seqInit <- liftIO $ conv . S.unpack <$> AESRand.randBytes 4
     handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
     liftIO $ hSetBuffering handle NoBuffering
