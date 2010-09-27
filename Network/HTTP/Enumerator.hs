@@ -123,22 +123,26 @@ getSocket host' port' = do
 withSocketConn :: String -> Int -> WithConn a b -> IO b
 withSocketConn host' port' f = do
     sock <- liftIO $ getSocket host' port'
-    a <- f (iter sock) (enum sock)
+    a <- f
+            (writeToIter $ B.sendAll sock)
+            (readToEnum $ B.recv sock defaultChunkSize)
     liftIO $ sClose sock
     return a
+
+
+writeToIter write =
+    continue go
   where
-    iter sock =
+    go EOF = return ()
+    go (Chunks bss) = do
+        liftIO $ mapM_ write bss
         continue go
-      where
-        go EOF = return ()
-        go (Chunks bss) = do
-            liftIO $ mapM_ (B.sendAll sock) bss
-            continue go
-    enum sock (Continue k) = do
-        bs <- liftIO $ B.recv sock defaultChunkSize
-        step <- liftIO $ runIteratee $ k $ Chunks [bs]
-        enum sock step
-    enum _ step = returnI step
+
+readToEnum read (Continue k) = do
+    bs <- liftIO read
+    step <- liftIO $ runIteratee $ k $ Chunks [bs]
+    readToEnum read step
+readToEnum _ step = returnI step
 
 type WithConn a b = Iteratee S.ByteString IO ()
                  -> Enumerator S.ByteString IO a
@@ -152,10 +156,9 @@ withSslConn host' port' f = do
     sock <- liftIO $ getSocket host' port'
     ssl <- liftIO $ SSL.connection ctx sock
     liftIO $ SSL.connect ssl
-    a <- f HttpConn
-        { hcRead = SSL.read ssl
-        , hcWrite = SSL.write ssl
-        }
+    a <- f
+            (writeToIter $ SSL.write ssl)
+            (readToEnum $ SSL.read ssl defaultChunkSize)
     liftIO $ SSL.shutdown ssl SSL.Unidirectional
     return a
 #else
