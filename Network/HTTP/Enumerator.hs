@@ -65,8 +65,6 @@ import qualified Network.TLS.Client as TLS
 import qualified Network.TLS.Struct as TLS
 import qualified Network.TLS.Cipher as TLS
 import qualified Network.TLS.SRandom as TLS
-import qualified Control.Monad.State as MTL
-import Data.IORef
 import Network (connectTo, PortID (PortNumber))
 import qualified Codec.Crypto.AES.Random as AESRand
 import Control.Applicative ((<$>))
@@ -122,17 +120,31 @@ getSocket host' port' = do
     connect sock (addrAddress addr)
     return sock
 
-withSocketConn :: MonadIO m => String -> Int -> (HttpConn -> m a) -> m a
+withSocketConn :: String -> Int -> WithConn a b -> IO b
 withSocketConn host' port' f = do
     sock <- liftIO $ getSocket host' port'
-    a <- f HttpConn
-        { hcRead = B.recv sock
-        , hcWrite = B.sendAll sock
-        }
+    a <- f (iter sock) (enum sock)
     liftIO $ sClose sock
     return a
+  where
+    iter sock =
+        continue go
+      where
+        go EOF = return ()
+        go (Chunks bss) = do
+            liftIO $ mapM_ (B.sendAll sock) bss
+            continue go
+    enum sock (Continue k) = do
+        bs <- liftIO $ B.recv sock defaultChunkSize
+        step <- liftIO $ runIteratee $ k $ Chunks [bs]
+        enum sock step
+    enum _ step = returnI step
 
-withSslConn :: MonadIO m => String -> Int -> (HttpConn -> m a) -> m a
+type WithConn a b = Iteratee S.ByteString IO ()
+                 -> Enumerator S.ByteString IO a
+                 -> IO b
+
+withSslConn :: String -> Int -> WithConn a b -> IO b
 withSslConn host' port' f = do
 
 #if OPENSSL
@@ -147,51 +159,9 @@ withSslConn host' port' f = do
     liftIO $ SSL.shutdown ssl SSL.Unidirectional
     return a
 #else
-    ranByte <- liftIO $ S.head <$> AESRand.randBytes 1
-    _ <- liftIO $ AESRand.randBytes (fromIntegral ranByte)
-    Just clientRandom <- liftIO $ TLS.clientRandom . S.unpack <$> AESRand.randBytes 32
-    premasterRandom <- liftIO $ TLS.ClientKeyData <$> AESRand.randBytes 46
-    seqInit <- liftIO $ conv . S.unpack <$> AESRand.randBytes 4
     handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
     liftIO $ hSetBuffering handle NoBuffering
-    let params = TLS.TLSClientParams
-            TLS.TLS10
-            [TLS.TLS10]
-            Nothing
-            [ TLS.cipher_AES128_SHA1
-            , TLS.cipher_AES256_SHA1
-            , TLS.cipher_RC4_128_MD5
-            , TLS.cipher_RC4_128_SHA1
-            ]
-            Nothing
-            (TLS.TLSClientCallbacks Nothing)
-
-    ((), state) <- liftIO $ TLS.runTLSClient (do
-        TLS.connect handle clientRandom premasterRandom
-        ) params $ TLS.makeSRandomGen seqInit
-    istate <- liftIO $ newIORef state
-    a <- f HttpConn
-        { hcRead = \_len -> do
-            state1 <- readIORef istate
-            (a, state2) <-
-                flip MTL.runStateT state1
-              $ TLS.runTLSC
-              $ TLS.recvData handle
-            writeIORef istate state2
-            return $ S.concat $ L.toChunks a
-        , hcWrite = \bs -> do
-            S.putStr bs
-            state1 <- readIORef istate
-            state2 <-
-                flip MTL.execStateT state1
-              $ TLS.runTLSC
-              $ TLS.sendData handle
-              $ L.fromChunks [bs]
-            writeIORef istate state2
-        }
-    state' <- liftIO $ readIORef istate
-    _state'' <- liftIO $ flip MTL.execStateT state'
-              $ TLS.runTLSC $ TLS.close handle
+    a <- TLS.clientEnumSimple handle f
     liftIO $ hClose handle
     return a
 
@@ -263,10 +233,9 @@ type Headers = [(S.ByteString, S.ByteString)]
 -- Note that this allows you to have fully interleaved IO actions during your
 -- HTTP download, making it possible to download very large responses in
 -- constant memory.
-http :: MonadIO m
-     => (Int -> Headers -> Iteratee S.ByteString m a)
+http :: (Int -> Headers -> Iteratee S.ByteString IO a) -- FIXME MonadIO
      -> Request
-     -> m a
+     -> IO a
 http bodyIter Request {..} = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
@@ -279,27 +248,32 @@ http bodyIter Request {..} = do
         | port == 80 && not secure = host
         | port == 443 && secure = host
         | otherwise = host `S.append` S8.pack (':' : show port)
-    go hc = do
-        liftIO $ hcWrite hc $ S.concat
-            $ method
-            : " "
-            : (case S8.uncons path of
-                Just ('/', _) -> (:) path
-                _ -> ((:) "/") . ((:) path))
-            (renderQS queryString [" HTTP/1.1\r\n"])
+    go iter enum = do
         let headers' = ("Host", hh)
                      : ("Content-Length", S8.pack $ show
                                                   $ L.length requestBody)
                      : requestHeaders
-        liftIO $ forM_ headers' $ \(k, v) -> hcWrite hc $ S.concat
-            [ k
-            , ": "
-            , v
-            , "\r\n"
-            ]
-        liftIO $ hcWrite hc "\r\n"
-        liftIO $ mapM_ (hcWrite hc) $ L.toChunks requestBody
-        run $ connToEnum hc $$ do
+        let request = Blaze.toLazyByteString $ mconcat
+                [ Blaze.fromByteString method
+                , Blaze.fromByteString " "
+                , Blaze.fromByteString $
+                    case S8.uncons path of
+                        Just ('/', _) -> path
+                        _ -> S8.cons '/' path
+                , renderQS queryString
+                , Blaze.fromByteString " HTTP/1.1\r\n"
+                , mconcat $ flip map headers' $ \(k, v) -> mconcat
+                    [ Blaze.fromByteString k
+                    , Blaze.fromByteString ": "
+                    , Blaze.fromByteString v
+                    , Blaze.fromByteString "\r\n"
+                    ]
+                , Blaze.fromByteString "\r\n"
+                , mconcat $ map Blaze.fromByteString
+                          $ L.toChunks requestBody
+                ]
+        Right () <- run $ enumList 1 (L.toChunks request) $$ iter
+        run $ enum $$ do
             ((_, sc, _), hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs
             let mcl = lookup "content-length" hs'
@@ -354,14 +328,18 @@ takeLBS len (Continue k) = do
                 else takeLBS len' step'
 takeLBS _ step = return step
 
-renderQS :: [(S.ByteString, S.ByteString)]
-         -> [S.ByteString]
-         -> [S.ByteString]
-renderQS [] x = x
-renderQS (p:ps) x =
-    go "?" p ++ concatMap (go "&") ps ++ x
+renderQS :: [(S.ByteString, S.ByteString)] -> Blaze.Builder
+renderQS [] = mempty
+renderQS (p:ps) = mconcat
+    $ go "?" p
+    : map (go "&") ps
   where
-    go sep (k, v) = [sep, escape k, "=", escape v]
+    go sep (k, v) = mconcat
+        [ Blaze.fromByteString sep
+        , Blaze.fromByteString $ escape k
+        , Blaze.fromByteString "="
+        , Blaze.fromByteString $ escape v
+        ]
     escape = S8.concatMap (S8.pack . encodeUrlChar)
 
 encodeUrlCharPI :: Char -> String
@@ -523,7 +501,7 @@ lbsIter sc hs = do
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbs :: MonadIO m => Request -> m Response
+httpLbs :: Request -> IO Response -- FIXME MonadIO
 httpLbs = http lbsIter
 
 #if DEBUG
@@ -545,10 +523,7 @@ consume' =
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: ( Failure InvalidUrlException m
-              , Failure HttpException m
-              , MonadIO m)
-           => String -> m L.ByteString
+simpleHttp :: String -> IO L.ByteString -- FIXME MonadIO
 simpleHttp url = do
     url' <- parseUrl url
     Response sc _ b <- httpLbsRedirect url'
@@ -564,10 +539,9 @@ instance Exception HttpException
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
 httpRedirect
-    :: (MonadIO m, Failure InvalidUrlException m)
-    => (Int -> Headers -> Iteratee S.ByteString m a)
+    :: (Int -> Headers -> Iteratee S.ByteString IO a) -- FIXME MonadIO
     -> Request
-    -> m a
+    -> IO a
 httpRedirect iter req =
     http iter' req
   where
@@ -612,9 +586,7 @@ httpRedirect iter req =
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbsRedirect :: ( Failure InvalidUrlException m
-                   , MonadIO m)
-                => Request -> m Response
+httpLbsRedirect :: Request -> IO Response -- FIXME MonadIO
 httpLbsRedirect = httpRedirect lbsIter
 
 readMay :: Read a => String -> Maybe a
