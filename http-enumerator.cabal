@@ -7,7 +7,7 @@ maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        HTTP client package with enumerator interface and HTTPS support.
 description:
     This package uses attoparsec for parsing the actual contents of the HTTP connection. The only gotcha is the withHttpEnumerator function, otherwise should do exactly what you expect.
-category:        Web
+category:        Web, Enumerator
 stability:       Experimental
 cabal-version:   >= 1.6
 build-type:      Simple

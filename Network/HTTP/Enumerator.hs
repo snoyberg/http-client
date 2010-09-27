@@ -309,12 +309,7 @@ http bodyIter Request {..} = do
                         else case mcl >>= readMay . S8.unpack of
                             Just len -> takeLBS len
                             Nothing -> E.map id
-            bodyStep <- lift $ runIteratee $ bodyIter sc hs
-            bodyStep' <- body' bodyStep
-            eres <- lift $ run $ Iteratee $ return bodyStep'
-            case eres of
-                Left err -> liftIO $ throwIO err
-                Right res -> return res
+            joinI $ body' $$ bodyIter sc hs
 
 iterChunks' :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 iterChunks' k@(Continue _) = do
@@ -532,6 +527,7 @@ httpLbs :: MonadIO m => Request -> m Response
 httpLbs = http lbsIter
 
 #if DEBUG
+consume' :: (MonadIO m, Show a) => Iteratee a m [a]
 consume' =
     liftI step
   where
@@ -600,7 +596,7 @@ httpRedirect iter req =
                             , path = path l
                             , queryString = queryString l
                             }
-                    http iter req'
+                    httpRedirect iter req'
                 Nothing -> iter code hs
         | otherwise = iter code hs
 

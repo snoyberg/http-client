@@ -49,8 +49,8 @@ newline =
 
 parseHeaders :: Parser (Status, [Header])
 parseHeaders = do
-    s <- parseStatus
-    h <- manyTill parseHeader newline
+    s <- parseStatus <?> "HTTP status line"
+    h <- manyTill parseHeader newline <?> "Response headers"
     return (s, h)
 
 iterHeaders :: Monad m => Iteratee S.ByteString m (Status, [Header])
@@ -92,7 +92,8 @@ parseChunkHeader = do
     return len
 
 iterChunkHeader :: Monad m => Iteratee S.ByteString m Int
-iterChunkHeader = iterParser parseChunkHeader
+iterChunkHeader =
+    iterParser (parseChunkHeader <?> "Chunked transfer encoding header")
 
 iterNewline :: Monad m => Iteratee S.ByteString m ()
 iterNewline = iterParser newline
