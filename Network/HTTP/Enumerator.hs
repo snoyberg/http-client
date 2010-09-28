@@ -62,12 +62,7 @@ import qualified OpenSSL.Session as SSL
 #else
 import System.IO (hClose, hSetBuffering, BufferMode (NoBuffering))
 import qualified Network.TLS.Client as TLS
-import qualified Network.TLS.Struct as TLS
-import qualified Network.TLS.Cipher as TLS
-import qualified Network.TLS.SRandom as TLS
 import Network (connectTo, PortID (PortNumber))
-import qualified Codec.Crypto.AES.Random as AESRand
-import Control.Applicative ((<$>))
 #endif
 
 import Network.Socket
@@ -81,7 +76,6 @@ import Network.HTTP.Enumerator.HttpParser
 import Control.Exception (throwIO, Exception)
 import Control.Arrow (first)
 import Data.Char (toLower)
-import Control.Monad (forM_)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Failure
@@ -130,6 +124,8 @@ withSocketConn host' port' f = do
     return a
 
 
+writeToIter :: MonadIO m
+            => (S.ByteString -> IO b) -> Iteratee S.ByteString m ()
 writeToIter write =
     continue go
   where
@@ -138,10 +134,11 @@ writeToIter write =
         liftIO $ mapM_ write bss
         continue go
 
-readToEnum read (Continue k) = do
-    bs <- liftIO read
+readToEnum :: IO a -> Enumerator a IO b
+readToEnum read' (Continue k) = do
+    bs <- liftIO read'
     step <- liftIO $ runIteratee $ k $ Chunks [bs]
-    readToEnum read step
+    readToEnum read' step
 readToEnum _ step = returnI step
 
 type WithConn a b = Iteratee S.ByteString IO ()
@@ -167,34 +164,7 @@ withSslConn host' port' f = do
     a <- TLS.clientEnumSimple handle f
     liftIO $ hClose handle
     return a
-
-conv :: [Word8] -> Int
-conv l = (a `shiftL` 24) .|. (b `shiftL` 16) .|. (c `shiftL` 8) .|. d
-    where
-        [a,b,c,d] = map fromIntegral l
 #endif
-
-data HttpConn = HttpConn
-    { hcRead :: Int -> IO S.ByteString
-    , hcWrite :: S.ByteString -> IO ()
-    }
-
-connToEnum :: MonadIO m => HttpConn -> Enumerator S.ByteString m a
-connToEnum (HttpConn r _) =
-    Iteratee . loop
-  where
-    loop (Continue k) = do
-#if DEBUG
-        bs <- r 5
-        liftIO $ putStrLn $ "connToEnum: read 2 bytes: " ++ show bs
-#else
-        bs <- liftIO $ r defaultChunkSize
-#endif
-        if S.null bs
-            then return $ Continue k
-            else do
-                runIteratee (k $ Chunks [bs]) >>= loop
-    loop step = return step
 
 -- | All information on how to connect to a host and what should be sent in the
 -- HTTP request.

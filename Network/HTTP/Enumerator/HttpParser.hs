@@ -75,15 +75,6 @@ parseStatus = do
         then newline >> parseStatus
         else return (ver, statCode', statMsg)
 
-iterChunks :: Monad m => Iteratee S.ByteString m [S.ByteString]
-iterChunks = iterParser parseChunks
-
-parseChunks :: Parser [S.ByteString]
-parseChunks = manyTill parseChunk zeroChunk
-
-zeroChunk :: Parser ()
-zeroChunk = word8 48 >> (newline <|> attribs) -- 0
-
 parseChunkHeader :: Parser Int
 parseChunkHeader = do
     len <- hexs
@@ -97,13 +88,6 @@ iterChunkHeader =
 
 iterNewline :: Monad m => Iteratee S.ByteString m ()
 iterNewline = iterParser newline
-
-parseChunk :: Parser S.ByteString
-parseChunk = do
-    len <- parseChunkHeader
-    bs <- take len
-    newline
-    return bs
 
 attribs :: Parser ()
 attribs = do
