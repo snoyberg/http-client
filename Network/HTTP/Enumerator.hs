@@ -261,24 +261,12 @@ http bodyIter Request {..} = do
 
 iterChunks' :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 iterChunks' k@(Continue _) = do
-#if DEBUG
-    liftIO $ putStrLn "iterChunkHeader start"
-#endif
     len <- iterChunkHeader
-#if DEBUG
-    liftIO $ putStrLn $ "iterChunkHeader stop: " ++ show len
-#endif
     if len == 0
         then return k
         else do
             k' <- takeLBS len k
-#if DEBUG
-            liftIO $ putStrLn "iterNewline start"
-#endif
             iterNewline
-#if DEBUG
-            liftIO $ putStrLn "iterNewline stop"
-#endif
             iterChunks' k'
 iterChunks' step = return step
 
@@ -456,13 +444,7 @@ breakDiscard w s =
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
 lbsIter :: Monad m => Int -> Headers -> Iteratee S.ByteString m Response
-lbsIter sc hs = do
-#if DEBUG
-    b <- fmap L.fromChunks consume'
-#else
-    b <- fmap L.fromChunks consume
-#endif
-    return $ Response sc hs b
+lbsIter sc hs = fmap (Response sc hs . L.fromChunks) consume
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -477,19 +459,6 @@ lbsIter sc hs = do
 -- created.
 httpLbs :: MonadIO m => Request -> m Response
 httpLbs = http lbsIter
-
-#if DEBUG
-consume' :: (MonadIO m, Show a) => Iteratee a m [a]
-consume' =
-    liftI step
-  where
-    step chunk = case chunk of
-        Chunks [] -> Continue $ returnI . step
-        Chunks xs -> Continue $ \stream -> do
-            liftIO $ putStrLn $ "consume': received Chunks: " ++ show xs
-            returnI $ step stream
-        EOF -> Yield [] EOF
-#endif
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
