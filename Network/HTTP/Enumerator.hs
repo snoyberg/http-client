@@ -114,7 +114,7 @@ getSocket host' port' = do
     connect sock (addrAddress addr)
     return sock
 
-withSocketConn :: String -> Int -> WithConn a b -> IO b
+withSocketConn :: MonadIO m => String -> Int -> WithConn m a b -> m b
 withSocketConn host' port' f = do
     sock <- liftIO $ getSocket host' port'
     a <- f
@@ -134,18 +134,18 @@ writeToIter write =
         liftIO $ mapM_ write bss
         continue go
 
-readToEnum :: IO a -> Enumerator a IO b
+readToEnum :: MonadIO m => IO a -> Enumerator a m b
 readToEnum read' (Continue k) = do
     bs <- liftIO read'
-    step <- liftIO $ runIteratee $ k $ Chunks [bs]
+    step <- lift $ runIteratee $ k $ Chunks [bs]
     readToEnum read' step
 readToEnum _ step = returnI step
 
-type WithConn a b = Iteratee S.ByteString IO ()
-                 -> Enumerator S.ByteString IO a
-                 -> IO b
+type WithConn m a b = Iteratee S.ByteString m ()
+                   -> Enumerator S.ByteString m a
+                   -> m b
 
-withSslConn :: String -> Int -> WithConn a b -> IO b
+withSslConn :: MonadIO m => String -> Int -> WithConn m a b -> m b
 withSslConn host' port' f = do
 
 #if OPENSSL
@@ -206,9 +206,10 @@ type Headers = [(S.ByteString, S.ByteString)]
 -- Note that this allows you to have fully interleaved IO actions during your
 -- HTTP download, making it possible to download very large responses in
 -- constant memory.
-http :: (Int -> Headers -> Iteratee S.ByteString IO a) -- FIXME MonadIO
+http :: MonadIO m
+     => (Int -> Headers -> Iteratee S.ByteString m a)
      -> Request
-     -> IO a
+     -> m a
 http bodyIter Request {..} = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
@@ -474,7 +475,7 @@ lbsIter sc hs = do
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbs :: Request -> IO Response -- FIXME MonadIO
+httpLbs :: MonadIO m => Request -> m Response
 httpLbs = http lbsIter
 
 #if DEBUG
@@ -496,7 +497,9 @@ consume' =
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: String -> IO L.ByteString -- FIXME MonadIO
+simpleHttp :: (MonadIO m, Failure HttpException m,
+               Failure InvalidUrlException m)
+           => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
     Response sc _ b <- httpLbsRedirect url'
@@ -512,9 +515,10 @@ instance Exception HttpException
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
 httpRedirect
-    :: (Int -> Headers -> Iteratee S.ByteString IO a) -- FIXME MonadIO
+    :: (MonadIO m, Failure InvalidUrlException m)
+    => (Int -> Headers -> Iteratee S.ByteString m a)
     -> Request
-    -> IO a
+    -> m a
 httpRedirect iter req =
     http iter' req
   where
@@ -559,7 +563,9 @@ httpRedirect iter req =
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbsRedirect :: Request -> IO Response -- FIXME MonadIO
+httpLbsRedirect :: (MonadIO m, Failure InvalidUrlException m,
+                    Failure HttpException m)
+                => Request -> m Response
 httpLbsRedirect = httpRedirect lbsIter
 
 readMay :: Read a => String -> Maybe a

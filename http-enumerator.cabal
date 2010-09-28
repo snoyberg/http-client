@@ -36,10 +36,32 @@ library
         build-depends: HsOpenSSL         >= 0.8     && < 0.9
         cpp-options:   -DOPENSSL
     else
-        build-depends: tls-snoy          >= 0.2.0   && < 0.3
-                     , AES               >= 0.2.7   && < 0.3
+        build-depends: AES               >= 0.2.7   && < 0.3
+                     , RSA               >= 1.0.5   && < 1.1
+                     , certificate       >= 0.2.1   && < 0.3
+                     , cryptocipher      >= 0.1     && < 0.2
+                     , cryptohash        >= 0.5.2   && < 0.6
+                     , random            >= 1.0     && < 1.1
+                     , vector            >= 0.6     && < 0.7
+                     , spoon             >= 0.3     && < 0.4
+                     , mtl               >= 1.1     && < 1.2
+                     , binary            >= 0.5.0.2 && < 0.6
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
+    if ! flag(openssl)
+        other-modules: Network.TLS.Client
+                       Network.TLS.SRandom
+                       Network.TLS.Cipher
+                       Network.TLS.Struct
+                       Network.TLS.Receiving
+                       Network.TLS.Sending
+                       Network.TLS.State
+                       Network.TLS.Packet
+                       Network.TLS.MAC
+                       Network.TLS.Crypto
+                       Network.TLS.Cap
+                       Network.TLS.Util
+                       Network.TLS.Wire
     ghc-options:     -Wall
 
 executable http-enumerator
