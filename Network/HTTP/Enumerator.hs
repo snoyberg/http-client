@@ -61,7 +61,7 @@ import OpenSSL
 import qualified OpenSSL.Session as SSL
 #else
 import System.IO (hClose, hSetBuffering, BufferMode (NoBuffering))
-import qualified Network.TLS.Client as TLS
+import qualified Network.TLS.Client.Enumerator as TLS
 import Network (connectTo, PortID (PortNumber))
 #endif
 
