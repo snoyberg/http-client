@@ -337,6 +337,10 @@ data InvalidUrlException = InvalidUrlException String String
     deriving (Show, Typeable)
 instance Exception InvalidUrlException
 
+data TooManyRedirects = TooManyRedirects
+    deriving (Show, Typeable)
+instance Exception TooManyRedirects
+
 -- | Convert a URL into a 'Request'.
 --
 -- This defaults some of the values in 'Request', such as setting 'method' to
@@ -467,7 +471,8 @@ httpLbs = http lbsIter
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
 simpleHttp :: (MonadIO m, Failure HttpException m,
-               Failure InvalidUrlException m)
+               Failure InvalidUrlException m,
+               Failure TooManyRedirects m)
            => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
@@ -484,14 +489,14 @@ instance Exception HttpException
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
 httpRedirect
-    :: (MonadIO m, Failure InvalidUrlException m)
+    :: (MonadIO m, Failure InvalidUrlException m, Failure TooManyRedirects m)
     => (Int -> Headers -> Iteratee S.ByteString m a)
     -> Request
     -> m a
 httpRedirect iter req =
-    http iter' req
+    http (iter' (10 :: Int)) req
   where
-    iter' code hs
+    iter' redirects code hs
         | 300 <= code && code < 400 =
             case lookup "location" $ map (first $ S8.map toLower) hs of
                 Just l'' -> lift $ do
@@ -516,7 +521,9 @@ httpRedirect iter req =
                             , path = path l
                             , queryString = queryString l
                             }
-                    httpRedirect iter req'
+                    if redirects == 0
+                        then failure TooManyRedirects
+                        else http (iter' $ redirects - 1) req'
                 Nothing -> iter code hs
         | otherwise = iter code hs
 
@@ -533,7 +540,8 @@ httpRedirect iter req =
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
 httpLbsRedirect :: (MonadIO m, Failure InvalidUrlException m,
-                    Failure HttpException m)
+                    Failure HttpException m,
+                    Failure TooManyRedirects m)
                 => Request -> m Response
 httpLbsRedirect = httpRedirect lbsIter
 
