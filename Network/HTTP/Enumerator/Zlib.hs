@@ -36,7 +36,7 @@ ungzip' fzstr (Continue k) = do
                     c_set_avail_in zstr cstr $ fromIntegral len
                     drain zstr
             lift $ runIteratee $ k $ Chunks chunks
-ungzip' zstr step = return step
+ungzip' _ step = return step
 
 drain :: ZStream -> IO [S.ByteString]
 drain zstr = allocaBytes defaultChunkSize $ \buff -> do

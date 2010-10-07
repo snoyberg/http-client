@@ -7,7 +7,6 @@ import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Enumerator as E
 import qualified Control.Monad.IO.Class as Trans
-import qualified Codec.Crypto.AES.Random as AESRand
 
 import Network.TLS.Client
 import Network.TLS.SRandom
@@ -17,8 +16,6 @@ import Network.TLS.Cipher
 import Control.Monad.State (runStateT)
 
 import Data.IORef
-import Data.Bits
-import Control.Applicative ((<$>))
 import System.IO (Handle)
 
 type IState = IORef TLSStateClient
@@ -34,11 +31,6 @@ clientEnumSimple
     -> (E.Iteratee B.ByteString m () -> E.Enumerator B.ByteString m a -> m b)
     -> m b
 clientEnumSimple h f = do
-    ranByte <- Trans.liftIO $ B.head <$> AESRand.randBytes 1
-    _ <- Trans.liftIO $ AESRand.randBytes (fromIntegral ranByte)
-    Just clientRandom' <- Trans.liftIO $ clientRandom . B.unpack <$> AESRand.randBytes 32
-    premasterRandom <- Trans.liftIO $ ClientKeyData <$> AESRand.randBytes 46
-    seqInit <- Trans.liftIO $ conv . B.unpack <$> AESRand.randBytes 4
     let clientstate = TLSClientParams
             { cpConnectVersion = TLS10
             , cpAllowedVersions = [ TLS10, TLS11 ]
@@ -49,7 +41,8 @@ clientEnumSimple h f = do
                 { cbCertificates = Nothing
                 }
             }
-    clientEnum clientstate (makeSRandomGen seqInit) h clientRandom' premasterRandom f
+    srand <- Trans.liftIO makeSRandomGen
+    clientEnum clientstate srand h f
   where
     ciphers =
         [ cipher_AES128_SHA1
@@ -57,17 +50,14 @@ clientEnumSimple h f = do
         , cipher_RC4_128_MD5
         , cipher_RC4_128_SHA1
         ]
-    conv l = (a `shiftL` 24) .|. (b `shiftL` 16) .|. (c `shiftL` 8) .|. d
-        where
-            [a,b,c,d] = map fromIntegral l
 
 clientEnum :: Trans.MonadIO m
-           => TLSClientParams -> SRandomGen -> Handle -> ClientRandom -> ClientKeyData
+           => TLSClientParams -> SRandomGen -> Handle
            -> (E.Iteratee B.ByteString m () -> E.Enumerator B.ByteString m a -> m b)
            -> m b
-clientEnum tcp srg h cr ckd f = do
+clientEnum tcp srg h f = do
     istate <- Trans.liftIO $ newIState tcp srg
-    tlsHelper istate $ connect h cr ckd
+    tlsHelper istate $ connect h
     b <- f (iter istate) (enum istate)
     tlsHelper istate $ close h
     return b

@@ -38,9 +38,8 @@ library
         build-depends: HsOpenSSL         >= 0.8     && < 0.9
         cpp-options:   -DOPENSSL
     else
-        build-depends: tls               >= 0.1.4   && < 0.2
+        build-depends: tls               >= 0.2     && < 0.3
                      , mtl               >= 1.1     && < 1.2
-                     , AES               >= 0.2.5   && < 0.3
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
     if ! flag(openssl)
