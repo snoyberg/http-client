@@ -269,11 +269,8 @@ iterChunks' :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 iterChunks' k@(Continue _) = do
     len <- iterChunkHeader
     if len == 0
-        then do
-            liftIO $ putStrLn $ "iterChunks': length 0"
-            return k
+        then return k
         else do
-            liftIO $ putStrLn $ "iterChunks': length " ++ show len
             k' <- takeLBS len k
             iterNewline
             iterChunks' k'
