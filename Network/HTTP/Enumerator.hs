@@ -73,6 +73,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator hiding (head, map, break)
 import qualified Data.Enumerator as E
 import Network.HTTP.Enumerator.HttpParser
+import Network.HTTP.Enumerator.Zlib (ungzip)
 import Control.Exception (throwIO, Exception)
 import Control.Arrow (first)
 import Data.Char (toLower)
@@ -226,6 +227,7 @@ http bodyIter Request {..} = do
         let headers' = ("Host", hh)
                      : ("Content-Length", S8.pack $ show
                                                   $ L.length requestBody)
+                     : ("Accept-Encoding", "gzip")
                      : requestHeaders
         let request = Blaze.toLazyByteString $ mconcat
                 [ Blaze.fromByteString method
@@ -251,20 +253,27 @@ http bodyIter Request {..} = do
             ((_, sc, _), hs) <- iterHeaders
             let hs' = map (first $ S8.map toLower) hs
             let mcl = lookup "content-length" hs'
-            let body' =
+            let body' x =
                     if ("transfer-encoding", "chunked") `elem` hs'
-                        then iterChunks'
+                        then joinI $ iterChunks' $$ x
                         else case mcl >>= readMay . S8.unpack of
-                            Just len -> takeLBS len
-                            Nothing -> E.map id
-            joinI $ body' $$ bodyIter sc hs
+                            Just len -> joinI $ takeLBS len $$ x
+                            Nothing -> x
+            let decompress x =
+                    if ("content-encoding", "gzip") `elem` hs'
+                        then joinI $ ungzip $$ x
+                        else x
+            body' $ decompress $ bodyIter sc hs
 
 iterChunks' :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 iterChunks' k@(Continue _) = do
     len <- iterChunkHeader
     if len == 0
-        then return k
+        then do
+            liftIO $ putStrLn $ "iterChunks': length 0"
+            return k
         else do
+            liftIO $ putStrLn $ "iterChunks': length " ++ show len
             k' <- takeLBS len k
             iterNewline
             iterChunks' k'
