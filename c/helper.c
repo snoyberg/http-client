@@ -1,7 +1,7 @@
 #include <zlib.h>
 #include <stdlib.h>
 
-z_stream * create_z_stream (void)
+z_stream * create_z_stream2 (void)
 {
 	z_stream *ret = malloc(sizeof(z_stream));
 	ret->zalloc = Z_NULL;
@@ -16,32 +16,35 @@ z_stream * create_z_stream (void)
 	    return ret;
 }
 
-void free_z_stream (z_stream *stream)
+void free_z_stream2 (z_stream *stream)
 {
 	inflateEnd(stream);
 	free(stream);
 }
 
-void set_avail_in (z_stream *stream, char *buff, unsigned int avail)
+void set_avail_in2 (z_stream *stream, char *buff, unsigned int avail)
 {
 	stream->next_in = buff;
 	stream->avail_in = avail;
 }
 
-void set_avail_out (z_stream *stream, char *buff, unsigned int avail)
+void set_avail_out2 (z_stream *stream, char *buff, unsigned int avail)
 {
 	stream->next_out = buff;
 	stream->avail_out = avail;
 }
 
-int call_inflate_noflush (z_stream *stream)
+int call_inflate_noflush2 (z_stream *stream)
 {
-	int ret;
-	ret = inflate(stream, Z_NO_FLUSH);
-	return ret < Z_OK;
+	return inflate(stream, Z_NO_FLUSH);
 }
 
-unsigned int get_avail_out (z_stream *stream)
+unsigned int get_avail_in2 (z_stream *stream)
+{
+	return stream->avail_in;
+}
+
+unsigned int get_avail_out2 (z_stream *stream)
 {
 	return stream->avail_out;
 }

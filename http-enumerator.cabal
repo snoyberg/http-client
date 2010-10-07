@@ -1,5 +1,5 @@
 name:            http-enumerator
-version:         0.1.2
+version:         0.2.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -45,6 +45,7 @@ library
                      , mtl               >= 1.1     && < 1.2
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
+                     Network.HTTP.Enumerator.Zlib
     if ! flag(openssl)
         other-modules: Network.TLS.Client.Enumerator
     ghc-options:     -Wall

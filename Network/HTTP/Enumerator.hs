@@ -52,7 +52,6 @@ module Network.HTTP.Enumerator
       -- * Request bodies
     , urlEncodedBody
       -- * Exceptions
-    , InvalidUrlException (..)
     , HttpException (..)
     ) where
 
@@ -250,12 +249,12 @@ http bodyIter Request {..} = do
                 ]
         Right () <- run $ enumList 1 (L.toChunks request) $$ iter
         run $ enum $$ do
-            ((_, sc, _), hs) <- iterHeaders
+            ((_, sc, _), hs) <- catchParser "HTTP headers" iterHeaders
             let hs' = map (first $ S8.map toLower) hs
             let mcl = lookup "content-length" hs'
             let body' x =
                     if ("transfer-encoding", "chunked") `elem` hs'
-                        then joinI $ iterChunks' $$ x
+                        then joinI $ chunkedEnumeratee $$ x
                         else case mcl >>= readMay . S8.unpack of
                             Just len -> joinI $ takeLBS len $$ x
                             Nothing -> x
@@ -265,16 +264,16 @@ http bodyIter Request {..} = do
                         else x
             body' $ decompress $ bodyIter sc hs
 
-iterChunks' :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
-iterChunks' k@(Continue _) = do
-    len <- iterChunkHeader
+chunkedEnumeratee :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
+chunkedEnumeratee k@(Continue _) = do
+    len <- catchParser "Chunk header" iterChunkHeader
     if len == 0
         then return k
         else do
             k' <- takeLBS len k
-            iterNewline
-            iterChunks' k'
-iterChunks' step = return step
+            catchParser "End of chunk newline" iterNewline
+            chunkedEnumeratee k'
+chunkedEnumeratee step = return step
 
 takeLBS :: MonadIO m => Int -> Enumeratee S.ByteString S.ByteString m a
 takeLBS 0 step = return step
@@ -335,18 +334,6 @@ encodeUrlChar y =
             | otherwise = error $ "Invalid argument to showHex: " ++ show x
      in ['%', showHex' b, showHex' c]
 
--- | Thrown by 'parseUrl' when a URL could not be parsed correctly.
---
--- 'httpRedirect' also uses the 'parseUrl' function to read the location header
--- from a server, so it can also throw this exception.
-data InvalidUrlException = InvalidUrlException String String
-    deriving (Show, Typeable)
-instance Exception InvalidUrlException
-
-data TooManyRedirects = TooManyRedirects
-    deriving (Show, Typeable)
-instance Exception TooManyRedirects
-
 -- | Convert a URL into a 'Request'.
 --
 -- This defaults some of the values in 'Request', such as setting 'method' to
@@ -354,19 +341,19 @@ instance Exception TooManyRedirects
 --
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
-parseUrl :: Failure InvalidUrlException m => String -> m Request
+parseUrl :: Failure HttpException m => String -> m Request
 parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
 parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
 parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
 
-parseUrl1 :: Failure InvalidUrlException m
+parseUrl1 :: Failure HttpException m
           => String -> Bool -> String -> m Request
 parseUrl1 full sec s =
     parseUrl2 full sec s'
   where
     s' = encodeString s
 
-parseUrl2 :: Failure InvalidUrlException m
+parseUrl2 :: Failure HttpException m
           => String -> Bool -> String -> m Request
 parseUrl2 full sec s = do
     port' <- mport
@@ -476,26 +463,25 @@ httpLbs = http lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: (MonadIO m, Failure HttpException m,
-               Failure InvalidUrlException m,
-               Failure TooManyRedirects m)
-           => String -> m L.ByteString
+simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
     Response sc _ b <- httpLbsRedirect url'
     if 200 <= sc && sc < 300
         then return b
-        else failure $ HttpException sc b
+        else failure $ StatusCodeException sc b
 
--- | Throw by 'simpleHttp' when a response does not have a 2xx status code.
-data HttpException = HttpException Int L.ByteString
+data HttpException = StatusCodeException Int L.ByteString
+                   | InvalidUrlException String String
+                   | TooManyRedirects
+                   | HttpParserException String
     deriving (Show, Typeable)
 instance Exception HttpException
 
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
 httpRedirect
-    :: (MonadIO m, Failure InvalidUrlException m, Failure TooManyRedirects m)
+    :: (MonadIO m, Failure HttpException m)
     => (Int -> Headers -> Iteratee S.ByteString m a)
     -> Request
     -> m a
@@ -545,10 +531,7 @@ httpRedirect iter req =
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbsRedirect :: (MonadIO m, Failure InvalidUrlException m,
-                    Failure HttpException m,
-                    Failure TooManyRedirects m)
-                => Request -> m Response
+httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request -> m Response
 httpLbsRedirect = httpRedirect lbsIter
 
 readMay :: Read a => String -> Maybe a
@@ -598,3 +581,5 @@ urlEncodedBody headers req = req
         | c < 10 = Blaze.writeByte $ c + 48
         | c < 16 = Blaze.writeByte $ c + 55
         | otherwise = error $ "hexChar: " ++ show c
+
+catchParser s i = catchError i (const $ throwError $ HttpParserException s)

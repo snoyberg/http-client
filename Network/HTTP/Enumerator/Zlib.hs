@@ -15,7 +15,7 @@ import Foreign.Ptr
 import Foreign.ForeignPtr
 import Foreign.Marshal.Alloc (allocaBytes)
 import Data.ByteString.Unsafe
-import Control.Monad (unless)
+import Control.Monad (when)
 
 ungzip :: MonadIO m => Enumeratee S.ByteString S.ByteString m b
 ungzip inner = do
@@ -40,38 +40,47 @@ ungzip' _ step = return step
 
 drain :: ZStream -> IO [S.ByteString]
 drain zstr = allocaBytes defaultChunkSize $ \buff -> do
-    x <- go buff id
-    return $ x []
+    go' buff id
   where
+    go' buff front = do
+        avail_in <- c_get_avail_in zstr
+        if avail_in == 0
+            then return $ front []
+            else go buff front
     go buff front = do
         c_set_avail_out zstr buff $ fromIntegral defaultChunkSize
         res <- c_call_inflate_noflush zstr
-        unless (res == 0) $ error "Error in underlying stream"
+        when (res < 0 && res /= (-5)) $ error -- FIXME
+            $ "zlib: Error in underlying stream: " ++ show res
         avail <- c_get_avail_out zstr
         let size = defaultChunkSize - fromIntegral avail
         if size == 0
-            then return front
+            then return $ front []
             else do
                 bs <- unsafePackCStringLen (buff, size)
-                go buff (front . (:) bs)
+                S.putStr bs
+                go' buff (front . (:) bs)
 
-foreign import ccall unsafe "create_z_stream"
+foreign import ccall unsafe "create_z_stream2"
     c_create_z_stream :: IO ZStream
 
-foreign import ccall unsafe "&free_z_stream"
+foreign import ccall unsafe "&free_z_stream2"
     c_free_z_stream :: FunPtr (ZStream -> IO ())
 
-foreign import ccall unsafe "set_avail_in"
+foreign import ccall unsafe "set_avail_in2"
     c_set_avail_in :: ZStream -> Ptr CChar -> CUInt -> IO ()
 
-foreign import ccall unsafe "set_avail_out"
+foreign import ccall unsafe "set_avail_out2"
     c_set_avail_out :: ZStream -> Ptr CChar -> CUInt -> IO ()
 
-foreign import ccall unsafe "call_inflate_noflush"
+foreign import ccall unsafe "call_inflate_noflush2"
     c_call_inflate_noflush :: ZStream -> IO CInt
 
-foreign import ccall unsafe "get_avail_out"
+foreign import ccall unsafe "get_avail_out2"
     c_get_avail_out :: ZStream -> IO CUInt
+
+foreign import ccall unsafe "get_avail_in2"
+    c_get_avail_in :: ZStream -> IO CUInt
 
 data ZStreamStruct
 type ZStream = Ptr ZStreamStruct
