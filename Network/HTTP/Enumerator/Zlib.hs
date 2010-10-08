@@ -35,7 +35,8 @@ ungzip' fzstr (Continue k) = do
                 withForeignPtr fzstr $ \zstr -> do
                     c_set_avail_in zstr cstr $ fromIntegral len
                     drain zstr
-            lift $ runIteratee $ k $ Chunks chunks
+            step <- lift $ runIteratee $ k $ Chunks chunks
+            ungzip' fzstr step
 ungzip' _ step = return step
 
 drain :: ZStream -> IO [S.ByteString]
@@ -58,7 +59,6 @@ drain zstr = allocaBytes defaultChunkSize $ \buff -> do
             then return $ front []
             else do
                 bs <- unsafePackCStringLen (buff, size)
-                S.putStr bs
                 go' buff (front . (:) bs)
 
 foreign import ccall unsafe "create_z_stream2"
