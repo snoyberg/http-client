@@ -58,7 +58,7 @@ drain zstr = allocaBytes defaultChunkSize $ \buff -> do
         if size == 0
             then return $ front []
             else do
-                bs <- unsafePackCStringLen (buff, size)
+                bs <- S.packCStringLen (buff, size)
                 go' buff (front . (:) bs)
 
 foreign import ccall unsafe "create_z_stream2"
