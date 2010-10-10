@@ -582,4 +582,5 @@ urlEncodedBody headers req = req
         | c < 16 = Blaze.writeByte $ c + 55
         | otherwise = error $ "hexChar: " ++ show c
 
+catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
 catchParser s i = catchError i (const $ throwError $ HttpParserException s)

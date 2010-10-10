@@ -14,11 +14,13 @@ ungzip inner = do
     fzstr <- liftIO $ initInflate $ WindowBits 31
     ungzip' fzstr inner
 
-ungzip' :: MonadIO m => ZStream -> Enumeratee S.ByteString S.ByteString m b
+ungzip' :: MonadIO m => Inflate -> Enumeratee S.ByteString S.ByteString m b
 ungzip' fzstr (Continue k) = do
     x <- head
     case x of
-        Nothing -> return $ Continue k
+        Nothing -> do
+            chunk <- liftIO $ finishInflate fzstr
+            lift $ runIteratee $ k $ Chunks [chunk]
         Just bs -> do
             chunks <- liftIO $ withInflateInput fzstr bs $ go id
             step <- lift $ runIteratee $ k $ Chunks chunks
