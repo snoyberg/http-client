@@ -134,11 +134,14 @@ writeToIter write =
         liftIO $ mapM_ write bss
         continue go
 
-readToEnum :: MonadIO m => IO a -> Enumerator a m b
+readToEnum :: MonadIO m => IO S.ByteString -> Enumerator S.ByteString m b
 readToEnum read' (Continue k) = do
     bs <- liftIO read'
-    step <- lift $ runIteratee $ k $ Chunks [bs]
-    readToEnum read' step
+    if S.null bs
+        then continue k
+        else do
+            step <- lift $ runIteratee $ k $ Chunks [bs]
+            readToEnum read' step
 readToEnum _ step = returnI step
 
 type WithConn m a b = Iteratee S.ByteString m ()
