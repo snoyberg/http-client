@@ -4,8 +4,6 @@ import Network.HTTP.Enumerator
 import Network
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Lazy.Char8 as L8
-import Data.Enumerator (consume, Iteratee)
 import System.Environment.UTF8 (getArgs)
 
 main :: IO ()
