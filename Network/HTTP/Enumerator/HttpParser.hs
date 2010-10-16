@@ -5,7 +5,7 @@ module Network.HTTP.Enumerator.HttpParser
     , iterNewline
     ) where
 
-import Prelude hiding (take)
+import Prelude hiding (take, takeWhile)
 import Data.Attoparsec
 import Data.Attoparsec.Enumerator
 import Data.Enumerator (Iteratee)
@@ -21,7 +21,7 @@ parseHeader = do
     k <- takeWhile1 notNewlineColon
     _ <- word8 58 -- colon
     skipWhile isSpace
-    v <- takeWhile1 notNewline
+    v <- takeWhile notNewline
     newline
     return (k, v)
 
