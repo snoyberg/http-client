@@ -34,6 +34,23 @@
 -- * Host
 --
 -- * Accept-Encoding (not currently set, but client usage of this variable /will/ cause breakage).
+--
+-- One last thing: there are two different backends available for the HTTPS
+-- support: the OpenSSL library and the tls package. The former requires some
+-- initialization, while the latter does not. Therefore, this module exports a
+-- 'withHttpEnumerator' function to provide necessary initialization.
+-- Additionally, any network code on Windows requires some initialization, and
+-- the network library provides withSocketsDo to perform it. Therefore, proper
+-- usage of this library will always involve calling those two functions at
+-- some point. The best approach is to simply call them at the beginning of
+-- your main function, such as:
+--
+-- > import Network.HTTP.Enumerator
+-- > import qualified Data.ByteString.Lazy as L
+-- > import Network (withSocketsDo)
+-- >
+-- > main = withSocketsDo . withHttpEnumerator
+-- >      $ simpleHttp "http://www.haskell.org/" >>= L.putStr
 module Network.HTTP.Enumerator
     ( -- * Perform a request
       simpleHttp
