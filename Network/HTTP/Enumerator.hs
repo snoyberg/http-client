@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE CPP #-}
 -- | This module contains everything you need to initiate HTTP connections.
 -- Make sure to wrap your code with 'withHttpEnumerator'. If you want a simple
@@ -81,8 +82,8 @@ import qualified Network.TLS.Client.Enumerator as TLS
 import Network (connectTo, PortID (PortNumber))
 #endif
 
-import Network.Socket
-import qualified Network.Socket.ByteString as B
+import qualified "network" Network.Socket as NS
+import qualified "network-bytestring" Network.Socket.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
@@ -123,12 +124,12 @@ withHttpEnumerator = withOpenSSL
 withHttpEnumerator = id
 #endif
 
-getSocket :: String -> Int -> IO Socket
+getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
-    addrs <- getAddrInfo Nothing (Just host') (Just $ show port')
+    addrs <- NS.getAddrInfo Nothing (Just host') (Just $ show port')
     let addr = head addrs
-    sock <- socket (addrFamily addr) Stream defaultProtocol
-    connect sock (addrAddress addr)
+    sock <- NS.socket (NS.addrFamily addr) NS.Stream NS.defaultProtocol
+    NS.connect sock (NS.addrAddress addr)
     return sock
 
 withSocketConn :: MonadIO m => String -> Int -> WithConn m a b -> m b
@@ -137,7 +138,7 @@ withSocketConn host' port' f = do
     a <- f
             (writeToIter $ B.sendAll sock)
             (readToEnum $ B.recv sock defaultChunkSize)
-    liftIO $ sClose sock
+    liftIO $ NS.sClose sock
     return a
 
 
