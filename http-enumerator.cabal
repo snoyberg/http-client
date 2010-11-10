@@ -38,7 +38,7 @@ library
         cpp-options:   -DOPENSSL
     else
         build-depends: tls               >= 0.2     && < 0.3
-                     , mtl               >= 1.1     && < 1.2
+                     , mtl               >= 1.1     && < 2.1
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
                      Network.HTTP.Enumerator.Zlib
