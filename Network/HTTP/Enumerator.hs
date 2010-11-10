@@ -104,7 +104,7 @@ import Data.Bits
 import Data.Maybe (fromMaybe)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
-import qualified Text.Blaze.Builder.Core as Blaze
+import qualified Blaze.ByteString.Builder as Blaze
 import Data.Monoid (Monoid (..))
 
 -- | The OpenSSL library requires some initialization of variables to be used,
@@ -577,18 +577,18 @@ urlEncodedBody headers req = req
     body = Blaze.toLazyByteString $ body' headers
     body' [] = mempty
     body' [x] = pair x
-    body' (x:xs) = pair x `mappend` Blaze.singleton 38 `mappend` body' xs
+    body' (x:xs) = pair x `mappend` Blaze.fromWord8 38 `mappend` body' xs
     pair (x, y)
         | S.null y = single x
         | otherwise =
-            single x `mappend` Blaze.singleton 61 `mappend` single y
-    single = Blaze.writeList go . S.unpack
-    go 32 = Blaze.writeByte 43 -- space to plus
-    go c | unreserved c = Blaze.writeByte c
+            single x `mappend` Blaze.fromWord8 61 `mappend` single y
+    single = Blaze.fromWrite4List go . S.unpack
+    go 32 = Blaze.writeWord8 43 -- space to plus
+    go c | unreserved c = Blaze.writeWord8 c
     go c =
         let x = shiftR c 4
             y = c .&. 15
-         in Blaze.writeByte 37 `mappend` hexChar x `mappend` hexChar y
+         in Blaze.writeWord8 37 `mappend` hexChar x `mappend` hexChar y
     unreserved  45 = True -- hyphen
     unreserved  46 = True -- period
     unreserved  95 = True -- underscore
@@ -599,8 +599,8 @@ urlEncodedBody headers req = req
         | 97 <= c && c <= 122 = True -- A - Z
     unreserved _ = False
     hexChar c
-        | c < 10 = Blaze.writeByte $ c + 48
-        | c < 16 = Blaze.writeByte $ c + 55
+        | c < 10 = Blaze.writeWord8 $ c + 48
+        | c < 16 = Blaze.writeWord8 $ c + 55
         | otherwise = error $ "hexChar: " ++ show c
 
 catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
