@@ -41,7 +41,8 @@ clientEnumSimple h f = do
                 { cbCertificates = Nothing
                 }
             }
-    srand <- Trans.liftIO makeSRandomGen
+    esrand <- Trans.liftIO makeSRandomGen
+    let srand = either (error . show) id esrand
     clientEnum clientstate srand h f
   where
     ciphers =
