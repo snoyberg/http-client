@@ -2,7 +2,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE PackageImports #-}
 {-# LANGUAGE CPP #-}
 -- | This module contains everything you need to initiate HTTP connections.
 -- Make sure to wrap your code with 'withHttpEnumerator'. If you want a simple
@@ -82,8 +81,8 @@ import qualified Network.TLS.Client.Enumerator as TLS
 import Network (connectTo, PortID (PortNumber))
 #endif
 
-import qualified "network" Network.Socket as NS
-import qualified "network-bytestring" Network.Socket.ByteString as B
+import qualified Network.Socket as NS
+import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
