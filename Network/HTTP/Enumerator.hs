@@ -86,7 +86,11 @@ import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
-import Data.Enumerator hiding (head, map, break)
+import Data.Enumerator
+    ( Iteratee (..), Stream (..), catchError, throwError, consume
+    , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run
+    , continue, enumList, returnI
+    )
 import qualified Data.Enumerator as E
 import Network.HTTP.Enumerator.HttpParser
 import Network.HTTP.Enumerator.Zlib (ungzip)
