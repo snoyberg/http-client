@@ -89,7 +89,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError, consume
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run
-    , continue, enumList, returnI
+    , continue, enumList, returnI, enumEOF
     )
 import qualified Data.Enumerator as E
 import Network.HTTP.Enumerator.HttpParser
@@ -286,7 +286,9 @@ http bodyIter Request {..} = do
                     if ("content-encoding", "gzip") `elem` hs'
                         then joinI $ ungzip $$ x
                         else x
-            body' $ decompress $ bodyIter sc hs
+            if method == "HEAD"
+                then enumEOF $$ bodyIter sc hs
+                else body' $ decompress $ bodyIter sc hs
 
 chunkedEnumeratee :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 chunkedEnumeratee k@(Continue _) = do
