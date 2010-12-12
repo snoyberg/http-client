@@ -14,7 +14,7 @@ main = withSocketsDo $ withHttpEnumerator $ do
                 [ ("foo", "bar")
                 , ("baz%%38**.8fn", "bin")
                 ] _req2
-    Response sc hs b <- httpLbsRedirect req
+    Response sc hs b <- httpLbsRedirect _req2
 #if DEBUG
     return ()
 #else

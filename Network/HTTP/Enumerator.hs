@@ -88,13 +88,13 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError, consume
-    , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run
-    , continue, enumList, returnI, enumEOF
+    , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
+    , continue, enumList, returnI
     )
 import qualified Data.Enumerator as E
 import Network.HTTP.Enumerator.HttpParser
 import Network.HTTP.Enumerator.Zlib (ungzip)
-import Control.Exception (throwIO, Exception)
+import Control.Exception (Exception)
 import Control.Arrow (first)
 import Data.Char (toLower)
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -109,6 +109,7 @@ import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import Data.Monoid (Monoid (..))
+import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -135,12 +136,15 @@ getSocket host' port' = do
     NS.connect sock (NS.addrAddress addr)
     return sock
 
-withSocketConn :: MonadIO m => String -> Int -> WithConn m a b -> m b
-withSocketConn host' port' f = do
+withSocketConn :: MonadIO m
+               => String
+               -> Int
+               -> Enumerator S.ByteString m ()
+               -> Enumerator S.ByteString m a
+withSocketConn host' port' req step0 = do
     sock <- liftIO $ getSocket host' port'
-    a <- f
-            (writeToIter $ B.sendAll sock)
-            (readToEnum $ B.recv sock defaultChunkSize)
+    lift $ run_ $ req $$ writeToIter $ B.sendAll sock
+    a <- readToEnum (B.recv sock defaultChunkSize) step0
     liftIO $ NS.sClose sock
     return a
 
@@ -165,27 +169,27 @@ readToEnum read' (Continue k) = do
             readToEnum read' step
 readToEnum _ step = returnI step
 
-type WithConn m a b = Iteratee S.ByteString m ()
-                   -> Enumerator S.ByteString m a
-                   -> m b
-
-withSslConn :: MonadIO m => String -> Int -> WithConn m a b -> m b
-withSslConn host' port' f = do
+withSslConn :: MonadIO m
+            => String -- ^ host
+            -> Int -- ^ port
+            -> Enumerator S.ByteString m () -- ^ request
+            -> Enumerator S.ByteString m a -- ^ response
+withSslConn host' port' req step0 = do
 
 #if OPENSSL
     ctx <- liftIO $ SSL.context
     sock <- liftIO $ getSocket host' port'
     ssl <- liftIO $ SSL.connection ctx sock
     liftIO $ SSL.connect ssl
-    a <- f
-            (writeToIter $ SSL.write ssl)
-            (readToEnum $ SSL.read ssl defaultChunkSize)
+    lift $ run_ $ req $$ writeToIter $ SSL.write ssl
+    a <- readToEnum (SSL.read ssl defaultChunkSize) step0
     liftIO $ SSL.shutdown ssl SSL.Unidirectional
+    liftIO $ NS.sClose sock
     return a
 #else
     handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
     liftIO $ hSetBuffering handle NoBuffering
-    a <- TLS.clientEnumSimple handle f
+    a <- TLS.clientEnumSimple handle req step0
     liftIO $ hClose handle
     return a
 #endif
@@ -231,64 +235,61 @@ type Headers = [(S.ByteString, S.ByteString)]
 -- HTTP download, making it possible to download very large responses in
 -- constant memory.
 http :: MonadIO m
-     => (Int -> Headers -> Iteratee S.ByteString m a)
-     -> Request
-     -> m a
-http bodyIter Request {..} = do
+     => Request
+     -> Iteratee S.ByteString (ReaderT (Int, Headers) m) a
+     -> Iteratee S.ByteString m a
+http Request {..} bodyStep = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
-    res <- withConn h' port go
-    case res of
-        Left e -> liftIO $ throwIO e
-        Right x -> return x
+    withConn h' port req $$ go
   where
+    req = enumList 8 $ L.toChunks request
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
         | otherwise = host `S.append` S8.pack (':' : show port)
-    go iter enum = do
-        let headers' = ("Host", hh)
-                     : ("Content-Length", S8.pack $ show
-                                                  $ L.length requestBody)
-                     : ("Accept-Encoding", "gzip")
-                     : requestHeaders
-        let request = Blaze.toLazyByteString $ mconcat
-                [ Blaze.fromByteString method
-                , Blaze.fromByteString " "
-                , Blaze.fromByteString $
-                    case S8.uncons path of
-                        Just ('/', _) -> path
-                        _ -> S8.cons '/' path
-                , renderQS queryString
-                , Blaze.fromByteString " HTTP/1.1\r\n"
-                , mconcat $ flip map headers' $ \(k, v) -> mconcat
-                    [ Blaze.fromByteString k
-                    , Blaze.fromByteString ": "
-                    , Blaze.fromByteString v
-                    , Blaze.fromByteString "\r\n"
-                    ]
+    headers' = ("Host", hh)
+                 : ("Content-Length", S8.pack $ show
+                                              $ L.length requestBody)
+                 : ("Accept-Encoding", "gzip")
+                 : requestHeaders
+    request = Blaze.toLazyByteString $ mconcat
+            [ Blaze.fromByteString method
+            , Blaze.fromByteString " "
+            , Blaze.fromByteString $
+                case S8.uncons path of
+                    Just ('/', _) -> path
+                    _ -> S8.cons '/' path
+            , renderQS queryString
+            , Blaze.fromByteString " HTTP/1.1\r\n"
+            , mconcat $ flip map headers' $ \(k, v) -> mconcat
+                [ Blaze.fromByteString k
+                , Blaze.fromByteString ": "
+                , Blaze.fromByteString v
                 , Blaze.fromByteString "\r\n"
-                , mconcat $ map Blaze.fromByteString
-                          $ L.toChunks requestBody
                 ]
-        Right () <- run $ enumList 1 (L.toChunks request) $$ iter
-        run $ enum $$ do
-            ((_, sc, _), hs) <- catchParser "HTTP headers" iterHeaders
-            let hs' = map (first $ S8.map toLower) hs
-            let mcl = lookup "content-length" hs'
-            let body' x =
-                    if ("transfer-encoding", "chunked") `elem` hs'
-                        then joinI $ chunkedEnumeratee $$ x
-                        else case mcl >>= readMay . S8.unpack of
-                            Just len -> joinI $ takeLBS len $$ x
-                            Nothing -> x
-            let decompress x =
-                    if ("content-encoding", "gzip") `elem` hs'
-                        then joinI $ ungzip $$ x
-                        else x
+            , Blaze.fromByteString "\r\n"
+            , mconcat $ map Blaze.fromByteString
+                      $ L.toChunks requestBody
+            ]
+    go = do
+        ((_, sc, _), hs) <- catchParser "HTTP headers" iterHeaders
+        let hs' = map (first $ S8.map toLower) hs
+        let mcl = lookup "content-length" hs'
+        let body' x =
+                if ("transfer-encoding", "chunked") `elem` hs'
+                    then joinI $ chunkedEnumeratee $$ x
+                    else case mcl >>= readMay . S8.unpack of
+                        Just len -> joinI $ takeLBS len $$ x
+                        Nothing -> x
+        let decompress x =
+                if ("content-encoding", "gzip") `elem` hs'
+                    then joinI $ ungzip $$ x
+                    else x
+        changeMonad (sc, hs) $
             if method == "HEAD"
-                then enumEOF $$ bodyIter sc hs
-                else body' $ decompress $ bodyIter sc hs
+                then bodyStep
+                else body' $ decompress $ bodyStep
 
 chunkedEnumeratee :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 chunkedEnumeratee k@(Continue _) = do
@@ -466,8 +467,11 @@ breakDiscard w s =
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-lbsIter :: Monad m => Int -> Headers -> Iteratee S.ByteString m Response
-lbsIter sc hs = fmap (Response sc hs . L.fromChunks) consume
+lbsIter :: Monad m => Iteratee S.ByteString (ReaderT (Int, Headers) m) Response
+lbsIter = do
+    (sc, hs) <- lift ask
+    lbs <- fmap L.fromChunks consume
+    return $ Response sc hs lbs
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -481,7 +485,7 @@ lbsIter sc hs = fmap (Response sc hs . L.fromChunks) consume
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
 httpLbs :: MonadIO m => Request -> m Response
-httpLbs = http lbsIter
+httpLbs req = run_ $ http req lbsIter
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
@@ -508,16 +512,19 @@ instance Exception HttpException
 -- location header.
 httpRedirect
     :: (MonadIO m, Failure HttpException m)
-    => (Int -> Headers -> Iteratee S.ByteString m a)
-    -> Request
-    -> m a
-httpRedirect iter req =
-    http (iter' (10 :: Int)) req
+    => Request
+    -> Iteratee S.ByteString (ReaderT (Int, Headers) m) a
+    -> Iteratee S.ByteString m a
+httpRedirect req bodyIter =
+    http req $ iter' (10 :: Int)
   where
-    iter' redirects code hs
+    iter' redirects = do
+        (code, hs) <- lift ask
+        iter'' redirects code hs
+    iter'' redirects code hs
         | 300 <= code && code < 400 =
             case lookup "location" $ map (first $ S8.map toLower) hs of
-                Just l'' -> lift $ do
+                Just l'' -> do
                     -- Prepend scheme, host and port if missing
                     let l' =
                             case S8.uncons l'' of
@@ -531,7 +538,7 @@ httpRedirect iter req =
                                     , S8.unpack l''
                                     ]
                                 _ -> S8.unpack l''
-                    l <- parseUrl l'
+                    l <- lift $ lift $ parseUrl l'
                     let req' = req
                             { host = host l
                             , port = port l
@@ -540,10 +547,10 @@ httpRedirect iter req =
                             , queryString = queryString l
                             }
                     if redirects == 0
-                        then failure TooManyRedirects
-                        else http (iter' $ redirects - 1) req'
-                Nothing -> iter code hs
-        | otherwise = iter code hs
+                        then lift $ lift $ failure TooManyRedirects
+                        else changeMonad' lift $ http req' $ iter' $ redirects - 1
+                Nothing -> bodyIter
+        | otherwise = bodyIter
 
 -- | Download the specified 'Request', returning the results as a 'Response'
 -- and automatically handling redirects.
@@ -558,7 +565,7 @@ httpRedirect iter req =
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
 httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request -> m Response
-httpLbsRedirect = httpRedirect lbsIter
+httpLbsRedirect req = run_ $ httpRedirect req lbsIter
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
@@ -610,3 +617,29 @@ urlEncodedBody headers req = req
 
 catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
 catchParser s i = catchError i (const $ throwError $ HttpParserException s)
+
+changeMonad :: Monad m
+            => (Int, Headers)
+            -> Iteratee S.ByteString (ReaderT (Int, Headers) m) a
+            -> Iteratee S.ByteString m a
+changeMonad r (Iteratee i) = Iteratee $ do
+    step <- f i
+    return $
+        case step of
+            Yield a b -> Yield a b
+            Error e -> Error e
+            Continue k -> Continue $ changeMonad r . k
+  where
+    f = flip runReaderT r
+
+changeMonad' :: Monad m
+             => (t (Step S.ByteString t a) -> m (Step S.ByteString t a))
+             -> Iteratee S.ByteString t a
+             -> Iteratee S.ByteString m a
+changeMonad' f (Iteratee i) = Iteratee $ do
+    step <- f i
+    return $
+        case step of
+            Yield a b -> Yield a b
+            Error e -> Error e
+            Continue k -> Continue $ changeMonad' f . k

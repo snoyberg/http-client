@@ -6,14 +6,16 @@ module Network.TLS.Client.Enumerator
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Enumerator as E
+import Data.Enumerator (($$))
 import qualified Control.Monad.IO.Class as Trans
+import Control.Monad.Trans.Class (lift)
 
 import Network.TLS.Client
 import Network.TLS.SRandom
 import Network.TLS.Struct
 import Network.TLS.Cipher
 
-import Control.Monad.State (runStateT)
+import Control.Monad.Trans.State (runStateT)
 
 import Data.IORef
 import System.IO (Handle)
@@ -28,9 +30,9 @@ newIState params rng = do
 clientEnumSimple
     :: Trans.MonadIO m
     => Handle
-    -> (E.Iteratee B.ByteString m () -> E.Enumerator B.ByteString m a -> m b)
-    -> m b
-clientEnumSimple h f = do
+    -> E.Enumerator B.ByteString m () -- ^ request
+    -> E.Enumerator B.ByteString m a -- ^ response
+clientEnumSimple h req step = do
     let clientstate = TLSClientParams
             { cpConnectVersion = TLS10
             , cpAllowedVersions = [ TLS10, TLS11 ]
@@ -43,7 +45,7 @@ clientEnumSimple h f = do
             }
     esrand <- Trans.liftIO makeSRandomGen
     let srand = either (error . show) id esrand
-    clientEnum clientstate srand h f
+    clientEnum clientstate srand h req step
   where
     ciphers =
         [ cipher_AES128_SHA1
@@ -54,14 +56,15 @@ clientEnumSimple h f = do
 
 clientEnum :: Trans.MonadIO m
            => TLSClientParams -> SRandomGen -> Handle
-           -> (E.Iteratee B.ByteString m () -> E.Enumerator B.ByteString m a -> m b)
-           -> m b
-clientEnum tcp srg h f = do
+           -> E.Enumerator B.ByteString m ()
+           -> E.Enumerator B.ByteString m a
+clientEnum tcp srg h req step0 = do
     istate <- Trans.liftIO $ newIState tcp srg
     tlsHelper istate $ connect h
-    b <- f (iter istate) (enum istate)
+    lift $ E.run_ $ req $$ iter istate
+    res <- enum istate step0
     tlsHelper istate $ close h
-    return b
+    return res
   where
     iter :: Trans.MonadIO m => IState -> E.Iteratee B.ByteString m ()
     iter istate =
