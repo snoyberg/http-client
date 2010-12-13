@@ -108,6 +108,7 @@ import Data.Maybe (fromMaybe)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
+import qualified Blaze.ByteString.Builder.Internal.Write as Blaze
 import Data.Monoid (Monoid (..))
 import Control.Monad.Trans.Reader (ReaderT, runReaderT, ask)
 
@@ -594,7 +595,7 @@ urlEncodedBody headers req = req
         | S.null y = single x
         | otherwise =
             single x `mappend` Blaze.fromWord8 61 `mappend` single y
-    single = Blaze.fromWrite4List go . S.unpack
+    single = Blaze.fromWriteList go . S.unpack
     go 32 = Blaze.writeWord8 43 -- space to plus
     go c | unreserved c = Blaze.writeWord8 c
     go c =

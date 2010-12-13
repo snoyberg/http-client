@@ -30,7 +30,7 @@ library
                  , attoparsec            >= 0.8.0.2 && < 0.9
                  , attoparsec-enumerator >= 0.2     && < 0.3
                  , utf8-string           >= 0.3.4   && < 0.4
-                 , blaze-builder         >= 0.2     && < 0.3
+                 , blaze-builder         >= 0.2.1   && < 0.3
                  , zlib-bindings         >= 0.0.0   && < 0.1
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
