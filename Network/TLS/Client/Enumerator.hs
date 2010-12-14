@@ -15,7 +15,7 @@ import Network.TLS.SRandom
 import Network.TLS.Struct
 import Network.TLS.Cipher
 
-import Control.Monad.Trans.State (runStateT)
+import Control.Monad.State (runStateT)
 
 import Data.IORef
 import System.IO (Handle)

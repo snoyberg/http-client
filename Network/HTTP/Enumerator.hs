@@ -66,10 +66,6 @@ module Network.HTTP.Enumerator
     , parseUrl
     , withHttpEnumerator
     , lbsIter
-      -- ** Generic for enumerators
-    , iterToStep
-    , iterToStep2
-    , apply2
       -- * Request bodies
     , urlEncodedBody
       -- * Exceptions
@@ -240,7 +236,7 @@ type Headers = [(S.ByteString, S.ByteString)]
 -- constant memory.
 http :: MonadIO m
      => Request
-     -> (Int -> Headers -> Step S.ByteString m a)
+     -> (Int -> Headers -> Iteratee S.ByteString m a)
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep = do
     let h' = S8.unpack host
@@ -291,8 +287,8 @@ http Request {..} bodyStep = do
                     then joinI $ ungzip x
                     else returnI x
         if method == "HEAD"
-            then returnI $ bodyStep sc hs
-            else body' $ decompress $ bodyStep sc hs
+            then bodyStep sc hs
+            else body' $ decompress $$ bodyStep sc hs
 
 chunkedEnumeratee :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 chunkedEnumeratee k@(Continue _) = do
@@ -475,26 +471,6 @@ lbsIter sc hs = do
     lbs <- fmap L.fromChunks consume
     return $ Response sc hs lbs
 
-iterToStep :: Monad m => Iteratee a m b -> Step a m b
-iterToStep iter =
-    Continue $ \chunks1 -> continue $ \chunks2 -> do
-        yield () $ app chunks1 chunks2
-        iter
-  where
-    app (Chunks x) (Chunks y) = Chunks $ x ++ y
-    app x _ = x
-
-iterToStep2 :: Monad m
-            => (x -> y -> Iteratee a m b)
-            -> (x -> y -> Step a m b)
-iterToStep2 i x y = iterToStep $ i x y
-
-apply2 :: Monad m
-       => ((x -> y -> Step a m b) -> Iteratee a' m b')
-       -> (x -> y -> Iteratee a m b)
-       -> Iteratee a' m b'
-f `apply2` i = f $ iterToStep2 i
-
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
 -- This is a simplified version of 'http' for the common case where you simply
@@ -507,7 +483,7 @@ f `apply2` i = f $ iterToStep2 i
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
 httpLbs :: MonadIO m => Request -> m Response
-httpLbs req = run_ $ http req `apply2` lbsIter
+httpLbs req = run_ $ http req $ lbsIter
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
@@ -535,10 +511,10 @@ instance Exception HttpException
 httpRedirect
     :: (MonadIO m, Failure HttpException m)
     => Request
-    -> (Int -> Headers -> Step S.ByteString m a)
+    -> (Int -> Headers -> Iteratee S.ByteString m a)
     -> Iteratee S.ByteString m a
 httpRedirect req bodyStep =
-    http req `apply2` iter' (10 :: Int)
+    http req $ iter' (10 :: Int)
   where
     iter' redirects code hs
         | 300 <= code && code < 400 =
@@ -567,9 +543,9 @@ httpRedirect req bodyStep =
                             }
                     if redirects == 0
                         then lift $ failure TooManyRedirects
-                        else (http req') `apply2` (iter' $ redirects - 1)
-                Nothing -> returnI $ bodyStep code hs
-        | otherwise = returnI $ bodyStep code hs
+                        else (http req') $ (iter' $ redirects - 1)
+                Nothing -> bodyStep code hs
+        | otherwise = bodyStep code hs
 
 -- | Download the specified 'Request', returning the results as a 'Response'
 -- and automatically handling redirects.
@@ -584,7 +560,7 @@ httpRedirect req bodyStep =
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
 httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request -> m Response
-httpLbsRedirect req = run_ $ httpRedirect req `apply2` lbsIter
+httpLbsRedirect req = run_ $ httpRedirect req $ lbsIter
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
