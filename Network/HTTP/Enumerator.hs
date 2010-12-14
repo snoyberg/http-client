@@ -96,7 +96,6 @@ import Network.HTTP.Enumerator.HttpParser
 import Network.HTTP.Enumerator.Zlib (ungzip)
 import Control.Exception (Exception)
 import Control.Arrow (first)
-import Data.Char (toLower)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Failure
@@ -110,6 +109,7 @@ import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import qualified Blaze.ByteString.Builder.Internal.Write as Blaze
 import Data.Monoid (Monoid (..))
+import qualified Network.Wai as W
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -204,7 +204,7 @@ data Request = Request
     , host :: S.ByteString
     , port :: Int
     , path :: S.ByteString -- ^ Everything from the host to the query string.
-    , queryString :: Headers -- ^ Automatically escaped for your convenience.
+    , queryString :: [(S.ByteString, S.ByteString)] -- ^ Automatically escaped for your convenience.
     , requestHeaders :: Headers
     , requestBody :: L.ByteString
     }
@@ -218,7 +218,7 @@ data Response = Response
     }
     deriving (Show, Read, Eq, Typeable, Data)
 
-type Headers = [(S.ByteString, S.ByteString)]
+type Headers = [(W.ResponseHeader, S.ByteString)]
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -236,7 +236,7 @@ type Headers = [(S.ByteString, S.ByteString)]
 -- constant memory.
 http :: MonadIO m
      => Request
-     -> (Int -> Headers -> Iteratee S.ByteString m a)
+     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep = do
     let h' = S8.unpack host
@@ -263,7 +263,7 @@ http Request {..} bodyStep = do
             , renderQS queryString
             , Blaze.fromByteString " HTTP/1.1\r\n"
             , mconcat $ flip map headers' $ \(k, v) -> mconcat
-                [ Blaze.fromByteString k
+                [ Blaze.fromByteString $ W.ciOriginal k
                 , Blaze.fromByteString ": "
                 , Blaze.fromByteString v
                 , Blaze.fromByteString "\r\n"
@@ -273,8 +273,9 @@ http Request {..} bodyStep = do
                       $ L.toChunks requestBody
             ]
     go = do
-        ((_, sc, _), hs) <- catchParser "HTTP headers" iterHeaders
-        let hs' = map (first $ S8.map toLower) hs
+        ((_, sc, sm), hs) <- catchParser "HTTP headers" iterHeaders
+        let s = W.Status sc sm
+        let hs' = map (first W.mkCIByteString) hs
         let mcl = lookup "content-length" hs'
         let body' x =
                 if ("transfer-encoding", "chunked") `elem` hs'
@@ -287,8 +288,8 @@ http Request {..} bodyStep = do
                     then joinI $ ungzip x
                     else returnI x
         if method == "HEAD"
-            then bodyStep sc hs
-            else body' $ decompress $$ bodyStep sc hs
+            then bodyStep s hs'
+            else body' $ decompress $$ bodyStep s hs'
 
 chunkedEnumeratee :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 chunkedEnumeratee k@(Continue _) = do
@@ -466,8 +467,9 @@ breakDiscard w s =
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-lbsIter :: Monad m => Int -> Headers -> Iteratee S.ByteString m Response
-lbsIter sc hs = do
+lbsIter :: Monad m => W.Status -> W.ResponseHeaders
+        -> Iteratee S.ByteString m Response
+lbsIter (W.Status sc _) hs = do
     lbs <- fmap L.fromChunks consume
     return $ Response sc hs lbs
 
@@ -511,14 +513,14 @@ instance Exception HttpException
 httpRedirect
     :: (MonadIO m, Failure HttpException m)
     => Request
-    -> (Int -> Headers -> Iteratee S.ByteString m a)
+    -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
     -> Iteratee S.ByteString m a
 httpRedirect req bodyStep =
     http req $ iter' (10 :: Int)
   where
-    iter' redirects code hs
+    iter' redirects s@(W.Status code _) hs
         | 300 <= code && code < 400 =
-            case lookup "location" $ map (first $ S8.map toLower) hs of
+            case lookup "location" hs of
                 Just l'' -> do
                     -- Prepend scheme, host and port if missing
                     let l' =
@@ -544,8 +546,8 @@ httpRedirect req bodyStep =
                     if redirects == 0
                         then lift $ failure TooManyRedirects
                         else (http req') $ (iter' $ redirects - 1)
-                Nothing -> bodyStep code hs
-        | otherwise = bodyStep code hs
+                Nothing -> bodyStep s hs
+        | otherwise = bodyStep s hs
 
 -- | Download the specified 'Request', returning the results as a 'Response'
 -- and automatically handling redirects.
@@ -571,7 +573,7 @@ readMay s = case reads s of
 --
 -- This sets a new 'requestBody', adds a content-type request header and
 -- changes the 'method' to POST.
-urlEncodedBody :: Headers -> Request -> Request
+urlEncodedBody :: [(S.ByteString, S.ByteString)] -> Request -> Request
 urlEncodedBody headers req = req
     { requestBody = body
     , method = "POST"
