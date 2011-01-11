@@ -5,6 +5,7 @@ import Network
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import System.Environment.UTF8 (getArgs)
+import Network.Wai (ciOriginal)
 
 main :: IO ()
 main = withSocketsDo $ withHttpEnumerator $ do
@@ -20,7 +21,7 @@ main = withSocketsDo $ withHttpEnumerator $ do
 #else
     print sc
     mapM_ (\(x, y) -> do
-        S.putStr x
+        S.putStr $ ciOriginal x
         putStr ": "
         S.putStr y
         putStrLn "") hs
