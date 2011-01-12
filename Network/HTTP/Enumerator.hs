@@ -57,6 +57,7 @@ module Network.HTTP.Enumerator
     , httpLbs
     , httpLbsRedirect
     , http
+    , streamingHttp
     , httpRedirect
       -- * Datatypes
     , Request (..)
@@ -89,7 +90,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError, consume
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
-    , continue, enumList, returnI
+    , continue, returnI, (>==>)
     )
 import qualified Data.Enumerator as E
 import Network.HTTP.Enumerator.HttpParser
@@ -107,9 +108,11 @@ import Data.Maybe (fromMaybe)
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
+import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import qualified Blaze.ByteString.Builder.Internal.Write as Blaze
 import Data.Monoid (Monoid (..))
 import qualified Network.Wai as W
+import Data.Int (Int64)
 
 -- | The OpenSSL library requires some initialization of variables to be used,
 -- and therefore you must call 'withOpenSSL' before using any of its functions.
@@ -139,11 +142,11 @@ getSocket host' port' = do
 withSocketConn :: MonadIO m
                => String
                -> Int
-               -> Enumerator S.ByteString m ()
+               -> Enumerator Blaze.Builder m ()
                -> Enumerator S.ByteString m a
 withSocketConn host' port' req step0 = do
     sock <- liftIO $ getSocket host' port'
-    lift $ run_ $ req $$ writeToIter $ B.sendAll sock
+    lift $ run_ $ req $$ joinI $ builderToByteString $$ writeToIter $ B.sendAll sock
     a <- readToEnum (B.recv sock defaultChunkSize) step0
     liftIO $ NS.sClose sock
     return a
@@ -172,7 +175,7 @@ readToEnum _ step = returnI step
 withSslConn :: MonadIO m
             => String -- ^ host
             -> Int -- ^ port
-            -> Enumerator S.ByteString m () -- ^ request
+            -> Enumerator Blaze.Builder m () -- ^ request
             -> Enumerator S.ByteString m a -- ^ response
 withSslConn host' port' req step0 = do
 
@@ -238,22 +241,38 @@ http :: MonadIO m
      => Request
      -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
      -> Iteratee S.ByteString m a
-http Request {..} bodyStep = do
+http req bodyStep =
+    streamingHttp req reqBody bodyStep
+  where
+    reqBody = (L.length $ requestBody req, toEnum $ requestBody req)
+    toEnum = enumSingle . Blaze.fromLazyByteString
+
+enumSingle x (Continue k) = k $ Chunks [x]
+enumSingle _ step = returnI step
+
+-- | Same as 'http', but allows you to specify a ('Int64', 'Enumerator') pair
+-- for the request body. Note: this function ignores the 'requestBody' record
+-- in the 'Request' argument.
+streamingHttp
+     :: MonadIO m
+     => Request
+     -> (Int64, Enumerator Blaze.Builder m ())
+     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
+     -> Iteratee S.ByteString m a
+streamingHttp Request {..} (contentLength, bodyEnum) bodyStep = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
-    withConn h' port req $$ go
+    withConn h' port requestEnum $$ go
   where
-    req = enumList 8 $ L.toChunks request
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
         | otherwise = host `S.append` S8.pack (':' : show port)
     headers' = ("Host", hh)
-                 : ("Content-Length", S8.pack $ show
-                                              $ L.length requestBody)
+                 : ("Content-Length", S8.pack $ show contentLength)
                  : ("Accept-Encoding", "gzip")
                  : requestHeaders
-    request = Blaze.toLazyByteString $ mconcat
+    requestHeaders' = mconcat
             [ Blaze.fromByteString method
             , Blaze.fromByteString " "
             , Blaze.fromByteString $
@@ -269,9 +288,8 @@ http Request {..} bodyStep = do
                 , Blaze.fromByteString "\r\n"
                 ]
             , Blaze.fromByteString "\r\n"
-            , mconcat $ map Blaze.fromByteString
-                      $ L.toChunks requestBody
             ]
+    requestEnum = enumSingle requestHeaders' >==> bodyEnum
     go = do
         ((_, sc, sm), hs) <- catchParser "HTTP headers" iterHeaders
         let s = W.Status sc sm

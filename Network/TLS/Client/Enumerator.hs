@@ -6,9 +6,11 @@ module Network.TLS.Client.Enumerator
 import qualified Data.ByteString as B
 import qualified Data.ByteString.Lazy as L
 import qualified Data.Enumerator as E
-import Data.Enumerator (($$))
+import Data.Enumerator (($$), joinI)
 import qualified Control.Monad.IO.Class as Trans
 import Control.Monad.Trans.Class (lift)
+import Blaze.ByteString.Builder (Builder)
+import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 
 import Network.TLS.Client
 import Network.TLS.SRandom
@@ -30,7 +32,7 @@ newIState params rng = do
 clientEnumSimple
     :: Trans.MonadIO m
     => Handle
-    -> E.Enumerator B.ByteString m () -- ^ request
+    -> E.Enumerator Builder m () -- ^ request
     -> E.Enumerator B.ByteString m a -- ^ response
 clientEnumSimple h req step = do
     let clientstate = TLSClientParams
@@ -56,12 +58,12 @@ clientEnumSimple h req step = do
 
 clientEnum :: Trans.MonadIO m
            => TLSClientParams -> SRandomGen -> Handle
-           -> E.Enumerator B.ByteString m ()
+           -> E.Enumerator Builder m ()
            -> E.Enumerator B.ByteString m a
 clientEnum tcp srg h req step0 = do
     istate <- Trans.liftIO $ newIState tcp srg
     tlsHelper istate $ connect h
-    lift $ E.run_ $ req $$ iter istate
+    lift $ E.run_ $ req $$ joinI $ builderToByteString $$ iter istate
     res <- enum istate step0
     tlsHelper istate $ close h
     return res
