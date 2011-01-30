@@ -19,12 +19,13 @@
 -- follow 3xx redirects.
 --
 -- > import Network.HTTP.Enumerator
--- > import Data.Enumerator.IO
+-- > import Data.Enumerator.Binary (iterHandle)
+-- > import Data.Enumerator (run_)
 -- > import System.IO
 -- >
 -- > main = withFile "google.html" WriteMode $ \handle -> do
--- >     request <- parseUrl "http://google.com/"
--- >     httpRedirect (\_ _ -> iterHandle handle) request
+-- >      request <- parseUrl "http://google.com/"
+-- >      run_ $ httpRedirect request (\_ _ -> iterHandle handle)
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
