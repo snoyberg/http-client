@@ -59,6 +59,7 @@ module Network.HTTP.Enumerator
     , http
     , streamingHttp
     , httpRedirect
+    , redirectIter
       -- * Datatypes
     , Request (..)
     , Response (..)
@@ -534,38 +535,46 @@ httpRedirect
     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
     -> Iteratee S.ByteString m a
 httpRedirect req bodyStep =
-    http req $ iter' (10 :: Int)
-  where
-    iter' redirects s@(W.Status code _) hs
-        | 300 <= code && code < 400 =
-            case lookup "location" hs of
-                Just l'' -> do
-                    -- Prepend scheme, host and port if missing
-                    let l' =
-                            case S8.uncons l'' of
-                                Just ('/', _) -> concat
-                                    [ "http"
-                                    , if secure req then "s" else ""
-                                    , "://"
-                                    , S8.unpack $ host req
-                                    , ":"
-                                    , show $ port req
-                                    , S8.unpack l''
-                                    ]
-                                _ -> S8.unpack l''
-                    l <- lift $ parseUrl l'
-                    let req' = req
-                            { host = host l
-                            , port = port l
-                            , secure = secure l
-                            , path = path l
-                            , queryString = queryString l
-                            }
-                    if redirects == 0
-                        then lift $ failure TooManyRedirects
-                        else (http req') $ (iter' $ redirects - 1)
-                Nothing -> bodyStep s hs
-        | otherwise = bodyStep s hs
+    http req $ redirectIter 10 req bodyStep
+
+-- | Make a request automatically follow 3xx redirects.
+--
+-- Used internally by 'httpRedirect' and family.
+redirectIter :: (MonadIO m, Failure HttpException m)
+             => Int -- ^ number of redirects to attempt
+             -> Request -- ^ Original request
+             -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
+             -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
+redirectIter redirects req bodyStep s@(W.Status code _) hs
+    | 300 <= code && code < 400 =
+        case lookup "location" hs of
+            Just l'' -> do
+                -- Prepend scheme, host and port if missing
+                let l' =
+                        case S8.uncons l'' of
+                            Just ('/', _) -> concat
+                                [ "http"
+                                , if secure req then "s" else ""
+                                , "://"
+                                , S8.unpack $ host req
+                                , ":"
+                                , show $ port req
+                                , S8.unpack l''
+                                ]
+                            _ -> S8.unpack l''
+                l <- lift $ parseUrl l'
+                let req' = req
+                        { host = host l
+                        , port = port l
+                        , secure = secure l
+                        , path = path l
+                        , queryString = queryString l
+                        }
+                if redirects == 0
+                    then lift $ failure TooManyRedirects
+                    else (http req') (redirectIter (redirects - 1) req' bodyStep)
+            Nothing -> bodyStep s hs
+    | otherwise = bodyStep s hs
 
 -- | Download the specified 'Request', returning the results as a 'Response'
 -- and automatically handling redirects.
