@@ -570,6 +570,10 @@ redirectIter redirects req bodyStep s@(W.Status code _) hs
                         , secure = secure l
                         , path = path l
                         , queryString = queryString l
+                        , method =
+                            if code == 303
+                                then "GET"
+                                else method l
                         }
                 if redirects == 0
                     then lift $ failure TooManyRedirects
