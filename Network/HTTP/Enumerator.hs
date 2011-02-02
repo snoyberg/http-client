@@ -135,9 +135,13 @@ withHttpEnumerator = id
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
-    addrs <- NS.getAddrInfo Nothing (Just host') (Just $ show port')
-    let addr = head addrs
-    sock <- NS.socket (NS.addrFamily addr) NS.Stream NS.defaultProtocol
+    let hints = NS.defaultHints {
+                          NS.addrFlags = [NS.AI_ADDRCONFIG]
+                        , NS.addrSocketType = NS.Stream
+                        }
+    (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+    sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
+                      (NS.addrProtocol addr)
     NS.connect sock (NS.addrAddress addr)
     return sock
 
