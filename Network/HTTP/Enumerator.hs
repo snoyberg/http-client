@@ -190,7 +190,7 @@ withSslConn host' port' req step0 = do
     sock <- liftIO $ getSocket host' port'
     ssl <- liftIO $ SSL.connection ctx sock
     liftIO $ SSL.connect ssl
-    lift $ run_ $ req $$ writeToIter $ SSL.write ssl
+    lift $ run_ $ req $$ joinI $ builderToByteString $$ writeToIter $ SSL.write ssl
     a <- readToEnum (SSL.read ssl defaultChunkSize) step0
     liftIO $ SSL.shutdown ssl SSL.Unidirectional
     liftIO $ NS.sClose sock
