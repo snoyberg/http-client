@@ -18,14 +18,15 @@
 -- constant memory space. By using 'httpRedirect', it will automatically
 -- follow 3xx redirects.
 --
+-- > import Data.Enumerator
+-- > import Data.Enumerator.Binary
 -- > import Network.HTTP.Enumerator
--- > import Data.Enumerator.Binary (iterHandle)
--- > import Data.Enumerator (run_)
 -- > import System.IO
--- >
+-- > 
+-- > main :: IO ()
 -- > main = withFile "google.html" WriteMode $ \handle -> do
--- >      request <- parseUrl "http://google.com/"
--- >      run_ $ httpRedirect request (\_ _ -> iterHandle handle)
+-- >     request <- parseUrl "http://google.com/"
+-- >     run_ $ httpRedirect request (\_ _ -> iterHandle handle)
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
