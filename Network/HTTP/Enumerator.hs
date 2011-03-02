@@ -80,7 +80,7 @@ module Network.HTTP.Enumerator
 import OpenSSL
 import qualified OpenSSL.Session as SSL
 #else
-import System.IO (hClose, hSetBuffering, BufferMode (NoBuffering))
+import System.IO (hClose)
 import qualified Network.TLS.Client.Enumerator as TLS
 import Network (connectTo, PortID (PortNumber))
 #endif
@@ -198,7 +198,6 @@ withSslConn host' port' req step0 = do
     return a
 #else
     handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
-    liftIO $ hSetBuffering handle NoBuffering
     a <- TLS.clientEnumSimple handle req step0
     liftIO $ hClose handle
     return a
