@@ -61,6 +61,10 @@ module Network.HTTP.Enumerator
     , Request (..)
     , Response (..)
     , Headers
+      -- * Manager
+    , Manager
+    , newManager
+    , closeManager
       -- * Utility functions
     , parseUrl
     , lbsIter
@@ -106,6 +110,8 @@ import qualified Network.Wai as W
 import Data.Int (Int64)
 import qualified Codec.Zlib
 import qualified Codec.Zlib.Enum as Z
+import Control.Exception.Control (bracket)
+import Control.Monad.IO.Control (MonadControlIO)
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -216,8 +222,9 @@ http
      :: MonadIO m
      => Request m
      -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
+     -> Manager
      -> Iteratee S.ByteString m a
-http Request {..} bodyStep = do
+http Request {..} bodyStep _ = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
     withConn h' port requestEnum $$ go
@@ -467,8 +474,8 @@ lbsIter (W.Status sc _) hs = do
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbs :: MonadIO m => Request m -> m Response
-httpLbs req = run_ $ http req $ lbsIter
+httpLbs :: MonadIO m => Request m -> Manager -> m Response
+httpLbs req = run_ . http req lbsIter
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
@@ -476,10 +483,10 @@ httpLbs req = run_ $ http req $ lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
+simpleHttp :: (MonadControlIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
-    Response sc _ b <- httpLbsRedirect url'
+    Response sc _ b <- withManager $ httpLbsRedirect url'
     if 200 <= sc && sc < 300
         then return b
         else failure $ StatusCodeException sc b
@@ -497,9 +504,10 @@ httpRedirect
     :: (MonadIO m, Failure HttpException m)
     => Request m
     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
+    -> Manager
     -> Iteratee S.ByteString m a
-httpRedirect req bodyStep =
-    http req $ redirectIter 10 req bodyStep
+httpRedirect req bodyStep manager =
+    http req (redirectIter 10 req bodyStep manager) manager
 
 -- | Make a request automatically follow 3xx redirects.
 --
@@ -508,8 +516,9 @@ redirectIter :: (MonadIO m, Failure HttpException m)
              => Int -- ^ number of redirects to attempt
              -> Request m -- ^ Original request
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
+             -> Manager
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
-redirectIter redirects req bodyStep s@(W.Status code _) hs
+redirectIter redirects req bodyStep manager s@(W.Status code _) hs
     | 300 <= code && code < 400 =
         case lookup "location" hs of
             Just l'' -> do
@@ -540,7 +549,7 @@ redirectIter redirects req bodyStep s@(W.Status code _) hs
                         }
                 if redirects == 0
                     then lift $ failure TooManyRedirects
-                    else (http req') (redirectIter (redirects - 1) req' bodyStep)
+                    else (http req') (redirectIter (redirects - 1) req' bodyStep manager) manager
             Nothing -> bodyStep s hs
     | otherwise = bodyStep s hs
 
@@ -556,8 +565,8 @@ redirectIter redirects req bodyStep s@(W.Status code _) hs
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request m -> m Response
-httpLbsRedirect req = run_ $ httpRedirect req $ lbsIter
+httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request m -> Manager -> m Response
+httpLbsRedirect req = run_ . httpRedirect req lbsIter
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
@@ -611,3 +620,19 @@ urlEncodedBody headers req = req
 
 catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
 catchParser s i = catchError i (const $ throwError $ HttpParserException s)
+
+-- | Keeps track of open connections for keep-alive.
+data Manager = Manager
+
+-- | Create a new 'Manager' with no open connection.
+newManager :: IO Manager
+newManager = return Manager
+
+-- | Close all connections in a 'Manager'. Afterwards, the 'Manager' can be
+-- reused if desired.
+closeManager :: Manager -> IO ()
+closeManager _ = return ()
+
+-- | Create a new 'Manager', call the supplied function and then close it.
+withManager :: MonadControlIO m => (Manager -> m a) -> m a
+withManager = bracket (liftIO newManager) (liftIO . closeManager)
