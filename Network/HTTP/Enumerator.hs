@@ -3,10 +3,10 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
--- | This module contains everything you need to initiate HTTP connections.
--- Make sure to wrap your code with 'withHttpEnumerator'. If you want a simple
--- interface based on URLs, you can use 'simpleHttp'. If you want raw power,
--- 'http' is the underlying workhorse of this package. Some examples:
+-- | This module contains everything you need to initiate HTTP connections.  If
+-- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
+-- want raw power, 'http' is the underlying workhorse of this package. Some
+-- examples:
 --
 -- > -- Just download an HTML document and print it.
 -- > import Network.HTTP.Enumerator
@@ -37,21 +37,17 @@
 --
 -- * Accept-Encoding (not currently set, but client usage of this variable /will/ cause breakage).
 --
--- One last thing: there are two different backends available for the HTTPS
--- support: the OpenSSL library and the tls package. The former requires some
--- initialization, while the latter does not. Therefore, this module exports a
--- 'withHttpEnumerator' function to provide necessary initialization.
--- Additionally, any network code on Windows requires some initialization, and
--- the network library provides withSocketsDo to perform it. Therefore, proper
--- usage of this library will always involve calling those two functions at
--- some point. The best approach is to simply call them at the beginning of
--- your main function, such as:
+-- Any network code on Windows requires some initialization, and the network
+-- library provides withSocketsDo to perform it. Therefore, proper usage of
+-- this library will always involve calling that function at some point.  The
+-- best approach is to simply call them at the beginning of your main function,
+-- such as:
 --
 -- > import Network.HTTP.Enumerator
 -- > import qualified Data.ByteString.Lazy as L
 -- > import Network (withSocketsDo)
 -- >
--- > main = withSocketsDo . withHttpEnumerator
+-- > main = withSocketsDo
 -- >      $ simpleHttp "http://www.haskell.org/" >>= L.putStr
 module Network.HTTP.Enumerator
     ( -- * Perform a request
@@ -68,7 +64,6 @@ module Network.HTTP.Enumerator
     , Headers
       -- * Utility functions
     , parseUrl
-    , withHttpEnumerator
     , lbsIter
       -- * Request bodies
     , urlEncodedBody
@@ -76,14 +71,9 @@ module Network.HTTP.Enumerator
     , HttpException (..)
     ) where
 
-#if OPENSSL
-import OpenSSL
-import qualified OpenSSL.Session as SSL
-#else
 import System.IO (hClose)
 import qualified Network.TLS.Client.Enumerator as TLS
 import Network (connectTo, PortID (PortNumber))
-#endif
 
 import qualified Network.Socket as NS
 import qualified Network.Socket.ByteString as B
@@ -116,23 +106,6 @@ import qualified Blaze.ByteString.Builder.Internal.Write as Blaze
 import Data.Monoid (Monoid (..))
 import qualified Network.Wai as W
 import Data.Int (Int64)
-
--- | The OpenSSL library requires some initialization of variables to be used,
--- and therefore you must call 'withOpenSSL' before using any of its functions.
--- As this library uses OpenSSL, you must use 'withOpenSSL' as well. (As a side
--- note, you'll also want to use the withSocketsDo function for network
--- activity.)
---
--- To future-proof this package against switching to different SSL libraries,
--- we re-export 'withOpenSSL' under this name. You can call this function as
--- early as you like; in fact, simply wrapping the do block of your main
--- function is probably best.
-withHttpEnumerator :: IO a -> IO a
-#if OPENSSL
-withHttpEnumerator = withOpenSSL
-#else
-withHttpEnumerator = id
-#endif
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -185,23 +158,10 @@ withSslConn :: MonadIO m
             -> Enumerator Blaze.Builder m () -- ^ request
             -> Enumerator S.ByteString m a -- ^ response
 withSslConn host' port' req step0 = do
-
-#if OPENSSL
-    ctx <- liftIO $ SSL.context
-    sock <- liftIO $ getSocket host' port'
-    ssl <- liftIO $ SSL.connection ctx sock
-    liftIO $ SSL.connect ssl
-    lift $ run_ $ req $$ joinI $ builderToByteString $$ writeToIter $ SSL.write ssl
-    a <- readToEnum (SSL.read ssl defaultChunkSize) step0
-    liftIO $ SSL.shutdown ssl SSL.Unidirectional
-    liftIO $ NS.sClose sock
-    return a
-#else
     handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
     a <- TLS.clientEnumSimple handle req step0
     liftIO $ hClose handle
     return a
-#endif
 
 -- | All information on how to connect to a host and what should be sent in the
 -- HTTP request.

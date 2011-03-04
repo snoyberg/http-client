@@ -1,5 +1,5 @@
 name:            http-enumerator
-version:         0.3.2
+version:         0.4.0
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -13,9 +13,6 @@ cabal-version:   >= 1.6
 build-type:      Simple
 homepage:        http://github.com/snoyberg/http-enumerator
 
-flag openssl
-  description: Build using the HSOpenSSL library.
-  default: False
 flag test
   description: Build the test executable.
   default: False
@@ -34,22 +31,16 @@ library
                  , zlib-bindings         >= 0.0.0   && < 0.1
                  , wai                   >= 0.3     && < 0.4
                  , blaze-builder-enumerator >= 0.2  && < 0.3
+                 , tls                   >= 0.4     && < 0.5
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
                      , network-bytestring    >= 0.1.3   && < 0.1.4
     else
         build-depends: network               >= 2.3     && < 2.4
-    if flag(openssl)
-        build-depends: HsOpenSSL         >= 0.8     && < 0.9
-        cpp-options:   -DOPENSSL
-    else
-        build-depends: tls               >= 0.4     && < 0.5
-                     , mtl               >= 1.1     && < 2.1
     exposed-modules: Network.HTTP.Enumerator
     other-modules:   Network.HTTP.Enumerator.HttpParser
                      Network.HTTP.Enumerator.Zlib
-    if ! flag(openssl)
-        other-modules: Network.TLS.Client.Enumerator
+                     Network.TLS.Client.Enumerator
     ghc-options:     -Wall
 
 executable http-enumerator
