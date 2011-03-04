@@ -352,12 +352,15 @@ renderQS (p:ps) = mconcat
     $ go "?" p
     : map (go "&") ps
   where
-    go sep (k, v) = mconcat
-        [ Blaze.fromByteString sep
-        , Blaze.fromByteString $ escape k
-        , Blaze.fromByteString "="
-        , Blaze.fromByteString $ escape v
-        ]
+    go sep (k, v) =
+        Blaze.copyByteString sep
+        `mappend` Blaze.copyByteString (escape k)
+        `mappend`
+            (if S.null v
+                then mempty
+                else
+                    Blaze.copyByteString "="
+                    `mappend` Blaze.copyByteString (escape v))
     escape = S8.concatMap (S8.pack . encodeUrlChar)
 
 encodeUrlCharPI :: Char -> String
