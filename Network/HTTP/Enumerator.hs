@@ -87,7 +87,6 @@ import Data.Enumerator
     )
 import qualified Data.Enumerator as E
 import Network.HTTP.Enumerator.HttpParser
-import Network.HTTP.Enumerator.Zlib (ungzip)
 import Control.Exception (Exception)
 import Control.Arrow (first)
 import Control.Monad.IO.Class (MonadIO (liftIO))
@@ -106,6 +105,8 @@ import qualified Blaze.ByteString.Builder.Internal.Write as Blaze
 import Data.Monoid (Monoid (..))
 import qualified Network.Wai as W
 import Data.Int (Int64)
+import qualified Codec.Zlib
+import qualified Codec.Zlib.Enum as Z
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -257,7 +258,7 @@ streamingHttp Request {..} (contentLength, bodyEnum) bodyStep = do
             ]
     requestEnum = enumSingle requestHeaders' >==> bodyEnum
     go = do
-        ((_, sc, sm), hs) <- catchParser "HTTP headers" iterHeaders
+        ((_, sc, sm), hs) <- iterHeaders
         let s = W.Status sc sm
         let hs' = map (first W.mkCIByteString) hs
         let mcl = lookup "content-length" hs'
@@ -269,7 +270,7 @@ streamingHttp Request {..} (contentLength, bodyEnum) bodyStep = do
                         Nothing -> x
         let decompress x =
                 if ("content-encoding", "gzip") `elem` hs'
-                    then joinI $ ungzip x
+                    then joinI $ Z.decompress (Codec.Zlib.WindowBits 31) x
                     else returnI x
         if method == "HEAD"
             then bodyStep s hs'

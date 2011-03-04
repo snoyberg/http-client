@@ -8,7 +8,7 @@ import System.Environment.UTF8 (getArgs)
 import Network.Wai (ciOriginal)
 
 main :: IO ()
-main = withSocketsDo $ withHttpEnumerator $ do
+main = withSocketsDo $ do
     [url] <- getArgs
     _req2 <- parseUrl url
     let req = urlEncodedBody
