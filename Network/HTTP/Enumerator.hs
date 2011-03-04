@@ -55,7 +55,6 @@ module Network.HTTP.Enumerator
     , httpLbs
     , httpLbsRedirect
     , http
-    , streamingHttp
     , httpRedirect
     , redirectIter
       -- * Datatypes
@@ -168,7 +167,7 @@ withSslConn host' port' req step0 = do
 -- HTTP request.
 --
 -- If you simply wish to download from a URL, see 'parseUrl'.
-data Request = Request
+data Request m = Request
     { method :: S.ByteString -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
     , host :: S.ByteString
@@ -176,9 +175,15 @@ data Request = Request
     , path :: S.ByteString -- ^ Everything from the host to the query string.
     , queryString :: [(S.ByteString, S.ByteString)] -- ^ Automatically escaped for your convenience.
     , requestHeaders :: Headers
-    , requestBody :: L.ByteString
+    , requestBody :: RequestBody m
     }
-    deriving (Show, Read, Eq, Typeable, Data)
+
+-- | When using the 'RequestBodyEnum' constructor and any function which calls
+-- 'redirectIter', you must ensure that the 'Enumerator' can be called multiple
+-- times.
+data RequestBody m
+    = RequestBodyLBS L.ByteString
+    | RequestBodyEnum Int64 (Enumerator Blaze.Builder m ())
 
 -- | A simple representation of the HTTP response created by 'lbsIter'.
 data Response = Response
@@ -189,6 +194,9 @@ data Response = Response
     deriving (Show, Read, Eq, Typeable, Data)
 
 type Headers = [(W.ResponseHeader, S.ByteString)]
+
+enumSingle x (Continue k) = k $ Chunks [x]
+enumSingle _ step = returnI step
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -204,33 +212,20 @@ type Headers = [(W.ResponseHeader, S.ByteString)]
 -- Note that this allows you to have fully interleaved IO actions during your
 -- HTTP download, making it possible to download very large responses in
 -- constant memory.
-http :: MonadIO m
-     => Request
-     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
-     -> Iteratee S.ByteString m a
-http req bodyStep =
-    streamingHttp req reqBody bodyStep
-  where
-    reqBody = (L.length $ requestBody req, toEnum $ requestBody req)
-    toEnum = enumSingle . Blaze.fromLazyByteString
-
-enumSingle x (Continue k) = k $ Chunks [x]
-enumSingle _ step = returnI step
-
--- | Same as 'http', but allows you to specify a ('Int64', 'Enumerator') pair
--- for the request body. Note: this function ignores the 'requestBody' record
--- in the 'Request' argument.
-streamingHttp
+http
      :: MonadIO m
-     => Request
-     -> (Int64, Enumerator Blaze.Builder m ())
+     => Request m
      -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
      -> Iteratee S.ByteString m a
-streamingHttp Request {..} (contentLength, bodyEnum) bodyStep = do
+http Request {..} bodyStep = do
     let h' = S8.unpack host
     let withConn = if secure then withSslConn else withSocketConn
     withConn h' port requestEnum $$ go
   where
+    (contentLength, bodyEnum) =
+        case requestBody of
+            RequestBodyLBS lbs -> (L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
+            RequestBodyEnum i enum -> (i, enum)
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
@@ -356,20 +351,20 @@ encodeUrlChar y =
 --
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
-parseUrl :: Failure HttpException m => String -> m Request
+parseUrl :: Failure HttpException m => String -> m (Request m')
 parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
 parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
 parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
 
 parseUrl1 :: Failure HttpException m
-          => String -> Bool -> String -> m Request
+          => String -> Bool -> String -> m (Request m')
 parseUrl1 full sec s =
     parseUrl2 full sec s'
   where
     s' = encodeString s
 
 parseUrl2 :: Failure HttpException m
-          => String -> Bool -> String -> m Request
+          => String -> Bool -> String -> m (Request m')
 parseUrl2 full sec s = do
     port' <- mport
     return Request
@@ -381,7 +376,7 @@ parseUrl2 full sec s = do
                             then "/"
                             else concatMap encodeUrlCharPI path'
         , queryString = parseQueryString $ S8.pack qstring
-        , requestBody = L.empty
+        , requestBody = RequestBodyLBS L.empty
         , method = "GET"
         }
   where
@@ -472,7 +467,7 @@ lbsIter (W.Status sc _) hs = do
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbs :: MonadIO m => Request -> m Response
+httpLbs :: MonadIO m => Request m -> m Response
 httpLbs req = run_ $ http req $ lbsIter
 
 -- | Download the specified URL, following any redirects, and return the
@@ -500,7 +495,7 @@ instance Exception HttpException
 -- location header.
 httpRedirect
     :: (MonadIO m, Failure HttpException m)
-    => Request
+    => Request m
     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
     -> Iteratee S.ByteString m a
 httpRedirect req bodyStep =
@@ -511,7 +506,7 @@ httpRedirect req bodyStep =
 -- Used internally by 'httpRedirect' and family.
 redirectIter :: (MonadIO m, Failure HttpException m)
              => Int -- ^ number of redirects to attempt
-             -> Request -- ^ Original request
+             -> Request m -- ^ Original request
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
 redirectIter redirects req bodyStep s@(W.Status code _) hs
@@ -561,7 +556,7 @@ redirectIter redirects req bodyStep s@(W.Status code _) hs
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
-httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request -> m Response
+httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request m -> m Response
 httpLbsRedirect req = run_ $ httpRedirect req $ lbsIter
 
 readMay :: Read a => String -> Maybe a
@@ -569,13 +564,15 @@ readMay s = case reads s of
                 [] -> Nothing
                 (x, _):_ -> Just x
 
+-- FIXME add a helper for generating POST bodies
+
 -- | Add url-encoded paramters to the 'Request'.
 --
 -- This sets a new 'requestBody', adds a content-type request header and
 -- changes the 'method' to POST.
-urlEncodedBody :: [(S.ByteString, S.ByteString)] -> Request -> Request
+urlEncodedBody :: Monad m => [(S.ByteString, S.ByteString)] -> Request m' -> Request m
 urlEncodedBody headers req = req
-    { requestBody = body
+    { requestBody = RequestBodyLBS body
     , method = "POST"
     , requestHeaders =
         (ct, "application/x-www-form-urlencoded")
