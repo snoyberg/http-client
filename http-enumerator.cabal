@@ -23,7 +23,7 @@ library
                  , bytestring            >= 0.9.1.4 && < 0.10
                  , transformers          >= 0.2     && < 0.3
                  , failure               >= 0.1     && < 0.2
-                 , enumerator            >= 0.4.1   && < 0.5
+                 , enumerator            >= 0.4.7   && < 0.5
                  , attoparsec            >= 0.8.0.2 && < 0.9
                  , attoparsec-enumerator >= 0.2     && < 0.3
                  , utf8-string           >= 0.3.4   && < 0.4

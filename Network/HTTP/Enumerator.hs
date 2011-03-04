@@ -84,11 +84,11 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
-    ( Iteratee (..), Stream (..), catchError, throwError, consume
+    ( Iteratee (..), Stream (..), catchError, throwError
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
     , continue, returnI, (>==>)
     )
-import qualified Data.Enumerator as E
+import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
 import Control.Exception (Exception)
 import Control.Arrow (first)
@@ -104,7 +104,6 @@ import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
-import qualified Blaze.ByteString.Builder.Internal.Write as Blaze
 import Data.Monoid (Monoid (..))
 import qualified Network.Wai as W
 import Data.Int (Int64)
@@ -201,6 +200,7 @@ data Response = Response
 
 type Headers = [(W.ResponseHeader, S.ByteString)]
 
+enumSingle :: Monad m => a -> Enumerator a m b
 enumSingle x (Continue k) = k $ Chunks [x]
 enumSingle _ step = returnI step
 
@@ -292,7 +292,7 @@ chunkedEnumeratee step = return step
 takeLBS :: MonadIO m => Int -> Enumeratee S.ByteString S.ByteString m a
 takeLBS 0 step = return step
 takeLBS len (Continue k) = do
-    mbs <- E.head
+    mbs <- EL.head
     case mbs of
         Nothing -> return $ Continue k
         Just bs -> do
@@ -460,7 +460,7 @@ breakDiscard w s =
 lbsIter :: Monad m => W.Status -> W.ResponseHeaders
         -> Iteratee S.ByteString m Response
 lbsIter (W.Status sc _) hs = do
-    lbs <- fmap L.fromChunks consume
+    lbs <- fmap L.fromChunks EL.consume
     return $ Response sc hs lbs
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
