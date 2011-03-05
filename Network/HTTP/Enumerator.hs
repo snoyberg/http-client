@@ -90,7 +90,7 @@ import Data.Enumerator
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
-import Control.Exception (Exception)
+import Control.Exception (Exception, bracket)
 import Control.Arrow (first)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
@@ -109,8 +109,7 @@ import qualified Network.Wai as W
 import Data.Int (Int64)
 import qualified Codec.Zlib
 import qualified Codec.Zlib.Enum as Z
-import Control.Exception.Control (bracket)
-import Control.Monad.IO.Control (MonadControlIO)
+import Control.Monad.IO.Control (MonadControlIO, liftIOOp)
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -635,4 +634,4 @@ closeManager _ = return ()
 
 -- | Create a new 'Manager', call the supplied function and then close it.
 withManager :: MonadControlIO m => (Manager -> m a) -> m a
-withManager = bracket (liftIO newManager) (liftIO . closeManager)
+withManager = liftIOOp $ bracket newManager closeManager
