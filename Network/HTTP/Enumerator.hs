@@ -65,6 +65,7 @@ module Network.HTTP.Enumerator
     , Manager
     , newManager
     , closeManager
+    , withManager
       -- * Utility functions
     , parseUrl
     , lbsIter
@@ -110,6 +111,10 @@ import Data.Int (Int64)
 import qualified Codec.Zlib
 import qualified Codec.Zlib.Enum as Z
 import Control.Monad.IO.Control (MonadControlIO, liftIOOp)
+import Data.Map (Map)
+import qualified Data.Map as Map
+import qualified Data.IORef as I
+import Control.Applicative ((<$>))
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -124,15 +129,17 @@ getSocket host' port' = do
     return sock
 
 withSocketConn :: MonadIO m
-               => String
+               => Manager
+               -> String
                -> Int
                -> Enumerator Blaze.Builder m ()
                -> Enumerator S.ByteString m a
-withSocketConn host' port' req step0 = do
-    sock <- liftIO $ getSocket host' port'
+withSocketConn m host' port' req step0 = do
+    sock <- liftIO $ takeInsecureSocket m host' port'
+            >>= maybe (getSocket host' port') return
     lift $ run_ $ req $$ joinI $ builderToByteString $$ writeToIter $ B.sendAll sock
     a <- readToEnum (B.recv sock defaultChunkSize) step0
-    liftIO $ NS.sClose sock
+    liftIO $ putInsecureSocket m host' port' sock
     return a
 
 
@@ -223,9 +230,9 @@ http
      -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
      -> Manager
      -> Iteratee S.ByteString m a
-http Request {..} bodyStep _ = do
+http Request {..} bodyStep m = do
     let h' = S8.unpack host
-    let withConn = if secure then withSslConn else withSocketConn
+    let withConn = if secure then withSslConn else withSocketConn m
     withConn h' port requestEnum $$ go
   where
     (contentLength, bodyEnum) =
@@ -622,15 +629,34 @@ catchParser s i = catchError i (const $ throwError $ HttpParserException s)
 
 -- | Keeps track of open connections for keep-alive.
 data Manager = Manager
+    { mInsecure :: I.IORef (Map (String, Int) NS.Socket)
+    }
+
+takeInsecureSocket :: Manager -> String -> Int -> IO (Maybe NS.Socket)
+takeInsecureSocket man host port =
+    I.atomicModifyIORef (mInsecure man) go
+  where
+    key = (host, port)
+    go m = (Map.delete key m, Map.lookup key m)
+
+putInsecureSocket :: Manager -> String -> Int -> NS.Socket -> IO ()
+putInsecureSocket man host port sock = do
+    msock <- I.atomicModifyIORef (mInsecure man) go
+    maybe (return ()) NS.sClose msock
+  where
+    key = (host, port)
+    go m = (Map.insert key sock m, Map.lookup key m)
 
 -- | Create a new 'Manager' with no open connection.
 newManager :: IO Manager
-newManager = return Manager
+newManager = Manager <$> I.newIORef Map.empty
 
 -- | Close all connections in a 'Manager'. Afterwards, the 'Manager' can be
 -- reused if desired.
 closeManager :: Manager -> IO ()
-closeManager _ = return ()
+closeManager (Manager i) = do
+    m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
+    mapM_ NS.sClose $ Map.elems m
 
 -- | Create a new 'Manager', call the supplied function and then close it.
 withManager :: MonadControlIO m => (Manager -> m a) -> m a

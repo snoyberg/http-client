@@ -34,6 +34,7 @@ library
                  , blaze-builder-enumerator >= 0.2  && < 0.3
                  , tls                   >= 0.4     && < 0.5
                  , monad-control         >= 0.2     && < 0.3
+                 , containers            >= 0.2     && < 0.5
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
                      , network-bytestring    >= 0.1.3   && < 0.1.4
