@@ -19,6 +19,7 @@ import Control.Monad.Trans.Class (lift)
 import Data.Enumerator
     ( Iteratee (..), Enumerator, Step (..), Stream (..), continue, returnI
     )
+import Data.Certificate.X509 (X509)
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]
@@ -55,12 +56,13 @@ socketConn sock = ConnInfo
     , connClose = sClose sock
     }
 
-sslClientConn :: Handle -> IO ConnInfo
-sslClientConn h = do
+sslClientConn :: ([X509] -> IO Bool) -> Handle -> IO ConnInfo
+sslClientConn onCerts h = do
     let tcp = defaultParams
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11 ]
             , pCiphers = ciphers
+            , onCertificatesRecv = onCerts
             }
     esrand <- liftIO makeSRandomGen
     let srg = either (error . show) id esrand

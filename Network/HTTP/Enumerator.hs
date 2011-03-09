@@ -112,6 +112,7 @@ import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.IORef as I
 import Control.Applicative ((<$>))
+import Data.Certificate.X509 (X509)
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -150,14 +151,15 @@ withManagedConn man key open req step = do
     return a
 
 withSslConn :: MonadIO m
-            => Manager
+            => ([X509] -> IO Bool)
+            -> Manager
             -> String -- ^ host
             -> Int -- ^ port
             -> Enumerator Blaze.Builder m () -- ^ request
             -> Enumerator S.ByteString m a -- ^ response
-withSslConn man host' port' =
+withSslConn checkCert man host' port' =
     withManagedConn man (host', port', True) $
-        (connectTo host' (PortNumber $ fromIntegral port') >>= TLS.sslClientConn)
+        (connectTo host' (PortNumber $ fromIntegral port') >>= TLS.sslClientConn checkCert)
 
 withCI :: MonadIO m => TLS.ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
 withCI ci req step0 = do
@@ -173,6 +175,7 @@ withCI ci req step0 = do
 data Request m = Request
     { method :: S.ByteString -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
+    , checkCerts :: [X509] -> IO Bool -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , host :: S.ByteString
     , port :: Int
     , path :: S.ByteString -- ^ Everything from the host to the query string.
@@ -224,7 +227,7 @@ http
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep m = do
     let h' = S8.unpack host
-    let withConn = if secure then withSslConn else withSocketConn
+    let withConn = if secure then withSslConn checkCerts else withSocketConn
     withConn m h' port requestEnum $$ go
   where
     (contentLength, bodyEnum) =
@@ -376,6 +379,7 @@ parseUrl2 full sec s = do
         { host = S8.pack hostname
         , port = port'
         , secure = sec
+        , checkCerts = const $ return True
         , requestHeaders = []
         , path = S8.pack $ if null path'
                             then "/"
