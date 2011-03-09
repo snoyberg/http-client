@@ -1,34 +1,76 @@
 module Network.TLS.Client.Enumerator
-    ( clientEnumSimple
-    , clientEnum
+    ( ConnInfo
+    , connClose
+    , connIter
+    , connEnum
+    , sslClientConn
+    , socketConn
     ) where
 
-import qualified Data.ByteString as B
+import Data.ByteString (ByteString)
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import qualified Data.Enumerator as E
-import Data.Enumerator (($$), joinI)
-import qualified Control.Monad.IO.Class as Trans
-import Control.Monad.Trans.Class (lift)
-import Blaze.ByteString.Builder (Builder)
-import Blaze.ByteString.Builder.Enumerator (builderToByteString)
-
+import System.IO (Handle, hClose)
+import Network.Socket (Socket, sClose)
+import Network.Socket.ByteString (recv, sendAll)
 import Network.TLS
-import System.IO (Handle)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.Trans.Class (lift)
+import Data.Enumerator
+    ( Iteratee (..), Enumerator, Step (..), Stream (..), continue, returnI
+    )
 
-clientEnumSimple
-    :: Trans.MonadIO m
-    => Handle
-    -> E.Enumerator Builder m () -- ^ request
-    -> E.Enumerator B.ByteString m a -- ^ response
-clientEnumSimple h req step = do
-    let params = defaultParams
+data ConnInfo = ConnInfo
+    { connRead :: IO [ByteString]
+    , connWrite :: [ByteString] -> IO ()
+    , connClose :: IO ()
+    }
+
+connIter :: MonadIO m => ConnInfo -> Iteratee ByteString m ()
+connIter ConnInfo { connWrite = write } =
+    continue go
+  where
+    go EOF = return ()
+    go (Chunks bss) = do
+        liftIO $ write bss
+        continue go
+
+connEnum :: MonadIO m => ConnInfo -> Enumerator ByteString m b
+connEnum ConnInfo { connRead = read' } =
+    go
+  where
+    go (Continue k) = do
+        bs <- liftIO read'
+        if all S.null bs
+            then continue k
+            else do
+                step <- lift $ runIteratee $ k $ Chunks bs
+                go step
+    go step = returnI step
+
+socketConn :: Socket -> ConnInfo
+socketConn sock = ConnInfo
+    { connRead = fmap return $ recv sock 4096
+    , connWrite = mapM_ (sendAll sock)
+    , connClose = sClose sock
+    }
+
+sslClientConn :: Handle -> IO ConnInfo
+sslClientConn h = do
+    let tcp = defaultParams
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11 ]
             , pCiphers = ciphers
             }
-    esrand <- Trans.liftIO makeSRandomGen
-    let srand = either (error . show) id esrand
-    clientEnum params srand h req step
+    esrand <- liftIO makeSRandomGen
+    let srg = either (error . show) id esrand
+    istate <- liftIO $ client tcp srg h
+    liftIO $ handshake istate
+    return ConnInfo
+        { connRead = liftIO $ fmap L.toChunks $ recvData istate
+        , connWrite = liftIO . sendData istate . L.fromChunks
+        , connClose = liftIO $ bye istate >> hClose h
+        }
   where
     ciphers =
         [ cipher_AES128_SHA1
@@ -36,31 +78,3 @@ clientEnumSimple h req step = do
         , cipher_RC4_128_MD5
         , cipher_RC4_128_SHA1
         ]
-
-clientEnum :: Trans.MonadIO m
-           => TLSParams -> SRandomGen -> Handle
-           -> E.Enumerator Builder m ()
-           -> E.Enumerator B.ByteString m a
-clientEnum tcp srg h req step0 = do
-    istate <- Trans.liftIO $ client tcp srg h
-    Trans.liftIO $ handshake istate
-    lift $ E.run_ $ req $$ joinI $ builderToByteString $$ iter istate
-    res <- enum istate step0
-    Trans.liftIO $ bye istate
-    return res
-  where
-    iter :: Trans.MonadIO m => TLSCtx -> E.Iteratee B.ByteString m ()
-    iter istate =
-        E.continue go
-      where
-        go E.EOF = return ()
-        go (E.Chunks xs) = do
-            Trans.liftIO $ sendData istate $ L.fromChunks xs
-            E.continue go
-    enum :: Trans.MonadIO m => TLSCtx -> E.Enumerator B.ByteString m a
-    enum istate (E.Continue k) = E.Iteratee $ do
-        lbs <- Trans.liftIO $ recvData istate
-        let chunks = E.Chunks $ L.toChunks lbs
-        step <- E.runIteratee $ k chunks
-        E.runIteratee $ enum istate step
-    enum _ step = E.returnI step

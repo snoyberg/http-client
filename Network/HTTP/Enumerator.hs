@@ -75,19 +75,17 @@ module Network.HTTP.Enumerator
     , HttpException (..)
     ) where
 
-import System.IO (hClose)
 import qualified Network.TLS.Client.Enumerator as TLS
 import Network (connectTo, PortID (PortNumber))
 
 import qualified Network.Socket as NS
-import qualified Network.Socket.ByteString as B
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
-    , continue, returnI, (>==>)
+    , returnI, (>==>)
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
@@ -101,7 +99,6 @@ import Data.Data (Data)
 import Data.Word (Word8)
 import Data.Bits
 import Data.Maybe (fromMaybe)
-import Data.ByteString.Lazy.Internal (defaultChunkSize)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
@@ -134,44 +131,39 @@ withSocketConn :: MonadIO m
                -> Int
                -> Enumerator Blaze.Builder m ()
                -> Enumerator S.ByteString m a
-withSocketConn m host' port' req step0 = do
-    sock <- liftIO $ takeInsecureSocket m host' port'
-            >>= maybe (getSocket host' port') return
-    lift $ run_ $ req $$ joinI $ builderToByteString $$ writeToIter $ B.sendAll sock
-    a <- readToEnum (B.recv sock defaultChunkSize) step0
-    liftIO $ putInsecureSocket m host' port' sock
+withSocketConn man host' port' =
+    withManagedConn man (host', port', False) $
+        fmap TLS.socketConn $ getSocket host' port'
+
+withManagedConn
+    :: MonadIO m
+    => Manager
+    -> ConnKey
+    -> IO TLS.ConnInfo
+    -> Enumerator Blaze.Builder m ()
+    -> Enumerator S.ByteString m a
+withManagedConn man key open req step = do
+    ci <- liftIO $ takeInsecureSocket man key
+          >>= maybe (liftIO open) return
+    a <- withCI ci req step
+    liftIO $ putInsecureSocket man key ci
     return a
 
-
-writeToIter :: MonadIO m
-            => (S.ByteString -> IO b) -> Iteratee S.ByteString m ()
-writeToIter write =
-    continue go
-  where
-    go EOF = return ()
-    go (Chunks bss) = do
-        liftIO $ mapM_ write bss
-        continue go
-
-readToEnum :: MonadIO m => IO S.ByteString -> Enumerator S.ByteString m b
-readToEnum read' (Continue k) = do
-    bs <- liftIO read'
-    if S.null bs
-        then continue k
-        else do
-            step <- lift $ runIteratee $ k $ Chunks [bs]
-            readToEnum read' step
-readToEnum _ step = returnI step
-
 withSslConn :: MonadIO m
-            => String -- ^ host
+            => Manager
+            -> String -- ^ host
             -> Int -- ^ port
             -> Enumerator Blaze.Builder m () -- ^ request
             -> Enumerator S.ByteString m a -- ^ response
-withSslConn host' port' req step0 = do
-    handle <- liftIO $ connectTo host' (PortNumber $ fromIntegral port')
-    a <- TLS.clientEnumSimple handle req step0
-    liftIO $ hClose handle
+withSslConn man host' port' =
+    withManagedConn man (host', port', True) $
+        (connectTo host' (PortNumber $ fromIntegral port') >>= TLS.sslClientConn)
+
+withCI :: MonadIO m => TLS.ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
+withCI ci req step0 = do
+    lift $ run_ $ req $$ joinI $ builderToByteString $$ TLS.connIter ci
+    a <- TLS.connEnum ci step0
+    -- FIXME liftIO $ hClose handle
     return a
 
 -- | All information on how to connect to a host and what should be sent in the
@@ -232,8 +224,8 @@ http
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep m = do
     let h' = S8.unpack host
-    let withConn = if secure then withSslConn else withSocketConn m
-    withConn h' port requestEnum $$ go
+    let withConn = if secure then withSslConn else withSocketConn
+    withConn m h' port requestEnum $$ go
   where
     (contentLength, bodyEnum) =
         case requestBody of
@@ -629,23 +621,23 @@ catchParser s i = catchError i (const $ throwError $ HttpParserException s)
 
 -- | Keeps track of open connections for keep-alive.
 data Manager = Manager
-    { mInsecure :: I.IORef (Map (String, Int) NS.Socket)
+    { mConns :: I.IORef (Map ConnKey TLS.ConnInfo)
     }
 
-takeInsecureSocket :: Manager -> String -> Int -> IO (Maybe NS.Socket)
-takeInsecureSocket man host port =
-    I.atomicModifyIORef (mInsecure man) go
+type ConnKey = (String, Int, Bool)
+
+takeInsecureSocket :: Manager -> ConnKey -> IO (Maybe TLS.ConnInfo)
+takeInsecureSocket man key =
+    I.atomicModifyIORef (mConns man) go
   where
-    key = (host, port)
     go m = (Map.delete key m, Map.lookup key m)
 
-putInsecureSocket :: Manager -> String -> Int -> NS.Socket -> IO ()
-putInsecureSocket man host port sock = do
-    msock <- I.atomicModifyIORef (mInsecure man) go
-    maybe (return ()) NS.sClose msock
+putInsecureSocket :: Manager -> ConnKey -> TLS.ConnInfo -> IO ()
+putInsecureSocket man key ci = do
+    msock <- I.atomicModifyIORef (mConns man) go
+    maybe (return ()) TLS.connClose msock
   where
-    key = (host, port)
-    go m = (Map.insert key sock m, Map.lookup key m)
+    go m = (Map.insert key ci m, Map.lookup key m)
 
 -- | Create a new 'Manager' with no open connection.
 newManager :: IO Manager
@@ -656,7 +648,7 @@ newManager = Manager <$> I.newIORef Map.empty
 closeManager :: Manager -> IO ()
 closeManager (Manager i) = do
     m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
-    mapM_ NS.sClose $ Map.elems m
+    mapM_ TLS.connClose $ Map.elems m
 
 -- | Create a new 'Manager', call the supplied function and then close it.
 withManager :: MonadControlIO m => (Manager -> m a) -> m a

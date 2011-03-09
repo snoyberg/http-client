@@ -11,11 +11,13 @@ main :: IO ()
 main = withSocketsDo $ do
     [url] <- getArgs
     _req2 <- parseUrl url
+    {-
     let req = urlEncodedBody
                 [ ("foo", "bar")
                 , ("baz%%38**.8fn", "bin")
                 ] _req2
-    Response sc hs b <- httpLbsRedirect req -- _req2
+    -}
+    Response sc hs b <- withManager $ httpLbsRedirect _req2
 #if DEBUG
     return ()
 #else
