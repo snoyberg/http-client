@@ -60,7 +60,6 @@ module Network.HTTP.Enumerator
       -- * Datatypes
     , Request (..)
     , Response (..)
-    , Headers
       -- * Manager
     , Manager
     , newManager
@@ -90,20 +89,18 @@ import Data.Enumerator
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
 import Control.Exception (Exception, bracket)
-import Control.Arrow (first)
+import Control.Arrow ((***))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Failure
 import Data.Typeable (Typeable)
-import Data.Data (Data)
-import Data.Word (Word8)
 import Data.Bits
-import Data.Maybe (fromMaybe)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
 import Data.Monoid (Monoid (..))
-import qualified Network.Wai as W
+import qualified Network.HTTP.Types as W
+import qualified Data.CaseInsensitive as CI
 import Data.Int (Int64)
 import qualified Codec.Zlib
 import qualified Codec.Zlib.Enum as Z
@@ -113,6 +110,7 @@ import qualified Data.Map as Map
 import qualified Data.IORef as I
 import Control.Applicative ((<$>))
 import Data.Certificate.X509 (X509)
+import qualified Data.Ascii as A
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -173,14 +171,14 @@ withCI ci req step0 = do
 --
 -- If you simply wish to download from a URL, see 'parseUrl'.
 data Request m = Request
-    { method :: S.ByteString -- ^ HTTP request method, eg GET, POST.
+    { method :: W.Method -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
     , checkCerts :: [X509] -> IO Bool -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
-    , host :: S.ByteString
+    , host :: A.Ascii
     , port :: Int
-    , path :: S.ByteString -- ^ Everything from the host to the query string.
-    , queryString :: [(S.ByteString, S.ByteString)] -- ^ Automatically escaped for your convenience.
-    , requestHeaders :: Headers
+    , path :: A.Ascii -- ^ Everything from the host to the query string.
+    , queryString :: W.Query -- ^ Automatically escaped for your convenience.
+    , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
     }
 
@@ -194,12 +192,10 @@ data RequestBody m
 -- | A simple representation of the HTTP response created by 'lbsIter'.
 data Response = Response
     { statusCode :: Int
-    , responseHeaders :: Headers
+    , responseHeaders :: W.ResponseHeaders
     , responseBody :: L.ByteString
     }
-    deriving (Show, Read, Eq, Typeable, Data)
-
-type Headers = [(W.ResponseHeader, S.ByteString)]
+    deriving (Show, Read, Eq, Typeable)
 
 enumSingle :: Monad m => a -> Enumerator a m b
 enumSingle x (Continue k) = k $ Chunks [x]
@@ -226,7 +222,7 @@ http
      -> Manager
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep m = do
-    let h' = S8.unpack host
+    let h' = A.toString host
     let withConn = if secure then withSslConn checkCerts else withSocketConn
     withConn m h' port requestEnum $$ go
   where
@@ -237,38 +233,39 @@ http Request {..} bodyStep m = do
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
-        | otherwise = host `S.append` S8.pack (':' : show port)
+        | otherwise = host `mappend` A.unsafeFromString (':' : show port)
     headers' = ("Host", hh)
-                 : ("Content-Length", S8.pack $ show contentLength)
+                 : ("Content-Length", A.unsafeFromString $ show contentLength)
                  : ("Accept-Encoding", "gzip")
                  : requestHeaders
-    requestHeaders' = mconcat
-            [ Blaze.fromByteString method
-            , Blaze.fromByteString " "
-            , Blaze.fromByteString $
-                case S8.uncons path of
-                    Just ('/', _) -> path
-                    _ -> S8.cons '/' path
-            , renderQS queryString
-            , Blaze.fromByteString " HTTP/1.1\r\n"
-            , mconcat $ flip map headers' $ \(k, v) -> mconcat
-                [ Blaze.fromByteString $ W.ciOriginal k
-                , Blaze.fromByteString ": "
-                , Blaze.fromByteString v
-                , Blaze.fromByteString "\r\n"
-                ]
-            , Blaze.fromByteString "\r\n"
-            ]
+    requestHeaders' =
+            Blaze.fromByteString (A.toByteString method)
+            `mappend` Blaze.fromByteString " "
+            `mappend`
+                (case S8.uncons $ A.toByteString path of
+                    Just ('/', _) -> Blaze.fromByteString $ A.toByteString path
+                    _ -> Blaze.fromByteString "/"
+                            `mappend` Blaze.fromByteString (A.toByteString path))
+            `mappend` (if null queryString
+                        then mempty
+                        else A.toBuilder $ W.renderQueryBuilder True queryString)
+            `mappend` Blaze.fromByteString " HTTP/1.1\r\n"
+            `mappend` mconcat (flip map headers' $ \(k, v) ->
+                Blaze.fromByteString (A.toByteString $ CI.original k)
+                `mappend`  Blaze.fromByteString ": "
+                `mappend` Blaze.fromByteString (A.toByteString v)
+                `mappend` Blaze.fromByteString "\r\n")
+            `mappend` Blaze.fromByteString "\r\n"
     requestEnum = enumSingle requestHeaders' >==> bodyEnum
     go = do
         ((_, sc, sm), hs) <- iterHeaders
-        let s = W.Status sc sm
-        let hs' = map (first W.mkCIByteString) hs
+        let s = W.Status sc $ A.unsafeFromByteString sm
+        let hs' = map (CI.mk . A.unsafeFromByteString *** A.unsafeFromByteString) hs
         let mcl = lookup "content-length" hs'
         let body' x =
                 if ("transfer-encoding", "chunked") `elem` hs'
                     then joinI $ chunkedEnumeratee $$ x
-                    else case mcl >>= readMay . S8.unpack of
+                    else case mcl >>= readMay . A.toString of
                         Just len -> joinI $ takeLBS len $$ x
                         Nothing -> x
         let decompress x =
@@ -310,23 +307,6 @@ takeLBS len (Continue k) = do
                 else takeLBS len' step'
 takeLBS _ step = return step
 
-renderQS :: [(S.ByteString, S.ByteString)] -> Blaze.Builder
-renderQS [] = mempty
-renderQS (p:ps) = mconcat
-    $ go "?" p
-    : map (go "&") ps
-  where
-    go sep (k, v) =
-        Blaze.copyByteString sep
-        `mappend` Blaze.copyByteString (escape k)
-        `mappend`
-            (if S.null v
-                then mempty
-                else
-                    Blaze.copyByteString "="
-                    `mappend` Blaze.copyByteString (escape v))
-    escape = S8.concatMap (S8.pack . encodeUrlChar)
-
 encodeUrlCharPI :: Char -> String
 encodeUrlCharPI '/' = "/"
 encodeUrlCharPI c = encodeUrlChar c
@@ -359,10 +339,13 @@ encodeUrlChar y =
 --
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
-parseUrl :: Failure HttpException m => String -> m (Request m')
-parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
-parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
-parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
+parseUrl :: Failure HttpException m => A.Ascii -> m (Request m')
+parseUrl = parseUrlS . A.toString
+
+parseUrlS :: Failure HttpException m => String -> m (Request m')
+parseUrlS s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
+parseUrlS s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
+parseUrlS x = failure $ InvalidUrlException x "Invalid scheme"
 
 parseUrl1 :: Failure HttpException m
           => String -> Bool -> String -> m (Request m')
@@ -376,15 +359,16 @@ parseUrl2 :: Failure HttpException m
 parseUrl2 full sec s = do
     port' <- mport
     return Request
-        { host = S8.pack hostname
+        { host = A.unsafeFromString hostname
         , port = port'
         , secure = sec
         , checkCerts = const $ return True
         , requestHeaders = []
-        , path = S8.pack $ if null path'
+        , path = A.unsafeFromString
+                    $ if null path'
                             then "/"
                             else concatMap encodeUrlCharPI path'
-        , queryString = parseQueryString $ S8.pack qstring
+        , queryString = W.parseQuery $ S8.pack qstring
         , requestBody = RequestBodyLBS L.empty
         , method = "GET"
         }
@@ -405,53 +389,6 @@ parseUrl2 full sec s = do
                     Just i -> return i
                     Nothing -> failure $ InvalidUrlException full "Invalid port"
             x -> error $ "parseUrl1: this should never happen: " ++ show x
-
-parseQueryString :: S.ByteString -> [(S.ByteString, S.ByteString)]
-parseQueryString = parseQueryString' . dropQuestion
-  where
-    dropQuestion q | S.null q || S.head q /= 63 = q
-    dropQuestion q | otherwise = S.tail q
-    parseQueryString' q | S.null q = []
-    parseQueryString' q =
-        let (x, xs) = breakDiscard 38 q -- ampersand
-         in parsePair x : parseQueryString' xs
-      where
-        parsePair x =
-            let (k, v) = breakDiscard 61 x -- equal sign
-             in (qsDecode k, qsDecode v)
-
-
-qsDecode :: S.ByteString -> S.ByteString
-qsDecode z = fst $ S.unfoldrN (S.length z) go z
-  where
-    go bs =
-        case uncons bs of
-            Nothing -> Nothing
-            Just (43, ws) -> Just (32, ws) -- plus to space
-            Just (37, ws) -> Just $ fromMaybe (37, ws) $ do -- percent
-                (x, xs) <- uncons ws
-                x' <- hexVal x
-                (y, ys) <- uncons xs
-                y' <- hexVal y
-                Just $ (combine x' y', ys)
-            Just (w, ws) -> Just (w, ws)
-    hexVal w
-        | 48 <= w && w <= 57  = Just $ w - 48 -- 0 - 9
-        | 65 <= w && w <= 70  = Just $ w - 55 -- A - F
-        | 97 <= w && w <= 102 = Just $ w - 87 -- a - f
-        | otherwise = Nothing
-    combine :: Word8 -> Word8 -> Word8
-    combine a b = shiftL a 4 .|. b
-
-uncons :: S.ByteString -> Maybe (Word8, S.ByteString)
-uncons s
-    | S.null s = Nothing
-    | otherwise = Just (S.head s, S.tail s)
-
-breakDiscard :: Word8 -> S.ByteString -> (S.ByteString, S.ByteString)
-breakDiscard w s =
-    let (x, y) = S.break (== w) s
-     in (x, S.drop 1 y)
 
 -- | Convert the HTTP response into a 'Response' value.
 --
@@ -485,7 +422,7 @@ httpLbs req = run_ . http req lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: (MonadControlIO m, Failure HttpException m) => String -> m L.ByteString
+simpleHttp :: (MonadControlIO m, Failure HttpException m) => A.Ascii -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
     Response sc _ b <- withManager $ httpLbsRedirect url'
@@ -522,7 +459,7 @@ redirectIter :: (MonadIO m, Failure HttpException m)
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
 redirectIter redirects req bodyStep manager s@(W.Status code _) hs
     | 300 <= code && code < 400 =
-        case lookup "location" hs of
+        case fmap A.toByteString $ lookup "location" hs of
             Just l'' -> do
                 -- Prepend scheme, host and port if missing
                 let l' =
@@ -531,13 +468,13 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
                                 [ "http"
                                 , if secure req then "s" else ""
                                 , "://"
-                                , S8.unpack $ host req
+                                , A.toString $ host req
                                 , ":"
                                 , show $ port req
                                 , S8.unpack l''
                                 ]
                             _ -> S8.unpack l''
-                l <- lift $ parseUrl l'
+                l <- lift $ parseUrlS l'
                 let req' = req
                         { host = host l
                         , port = port l

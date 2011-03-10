@@ -6,11 +6,13 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import System.Environment.UTF8 (getArgs)
 import Network.Wai (ciOriginal)
+import qualified Data.Ascii as A
 
 main :: IO ()
 main = withSocketsDo $ do
-    [url] <- getArgs
-    _req2 <- parseUrl url
+    [urlS] <- getArgs
+    urlA <- maybe (error "Invalid ASCII sequence") return $ A.fromChars urlS
+    _req2 <- parseUrl urlA
     {-
     let req = urlEncodedBody
                 [ ("foo", "bar")
@@ -23,9 +25,9 @@ main = withSocketsDo $ do
 #else
     print sc
     mapM_ (\(x, y) -> do
-        S.putStr $ ciOriginal x
+        S.putStr $ A.ciToByteString x
         putStr ": "
-        S.putStr y
+        S.putStr $ A.toByteString y
         putStrLn "") hs
     putStrLn ""
     L.putStr b
