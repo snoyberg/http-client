@@ -95,7 +95,6 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Failure
 import Data.Typeable (Typeable)
-import Data.Bits
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
@@ -529,34 +528,7 @@ urlEncodedBody headers req = req
     }
   where
     ct = "Content-Type"
-    body = Blaze.toLazyByteString $ body' headers
-    body' [] = mempty
-    body' [x] = pair x
-    body' (x:xs) = pair x `mappend` Blaze.fromWord8 38 `mappend` body' xs
-    pair (x, y)
-        | S.null y = single x
-        | otherwise =
-            single x `mappend` Blaze.fromWord8 61 `mappend` single y
-    single = Blaze.fromWriteList go . S.unpack
-    go 32 = Blaze.writeWord8 43 -- space to plus
-    go c | unreserved c = Blaze.writeWord8 c
-    go c =
-        let x = shiftR c 4
-            y = c .&. 15
-         in Blaze.writeWord8 37 `mappend` hexChar x `mappend` hexChar y
-    unreserved  45 = True -- hyphen
-    unreserved  46 = True -- period
-    unreserved  95 = True -- underscore
-    unreserved 126 = True -- tilde
-    unreserved c
-        | 48 <= c && c <= 57  = True -- 0 - 9
-        | 65 <= c && c <= 90  = True -- A - Z
-        | 97 <= c && c <= 122 = True -- A - Z
-    unreserved _ = False
-    hexChar c
-        | c < 10 = Blaze.writeWord8 $ c + 48
-        | c < 16 = Blaze.writeWord8 $ c + 55
-        | otherwise = error $ "hexChar: " ++ show c
+    body = L.fromChunks . return . A.toByteString $ W.renderSimpleQuery False headers
 
 catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
 catchParser s i = catchError i (const $ throwError $ HttpParserException s)
