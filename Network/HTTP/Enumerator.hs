@@ -59,6 +59,7 @@ module Network.HTTP.Enumerator
     , redirectIter
       -- * Datatypes
     , Request (..)
+    , RequestBody (..)
     , Response (..)
       -- * Manager
     , Manager
