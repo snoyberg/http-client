@@ -187,6 +187,8 @@ data Request m = Request
 -- times.
 data RequestBody m
     = RequestBodyLBS L.ByteString
+    | RequestBodyBS S.ByteString
+    | RequestBodyBuilder Int64 Blaze.Builder
     | RequestBodyEnum Int64 (Enumerator Blaze.Builder m ())
 
 -- | A simple representation of the HTTP response created by 'lbsIter'.
@@ -229,6 +231,8 @@ http Request {..} bodyStep m = do
     (contentLength, bodyEnum) =
         case requestBody of
             RequestBodyLBS lbs -> (L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
+            RequestBodyBS bs -> (fromIntegral $ S.length bs, enumSingle $ Blaze.fromByteString bs)
+            RequestBodyBuilder i b -> (i, enumSingle b)
             RequestBodyEnum i enum -> (i, enum)
     hh
         | port == 80 && not secure = host
