@@ -90,7 +90,7 @@ import Data.Enumerator
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
 import Control.Exception (Exception, bracket)
-import Control.Arrow ((***))
+import Control.Arrow (first)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
 import Control.Failure
@@ -110,7 +110,6 @@ import qualified Data.Map as Map
 import qualified Data.IORef as I
 import Control.Applicative ((<$>))
 import Data.Certificate.X509 (X509)
-import qualified Data.Ascii as A
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -174,9 +173,9 @@ data Request m = Request
     { method :: W.Method -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
     , checkCerts :: [X509] -> IO Bool -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
-    , host :: A.Ascii
+    , host :: W.Ascii
     , port :: Int
-    , path :: A.Ascii -- ^ Everything from the host to the query string.
+    , path :: W.Ascii -- ^ Everything from the host to the query string.
     , queryString :: W.Query -- ^ Automatically escaped for your convenience.
     , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
@@ -224,7 +223,7 @@ http
      -> Manager
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep m = do
-    let h' = A.toString host
+    let h' = S8.unpack host
     let withConn = if secure then withSslConn checkCerts else withSocketConn
     withConn m h' port requestEnum $$ go
   where
@@ -237,39 +236,39 @@ http Request {..} bodyStep m = do
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
-        | otherwise = host `mappend` A.unsafeFromString (':' : show port)
+        | otherwise = host `mappend` S8.pack (':' : show port)
     headers' = ("Host", hh)
-                 : ("Content-Length", A.unsafeFromString $ show contentLength)
+                 : ("Content-Length", S8.pack $ show contentLength)
                  : ("Accept-Encoding", "gzip")
                  : requestHeaders
     requestHeaders' =
-            Blaze.fromByteString (A.toByteString method)
+            Blaze.fromByteString method
             `mappend` Blaze.fromByteString " "
             `mappend`
-                (case S8.uncons $ A.toByteString path of
-                    Just ('/', _) -> Blaze.fromByteString $ A.toByteString path
+                (case S8.uncons path of
+                    Just ('/', _) -> Blaze.fromByteString path
                     _ -> Blaze.fromByteString "/"
-                            `mappend` Blaze.fromByteString (A.toByteString path))
+                            `mappend` Blaze.fromByteString path)
             `mappend` (if null queryString
                         then mempty
-                        else A.toBuilder $ W.renderQueryBuilder True queryString)
+                        else W.renderQueryBuilder True queryString)
             `mappend` Blaze.fromByteString " HTTP/1.1\r\n"
             `mappend` mconcat (flip map headers' $ \(k, v) ->
-                Blaze.fromByteString (A.toByteString $ CI.original k)
+                Blaze.fromByteString (CI.original k)
                 `mappend`  Blaze.fromByteString ": "
-                `mappend` Blaze.fromByteString (A.toByteString v)
+                `mappend` Blaze.fromByteString v
                 `mappend` Blaze.fromByteString "\r\n")
             `mappend` Blaze.fromByteString "\r\n"
     requestEnum = enumSingle requestHeaders' >==> bodyEnum
     go = do
         ((_, sc, sm), hs) <- iterHeaders
-        let s = W.Status sc $ A.unsafeFromByteString sm
-        let hs' = map (CI.mk . A.unsafeFromByteString *** A.unsafeFromByteString) hs
+        let s = W.Status sc sm
+        let hs' = map (first CI.mk) hs
         let mcl = lookup "content-length" hs'
         let body' x =
                 if ("transfer-encoding", "chunked") `elem` hs'
                     then joinI $ chunkedEnumeratee $$ x
-                    else case mcl >>= readMay . A.toString of
+                    else case mcl >>= readMay . S8.unpack of
                         Just len -> joinI $ takeLBS len $$ x
                         Nothing -> x
         let decompress x =
@@ -343,8 +342,8 @@ encodeUrlChar y =
 --
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
-parseUrl :: Failure HttpException m => A.Ascii -> m (Request m')
-parseUrl = parseUrlS . A.toString
+parseUrl :: Failure HttpException m => W.Ascii -> m (Request m')
+parseUrl = parseUrlS . S8.unpack
 
 parseUrlS :: Failure HttpException m => String -> m (Request m')
 parseUrlS s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
@@ -363,12 +362,12 @@ parseUrl2 :: Failure HttpException m
 parseUrl2 full sec s = do
     port' <- mport
     return Request
-        { host = A.unsafeFromString hostname
+        { host = S8.pack hostname
         , port = port'
         , secure = sec
         , checkCerts = const $ return True
         , requestHeaders = []
-        , path = A.unsafeFromString
+        , path = S8.pack
                     $ if null path'
                             then "/"
                             else concatMap encodeUrlCharPI path'
@@ -426,7 +425,7 @@ httpLbs req = run_ . http req lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: (MonadControlIO m, Failure HttpException m) => A.Ascii -> m L.ByteString
+simpleHttp :: (MonadControlIO m, Failure HttpException m) => W.Ascii -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
     Response sc _ b <- withManager $ httpLbsRedirect url'
@@ -463,7 +462,7 @@ redirectIter :: (MonadIO m, Failure HttpException m)
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
 redirectIter redirects req bodyStep manager s@(W.Status code _) hs
     | 300 <= code && code < 400 =
-        case fmap A.toByteString $ lookup "location" hs of
+        case lookup "location" hs of
             Just l'' -> do
                 -- Prepend scheme, host and port if missing
                 let l' =
@@ -472,7 +471,7 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
                                 [ "http"
                                 , if secure req then "s" else ""
                                 , "://"
-                                , A.toString $ host req
+                                , S8.unpack $ host req
                                 , ":"
                                 , show $ port req
                                 , S8.unpack l''
@@ -532,7 +531,7 @@ urlEncodedBody headers req = req
     }
   where
     ct = "Content-Type"
-    body = L.fromChunks . return . A.toByteString $ W.renderSimpleQuery False headers
+    body = L.fromChunks . return $ W.renderSimpleQuery False headers
 
 catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
 catchParser s i = catchError i (const $ throwError $ HttpParserException s)
