@@ -3,16 +3,15 @@
 import Network.HTTP.Enumerator
 import Network
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import System.Environment.UTF8 (getArgs)
-import Network.Wai (ciOriginal)
-import qualified Data.Ascii as A
+import Data.CaseInsensitive (original)
 
 main :: IO ()
 main = withSocketsDo $ do
-    [urlS] <- getArgs
-    urlA <- maybe (error "Invalid ASCII sequence") return $ A.fromChars urlS
-    _req2 <- parseUrl urlA
+    [url] <- getArgs
+    _req2 <- parseUrl $ S8.pack url
     {-
     let req = urlEncodedBody
                 [ ("foo", "bar")
@@ -25,9 +24,9 @@ main = withSocketsDo $ do
 #else
     print sc
     mapM_ (\(x, y) -> do
-        S.putStr $ A.ciToByteString x
+        S.putStr $ original x
         putStr ": "
-        S.putStr $ A.toByteString y
+        S.putStr y
         putStrLn "") hs
     putStrLn ""
     L.putStr b
