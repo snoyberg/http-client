@@ -425,10 +425,10 @@ httpLbs req = run_ . http req lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: (MonadControlIO m, Failure HttpException m) => W.Ascii -> m L.ByteString
+simpleHttp :: (MonadIO m, Failure HttpException m) => W.Ascii -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
-    Response sc _ b <- withManager $ httpLbsRedirect url'
+    Response sc _ b <- liftIO $ withManager $ httpLbsRedirect url'
     if 200 <= sc && sc < 300
         then return b
         else failure $ StatusCodeException sc b
