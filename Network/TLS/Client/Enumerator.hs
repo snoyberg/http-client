@@ -69,11 +69,16 @@ sslClientConn onCerts h = do
     istate <- liftIO $ client tcp srg h
     liftIO $ handshake istate
     return ConnInfo
-        { connRead = liftIO $ fmap L.toChunks $ recvData istate
+        { connRead = recvD istate
         , connWrite = liftIO . sendData istate . L.fromChunks
         , connClose = liftIO $ bye istate >> hClose h
         }
   where
+    recvD istate = do
+        x <- liftIO $ recvData istate
+        if L.null x
+            then recvD istate
+            else return $ L.toChunks x
     ciphers =
         [ cipher_AES128_SHA1
         , cipher_AES256_SHA1
