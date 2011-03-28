@@ -28,8 +28,7 @@ library
                  , attoparsec-enumerator >= 0.2     && < 0.3
                  , utf8-string           >= 0.3.4   && < 0.4
                  , blaze-builder         >= 0.2.1   && < 0.4
-                 , zlib-bindings         >= 0.0     && < 0.1
-                 , zlib-enum             >= 0.1     && < 0.2
+                 , zlib-enum             >= 0.2     && < 0.3
                  , http-types            >= 0.6     && < 0.7
                  , blaze-builder-enumerator >= 0.2  && < 0.3
                  , tls                   >= 0.4     && < 0.5

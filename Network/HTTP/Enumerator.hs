@@ -102,7 +102,6 @@ import Data.Monoid (Monoid (..))
 import qualified Network.HTTP.Types as W
 import qualified Data.CaseInsensitive as CI
 import Data.Int (Int64)
-import qualified Codec.Zlib
 import qualified Codec.Zlib.Enum as Z
 import Control.Monad.IO.Control (MonadControlIO, liftIOOp)
 import Data.Map (Map)
@@ -273,7 +272,7 @@ http Request {..} bodyStep m = do
                         Nothing -> x
         let decompress x =
                 if ("content-encoding", "gzip") `elem` hs'
-                    then joinI $ Z.decompress (Codec.Zlib.WindowBits 31) x
+                    then joinI $ Z.ungzip x
                     else returnI x
         if method == "HEAD"
             then bodyStep s hs'
