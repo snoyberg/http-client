@@ -20,6 +20,7 @@ import Data.Enumerator
     ( Iteratee (..), Enumerator, Step (..), Stream (..), continue, returnI
     )
 import Data.Certificate.X509 (X509)
+import Network.TLS.Extra (ciphersuite_all)
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]
@@ -61,7 +62,7 @@ sslClientConn onCerts h = do
     let tcp = defaultParams
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11 ]
-            , pCiphers = ciphers
+            , pCiphers = ciphersuite_all
             , onCertificatesRecv = onCerts
             }
     esrand <- liftIO makeSRandomGen
@@ -79,9 +80,3 @@ sslClientConn onCerts h = do
         if L.null x
             then recvD istate
             else return $ L.toChunks x
-    ciphers =
-        [ cipher_AES128_SHA1
-        , cipher_AES256_SHA1
-        , cipher_RC4_128_MD5
-        , cipher_RC4_128_SHA1
-        ]
