@@ -342,13 +342,10 @@ encodeUrlChar y =
 --
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
-parseUrl :: Failure HttpException m => W.Ascii -> m (Request m')
-parseUrl = parseUrlS . S8.unpack
-
-parseUrlS :: Failure HttpException m => String -> m (Request m')
-parseUrlS s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
-parseUrlS s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
-parseUrlS x = failure $ InvalidUrlException x "Invalid scheme"
+parseUrl :: Failure HttpException m => String -> m (Request m')
+parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
+parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
+parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
 
 parseUrl1 :: Failure HttpException m
           => String -> Bool -> String -> m (Request m')
@@ -425,7 +422,7 @@ httpLbs req = run_ . http req lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
-simpleHttp :: (MonadIO m, Failure HttpException m) => W.Ascii -> m L.ByteString
+simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
     Response sc _ b <- liftIO $ withManager $ httpLbsRedirect url'
@@ -477,7 +474,7 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
                                 , S8.unpack l''
                                 ]
                             _ -> S8.unpack l''
-                l <- lift $ parseUrlS l'
+                l <- lift $ parseUrl l'
                 let req' = req
                         { host = host l
                         , port = port l
