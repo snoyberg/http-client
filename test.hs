@@ -11,7 +11,7 @@ import Data.CaseInsensitive (original)
 main :: IO ()
 main = withSocketsDo $ do
     [url] <- getArgs
-    _req2 <- parseUrl $ S8.pack url
+    _req2 <- parseUrl url
     {-
     let req = urlEncodedBody
                 [ ("foo", "bar")

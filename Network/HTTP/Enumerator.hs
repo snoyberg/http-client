@@ -109,7 +109,7 @@ import qualified Data.Map as Map
 import qualified Data.IORef as I
 import Control.Applicative ((<$>))
 import Data.Certificate.X509 (X509)
-import Network.TLS.Extra (certificateVerifyChain)
+import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -362,7 +362,10 @@ parseUrl2 full sec s = do
         { host = S8.pack hostname
         , port = port'
         , secure = sec
-        , checkCerts = certificateVerifyChain
+        , checkCerts = \x ->
+            if certificateVerifyDomain hostname x
+                then certificateVerifyChain x
+                else return False
         , requestHeaders = []
         , path = S8.pack
                     $ if null path'
