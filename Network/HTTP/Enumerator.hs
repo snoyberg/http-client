@@ -204,11 +204,11 @@ enumSingle _ step = returnI step
 
 -- | The most low-level function for initiating an HTTP request.
 --
--- The second argument to this function gives a full specification on the
+-- The first argument to this function gives a full specification on the
 -- request: the host to connect to, whether to use SSL, headers, etc. Please
 -- see 'Request' for full details.
 --
--- The first argument specifies how the response should be handled. It's a
+-- The second argument specifies how the response should be handled. It's a
 -- function that takes two arguments: the first is the HTTP status code of the
 -- response, and the second is a list of all response headers. This module
 -- exports 'lbsIter', which generates a 'Response' value.
