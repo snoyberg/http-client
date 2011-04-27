@@ -416,6 +416,11 @@ lbsIter (W.Status sc _) hs = do
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
+--
+-- Even though a 'Response' contains a lazy bytestring, this function does
+-- /not/ utilize lazy I/O, and therefore the entire response body will live in
+-- memory. If you want constant memory usage, you'll need to write your own
+-- iteratee and use 'http' or 'httpRedirect' directly.
 httpLbs :: MonadIO m => Request m -> Manager -> m Response
 httpLbs req = run_ . http req lbsIter
 
@@ -425,6 +430,11 @@ httpLbs req = run_ . http req lbsIter
 -- This function will 'failure' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
+--
+-- Note: Even though this function returns a lazy bytestring, it does /not/
+-- utilize lazy I/O, and therefore the entire response body will live in
+-- memory. If you want constant memory usage, you'll need to write your own
+-- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
@@ -507,6 +517,11 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
 --
 -- Please see 'lbsIter' for more information on how the 'Response' value is
 -- created.
+--
+-- Even though a 'Response' contains a lazy bytestring, this function does
+-- /not/ utilize lazy I/O, and therefore the entire response body will live in
+-- memory. If you want constant memory usage, you'll need to write your own
+-- iteratee and use 'http' or 'httpRedirect' directly.
 httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request m -> Manager -> m Response
 httpLbsRedirect req = run_ . httpRedirect req lbsIter
 
