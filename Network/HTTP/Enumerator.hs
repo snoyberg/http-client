@@ -68,6 +68,7 @@ module Network.HTTP.Enumerator
     , withManager
       -- * Utility functions
     , parseUrl
+    , semiParseUrl
     , lbsIter
       -- * Request bodies
     , urlEncodedBody
@@ -344,6 +345,13 @@ encodeUrlChar y =
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
 parseUrl :: Failure HttpException m => String -> m (Request m')
 parseUrl = parseUrlHelper True
+
+-- | Same as 'parseUrl', with one distinction: this function will not attempt
+-- to parse the query string, but instead leave it with the path info. This can
+-- be useful if you need precise control of the rendering of the query string,
+-- such as using semicolons instead of ampersands.
+semiParseUrl :: Failure HttpException m => String -> m (Request m')
+semiParseUrl = parseUrlHelper False
 
 parseUrlHelper :: Failure HttpException m => Bool -> String -> m (Request m')
 parseUrlHelper parsePath s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False parsePath rest
