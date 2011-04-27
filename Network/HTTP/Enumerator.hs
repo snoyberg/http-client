@@ -343,20 +343,23 @@ encodeUrlChar y =
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
 parseUrl :: Failure HttpException m => String -> m (Request m')
-parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
-parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
-parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
+parseUrl = parseUrlHelper True
+
+parseUrlHelper :: Failure HttpException m => Bool -> String -> m (Request m')
+parseUrlHelper parsePath s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False parsePath rest
+parseUrlHelper parsePath s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True parsePath rest
+parseUrlHelper _ x = failure $ InvalidUrlException x "Invalid scheme"
 
 parseUrl1 :: Failure HttpException m
-          => String -> Bool -> String -> m (Request m')
-parseUrl1 full sec s =
-    parseUrl2 full sec s'
+          => String -> Bool -> Bool -> String -> m (Request m')
+parseUrl1 full sec parsePath s =
+    parseUrl2 full sec parsePath s'
   where
     s' = encodeString s
 
 parseUrl2 :: Failure HttpException m
-          => String -> Bool -> String -> m (Request m')
-parseUrl2 full sec s = do
+          => String -> Bool -> Bool -> String -> m (Request m')
+parseUrl2 full sec parsePath s = do
     port' <- mport
     return Request
         { host = S8.pack hostname
@@ -368,10 +371,12 @@ parseUrl2 full sec s = do
                 else return False
         , requestHeaders = []
         , path = S8.pack
-                    $ if null path'
+                    $ if null path''
                             then "/"
-                            else concatMap encodeUrlCharPI path'
-        , queryString = W.parseQuery $ S8.pack qstring
+                            else concatMap encodeUrlCharPI path''
+        , queryString = if parsePath
+                            then W.parseQuery $ S8.pack qstring
+                            else []
         , requestBody = RequestBodyLBS L.empty
         , method = "GET"
         }
@@ -379,6 +384,7 @@ parseUrl2 full sec s = do
     (beforeSlash, afterSlash) = break (== '/') s
     (hostname, portStr) = break (== ':') beforeSlash
     (path', qstring') = break (== '?') afterSlash
+    path'' = if parsePath then path' else afterSlash
     qstring'' = case qstring' of
                 '?':x -> x
                 _ -> qstring'
@@ -437,7 +443,7 @@ httpLbs req = run_ . http req lbsIter
 -- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
-    url' <- parseUrl url
+    url' <- parseUrlHelper False url
     Response sc _ b <- liftIO $ withManager $ httpLbsRedirect url'
     if 200 <= sc && sc < 300
         then return b
