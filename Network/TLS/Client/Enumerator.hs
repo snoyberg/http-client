@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 module Network.TLS.Client.Enumerator
     ( ConnInfo
     , connClose
@@ -21,6 +22,7 @@ import Data.Enumerator
     )
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
+import Crypto.Random (SystemRandom, newGenIO)
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]
@@ -65,9 +67,8 @@ sslClientConn onCerts h = do
             , pCiphers = ciphersuite_all
             , onCertificatesRecv = onCerts
             }
-    esrand <- liftIO makeSRandomGen
-    let srg = either (error . show) id esrand
-    istate <- liftIO $ client tcp srg h
+    gen :: SystemRandom <- newGenIO
+    istate <- liftIO $ client tcp gen h
     liftIO $ handshake istate
     return ConnInfo
         { connRead = recvD istate
