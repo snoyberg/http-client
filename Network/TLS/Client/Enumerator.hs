@@ -22,7 +22,7 @@ import Data.Enumerator
     )
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
-import Crypto.Random (SystemRandom, newGenIO)
+import Crypto.Random.AESCtr (makeSystem)
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]
@@ -67,7 +67,7 @@ sslClientConn onCerts h = do
             , pCiphers = ciphersuite_all
             , onCertificatesRecv = onCerts
             }
-    gen :: SystemRandom <- newGenIO
+    gen <- makeSystem
     istate <- liftIO $ client tcp gen h
     liftIO $ handshake istate
     return ConnInfo

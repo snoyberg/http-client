@@ -32,7 +32,7 @@ library
                  , zlib-enum             >= 0.2     && < 0.3
                  , http-types            >= 0.6     && < 0.7
                  , blaze-builder-enumerator >= 0.2  && < 0.3
-                 , crypto-api            >= 0.6     && < 0.7
+                 , cprng-aes             >= 0.2     && < 0.3
                  , tls                   >= 0.6     && < 0.7
                  , tls-extra             >= 0.2     && < 0.3
                  , monad-control         >= 0.2     && < 0.3
