@@ -26,7 +26,8 @@
 -- > main :: IO ()
 -- > main = withFile "google.html" WriteMode $ \handle -> do
 -- >     request <- parseUrl "http://google.com/"
--- >     withManager $ run_ $ httpRedirect request (\_ _ -> iterHandle handle)
+-- >     withManager $ \manager -> do
+-- >         run_ $ httpRedirect request (\_ _ -> iterHandle handle) manager
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
