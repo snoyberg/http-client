@@ -1,5 +1,5 @@
 name:            http-enumerator
-version:         0.6.4.1
+version:         0.6.4.2
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -37,7 +37,7 @@ library
                  , tls-extra             >= 0.2     && < 0.3
                  , monad-control         >= 0.2     && < 0.3
                  , containers            >= 0.2     && < 0.5
-                 , certificate           >= 0.7     && < 0.8
+                 , certificate           >= 0.7     && < 0.9
                  , case-insensitive      >= 0.2     && < 0.3
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
