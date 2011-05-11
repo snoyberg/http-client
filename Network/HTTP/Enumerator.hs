@@ -240,9 +240,10 @@ http Request {..} bodyStep m = do
         | port == 443 && secure = host
         | otherwise = host `mappend` S8.pack (':' : show port)
     headers' = ("Host", hh)
-                 : ("Content-Length", S8.pack $ show contentLength)
-                 : ("Accept-Encoding", "gzip")
-                 : requestHeaders
+                 : (if method `elem` ["GET", "HEAD"] && contentLength == 0
+                    then id
+                    else (:) ("Content-Length", S8.pack $ show contentLength))
+                 (("Accept-Encoding", "gzip") : requestHeaders)
     requestHeaders' =
             Blaze.fromByteString method
             `mappend` Blaze.fromByteString " "
