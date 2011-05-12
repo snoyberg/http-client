@@ -69,6 +69,7 @@ module Network.HTTP.Enumerator
     , withManager
       -- * Utility functions
     , parseUrl
+    , applyBasicAuth
     , semiParseUrl
     , lbsIter
       -- * Request bodies
@@ -112,6 +113,7 @@ import qualified Data.IORef as I
 import Control.Applicative ((<$>))
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
+import qualified Data.ByteString.Base64 as B64
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -191,6 +193,21 @@ data RequestBody m
     | RequestBodyBS S.ByteString
     | RequestBodyBuilder Int64 Blaze.Builder
     | RequestBodyEnum Int64 (Enumerator Blaze.Builder m ())
+
+
+-- | Add a Basic Auth header (with the specified user name and password) to the
+-- given Request. Ignore error handling:
+--
+--    applyBasicAuth "user" "pass" $ fromJust $ HE.parseUrl url
+
+applyBasicAuth :: S8.ByteString -> S8.ByteString -> Request m -> Request m
+applyBasicAuth user passwd req =
+    req { requestHeaders = authHeader : requestHeaders req }
+  where
+    authHeader = (CI.mk "Authorization", basic)
+    basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
+
+
 
 -- | A simple representation of the HTTP response created by 'lbsIter'.
 data Response = Response
