@@ -198,9 +198,9 @@ data RequestBody m
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
 --
---    applyBasicAuth "user" "pass" $ fromJust $ HE.parseUrl url
+--    applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
 
-applyBasicAuth :: S8.ByteString -> S8.ByteString -> Request m -> Request m
+applyBasicAuth :: S.ByteString -> S.ByteString -> Request m -> Request m
 applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where
