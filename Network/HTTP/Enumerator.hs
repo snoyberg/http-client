@@ -59,6 +59,7 @@ module Network.HTTP.Enumerator
     , httpRedirect
     , redirectIter
       -- * Datatypes
+    , Proxy (..)
     , Request (..)
     , RequestBody (..)
     , Response (..)
@@ -70,6 +71,7 @@ module Network.HTTP.Enumerator
       -- * Utility functions
     , parseUrl
     , applyBasicAuth
+    , addProxy
     , semiParseUrl
     , lbsIter
       -- * Request bodies
@@ -169,6 +171,14 @@ withCI ci req step0 = do
     -- FIXME liftIO $ hClose handle
     return a
 
+
+-- | Define a HTTP proxy, consisting of a hostname and port number.
+
+data Proxy = Proxy
+    { proxyHost :: W.Ascii -- ^ The host name of the HTTP proxy.
+    , proxyPort :: Int -- ^ The port numner of the HTTP proxy.
+    }
+
 -- | All information on how to connect to a host and what should be sent in the
 -- HTTP request.
 --
@@ -183,6 +193,7 @@ data Request m = Request
     , queryString :: W.Query -- ^ Automatically escaped for your convenience.
     , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
+    , proxy :: Maybe Proxy -- ^ Optional HTTP proxy.
     }
 
 -- | When using the 'RequestBodyEnum' constructor and any function which calls
@@ -198,15 +209,21 @@ data RequestBody m
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
 --
---    applyBasicAuth "user" "pass" $ fromJust $ HE.parseUrl url
+--    applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
 
-applyBasicAuth :: S8.ByteString -> S8.ByteString -> Request m -> Request m
+applyBasicAuth :: S.ByteString -> S.ByteString -> Request m -> Request m
 applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where
     authHeader = (CI.mk "Authorization", basic)
     basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
 
+
+-- | Add a proxy to the the Request so that the Request when executed will use
+-- the provided proxy.
+addProxy :: S.ByteString -> Int -> Request m -> Request m
+addProxy hst prt req =
+    req { proxy = Just $ Proxy hst prt }
 
 
 -- | A simple representation of the HTTP response created by 'lbsIter'.
@@ -242,10 +259,16 @@ http
      -> Manager
      -> Iteratee S.ByteString m a
 http Request {..} bodyStep m = do
-    let h' = S8.unpack host
-    let withConn = if secure then withSslConn checkCerts else withSocketConn
-    withConn m h' port requestEnum $$ go
+    withConn m connhost connport requestEnum $$ go
   where
+    (useProxy, connhost, connport) =
+        case proxy of
+            Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
+            Nothing -> (False, S8.unpack host, port)
+    withConn =
+        if secure && not useProxy
+            then withSslConn checkCerts
+            else withSocketConn
     (contentLength, bodyEnum) =
         case requestBody of
             RequestBodyLBS lbs -> (L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
@@ -264,6 +287,11 @@ http Request {..} bodyStep m = do
     requestHeaders' =
             Blaze.fromByteString method
             `mappend` Blaze.fromByteString " "
+            `mappend`
+                (if useProxy
+                    then Blaze.fromByteString (if secure then "https://" else "http://")
+                            `mappend` Blaze.fromByteString hh
+                    else mempty)
             `mappend`
                 (case S8.uncons path of
                     Just ('/', _) -> Blaze.fromByteString path
@@ -406,6 +434,7 @@ parseUrl2 full sec parsePath s = do
                             else []
         , requestBody = RequestBodyLBS L.empty
         , method = "GET"
+        , proxy = Nothing
         }
   where
     (beforeSlash, afterSlash) = break (== '/') s
