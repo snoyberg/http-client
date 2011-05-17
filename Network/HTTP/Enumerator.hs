@@ -22,7 +22,7 @@
 -- > import Data.Enumerator.Binary
 -- > import Network.HTTP.Enumerator
 -- > import System.IO
--- > 
+-- >
 -- > main :: IO ()
 -- > main = withFile "google.html" WriteMode $ \handle -> do
 -- >     request <- parseUrl "http://google.com/"
@@ -194,6 +194,7 @@ data Request m = Request
     , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
     , proxy :: Maybe Proxy -- ^ Optional HTTP proxy.
+    , rawBody :: Bool -- ^ If True, a chunked and/or gzipped body will not be decoded. Use with caution.
     }
 
 -- | When using the 'RequestBodyEnum' constructor and any function which calls
@@ -314,13 +315,13 @@ http Request {..} bodyStep m = do
         let hs' = map (first CI.mk) hs
         let mcl = lookup "content-length" hs'
         let body' x =
-                if ("transfer-encoding", "chunked") `elem` hs'
+                if not rawBody && ("transfer-encoding", "chunked") `elem` hs'
                     then joinI $ chunkedEnumeratee $$ x
                     else case mcl >>= readMay . S8.unpack of
                         Just len -> joinI $ takeLBS len $$ x
                         Nothing -> x
         let decompress x =
-                if ("content-encoding", "gzip") `elem` hs'
+                if not rawBody && ("content-encoding", "gzip") `elem` hs'
                     then joinI $ Z.ungzip x
                     else returnI x
         if method == "HEAD"
@@ -435,6 +436,7 @@ parseUrl2 full sec parsePath s = do
         , requestBody = RequestBodyLBS L.empty
         , method = "GET"
         , proxy = Nothing
+        , rawBody = False
         }
   where
     (beforeSlash, afterSlash) = break (== '/') s
