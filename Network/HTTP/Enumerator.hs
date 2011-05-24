@@ -94,11 +94,11 @@ import Data.Enumerator
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
-import Control.Exception (Exception, bracket)
+import Control.Exception (Exception, bracket, throwIO, SomeException, try)
 import Control.Arrow (first)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
-import Control.Failure
+import Control.Failure (Failure (failure))
 import Data.Typeable (Typeable)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
@@ -126,8 +126,13 @@ getSocket host' port' = do
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
     sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
                       (NS.addrProtocol addr)
-    NS.connect sock (NS.addrAddress addr)
-    return sock
+    ee <- try' $ NS.connect sock (NS.addrAddress addr)
+    case ee of
+        Left e -> NS.sClose sock >> throwIO e
+        Right () -> return sock
+  where
+    try' :: IO a -> IO (Either SomeException a)
+    try' = try
 
 withSocketConn :: MonadIO m
                => Manager
