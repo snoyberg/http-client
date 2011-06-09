@@ -364,9 +364,12 @@ takeLBS len (Continue k) = do
                 else takeLBS len' step'
 takeLBS _ step = return step
 
-encodeUrlCharPI :: Char -> String
-encodeUrlCharPI '/' = "/"
-encodeUrlCharPI c = encodeUrlChar c
+encodeUrlCharPI :: Bool -> Char -> String
+encodeUrlCharPI _ '/' = "/"
+encodeUrlCharPI False '?' = "?"
+encodeUrlCharPI False '&' = "&"
+encodeUrlCharPI False '=' = "="
+encodeUrlCharPI _ c = encodeUrlChar c
 
 encodeUrlChar :: Char -> String
 encodeUrlChar c
@@ -434,7 +437,7 @@ parseUrl2 full sec parsePath s = do
         , path = S8.pack
                     $ if null path''
                             then "/"
-                            else concatMap encodeUrlCharPI path''
+                            else concatMap (encodeUrlCharPI parsePath) path''
         , queryString = if parsePath
                             then W.parseQuery $ S8.pack qstring
                             else []
@@ -506,7 +509,7 @@ httpLbs req = run_ . http req lbsIter
 -- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
-    url' <- parseUrlHelper False url
+    url' <- parseUrl url
     Response sc _ b <- liftIO $ withManager $ httpLbsRedirect url'
     if 200 <= sc && sc < 300
         then return b
