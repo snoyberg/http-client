@@ -331,7 +331,17 @@ http Request {..} bodyStep m = do
                     else returnI x
         if method == "HEAD"
             then bodyStep s hs'
-            else body' $ decompress $$ bodyStep s hs'
+            else body' $ decompress $$ do
+                    x <- bodyStep s hs'
+                    flushStream
+                    return x
+
+flushStream :: Monad m => Iteratee a m ()
+flushStream = do
+    x <- EL.head
+    case x of
+        Nothing -> return ()
+        Just _ -> flushStream
 
 chunkedEnumeratee :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 chunkedEnumeratee k@(Continue _) = do
