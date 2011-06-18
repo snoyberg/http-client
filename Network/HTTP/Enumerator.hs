@@ -159,7 +159,7 @@ withManagedConn man key open req step = do
     return a
 
 withSslConn :: MonadIO m
-            => ([X509] -> IO Bool)
+            => ([X509] -> IO TLS.TLSCertificateUsage)
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
@@ -191,7 +191,7 @@ data Proxy = Proxy
 data Request m = Request
     { method :: W.Method -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
-    , checkCerts :: [X509] -> IO Bool -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
+    , checkCerts :: [X509] -> IO TLS.TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , host :: W.Ascii
     , port :: Int
     , path :: W.Ascii -- ^ Everything from the host to the query string.
@@ -440,9 +440,9 @@ parseUrl2 full sec parsePath s = do
         , port = port'
         , secure = sec
         , checkCerts = \x ->
-            if certificateVerifyDomain hostname x
-                then certificateVerifyChain x
-                else return False
+            case certificateVerifyDomain hostname x of
+                TLS.CertificateUsageAccept -> certificateVerifyChain x
+                _                          -> return TLS.CertificateUsageAccept
         , requestHeaders = []
         , path = S8.pack
                     $ if null path''
