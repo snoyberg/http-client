@@ -33,8 +33,8 @@ library
                  , http-types            >= 0.6     && < 0.7
                  , blaze-builder-enumerator >= 0.2  && < 0.3
                  , cprng-aes             >= 0.2     && < 0.3
-                 , tls                   >= 0.6     && < 0.7
-                 , tls-extra             >= 0.2     && < 0.3
+                 , tls                   >= 0.7     && < 0.8
+                 , tls-extra             >= 0.3     && < 0.4
                  , monad-control         >= 0.2     && < 0.3
                  , containers            >= 0.2     && < 0.5
                  , certificate           >= 0.7     && < 0.10

@@ -6,6 +6,8 @@ module Network.TLS.Client.Enumerator
     , connEnum
     , sslClientConn
     , socketConn
+    , TLSCertificateRejectReason(..)
+    , TLSCertificateUsage(..)
     ) where
 
 import Data.ByteString (ByteString)
@@ -59,7 +61,7 @@ socketConn sock = ConnInfo
     , connClose = sClose sock
     }
 
-sslClientConn :: ([X509] -> IO Bool) -> Handle -> IO ConnInfo
+sslClientConn :: ([X509] -> IO TLSCertificateUsage) -> Handle -> IO ConnInfo
 sslClientConn onCerts h = do
     let tcp = defaultParams
             { pConnectVersion = TLS10
