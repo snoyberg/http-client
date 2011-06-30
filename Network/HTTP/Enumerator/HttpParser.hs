@@ -3,6 +3,7 @@ module Network.HTTP.Enumerator.HttpParser
     ( iterHeaders
     , iterChunkHeader
     , iterNewline
+    , parserHeadersFromByteString
     ) where
 
 import Prelude hiding (take, takeWhile)
@@ -55,6 +56,11 @@ parseHeaders = do
 
 iterHeaders :: Monad m => Iteratee S.ByteString m (Status, [Header])
 iterHeaders = iterParser parseHeaders
+
+
+parserHeadersFromByteString :: Monad m => S.ByteString -> m (Either String (Status, [Header]))
+parserHeadersFromByteString s = return $ parseOnly parseHeaders s
+
 
 type Status = (S.ByteString, Int, S.ByteString)
 

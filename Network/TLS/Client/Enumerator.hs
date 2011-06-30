@@ -71,7 +71,7 @@ sslClientConn onCerts h = do
             }
     gen <- makeSystem
     istate <- liftIO $ client tcp gen h
-    liftIO $ handshake istate
+    _ <- liftIO $ handshake istate
     return ConnInfo
         { connRead = recvD istate
         , connWrite = liftIO . sendData istate . L.fromChunks

@@ -116,6 +116,8 @@ import Control.Applicative ((<$>))
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 import qualified Data.ByteString.Base64 as B64
+import System.IO (hClose, hFlush)
+import Blaze.ByteString.Builder (toByteString)
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
@@ -168,6 +170,39 @@ withSslConn :: MonadIO m
 withSslConn checkCert man host' port' =
     withManagedConn man (host', port', True) $
         (connectTo host' (PortNumber $ fromIntegral port') >>= TLS.sslClientConn checkCert)
+
+withSslProxyConn :: MonadIO m
+            => ([X509] -> IO TLS.TLSCertificateUsage)
+            -> S8.ByteString -- ^ Target host
+            -> Int -- ^ Target port
+            -> Manager
+            -> String -- ^ Proxy host
+            -> Int -- ^ Proxy port
+            -> Enumerator Blaze.Builder m () -- ^ request
+            -> Enumerator S.ByteString m a -- ^ response
+withSslProxyConn checkCert thost tport man phost pport =
+    withManagedConn man (phost, pport, True) $
+        doConnect >>= TLS.sslClientConn checkCert
+  where
+    doConnect = do
+        h <- connectTo phost (PortNumber $ fromIntegral pport)
+        S8.hPutStr h $ toByteString connectRequest
+        hFlush h
+        r <- S.hGetSome h 2048
+        res <- parserHeadersFromByteString r
+        case res of
+            Right ((_, 200, _), _) -> return h
+            Right ((_, _, msg), _) -> hClose h >> proxyError (S8.unpack msg)
+            Left s -> hClose h >> proxyError s
+
+    connectRequest =
+        Blaze.fromByteString "CONNECT "
+            `mappend` Blaze.fromByteString thost
+            `mappend` Blaze.fromByteString (S8.pack (':' : show tport))
+            `mappend` Blaze.fromByteString " HTTP/1.1\r\n\r\n"
+    proxyError s =
+        error $ "Proxy failed to CONNECT to '"
+                ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
 
 withCI :: MonadIO m => TLS.ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
 withCI ci req step0 = do
@@ -272,9 +307,10 @@ http Request {..} bodyStep m = do
             Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
             Nothing -> (False, S8.unpack host, port)
     withConn =
-        if secure && not useProxy
-            then withSslConn checkCerts
-            else withSocketConn
+        case (secure, useProxy) of
+            (False, _) -> withSocketConn
+            (True, False) -> withSslConn checkCerts
+            (True, True) -> withSslProxyConn checkCerts host port
     (contentLength, bodyEnum) =
         case requestBody of
             RequestBodyLBS lbs -> (L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
@@ -638,6 +674,8 @@ data Manager = Manager
     { mConns :: I.IORef (Map ConnKey TLS.ConnInfo)
     }
 
+-- | ConnKey consists of a hostname, a port and a Bool specifying whether to
+--   use keepalive.
 type ConnKey = (String, Int, Bool)
 
 takeInsecureSocket :: Manager -> ConnKey -> IO (Maybe TLS.ConnInfo)
