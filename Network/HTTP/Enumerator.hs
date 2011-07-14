@@ -365,7 +365,10 @@ http Request {..} bodyStep m = do
                 if not rawBody && ("content-encoding", "gzip") `elem` hs'
                     then joinI $ Z.ungzip x
                     else returnI x
-        if method == "HEAD"
+        -- RFC 2616 section 4.4_1 defines responses that must not include a body
+        if method == "HEAD" || sc == 204 -- No Content
+                            || sc == 304 -- Not Modified
+                            || (sc < 200 && sc >= 100)
             then bodyStep s hs'
             else body' $ decompress $$ do
                     x <- bodyStep s hs'
