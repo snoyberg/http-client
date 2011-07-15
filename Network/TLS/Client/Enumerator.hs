@@ -17,10 +17,11 @@ import System.IO (Handle, hClose)
 import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
 import Network.TLS
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
 import Data.Enumerator
     ( Iteratee (..), Enumerator, Step (..), Stream (..), continue, returnI
+    , tryIO
     )
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
@@ -38,7 +39,7 @@ connIter ConnInfo { connWrite = write } =
   where
     go EOF = return ()
     go (Chunks bss) = do
-        liftIO $ write bss
+        tryIO $ write bss
         continue go
 
 connEnum :: MonadIO m => ConnInfo -> Enumerator ByteString m b
@@ -46,7 +47,7 @@ connEnum ConnInfo { connRead = read' } =
     go
   where
     go (Continue k) = do
-        bs <- liftIO read'
+        bs <- tryIO read'
         if all S.null bs
             then continue k
             else do
@@ -70,16 +71,16 @@ sslClientConn onCerts h = do
             , onCertificatesRecv = onCerts
             }
     gen <- makeSystem
-    istate <- liftIO $ client tcp gen h
-    _ <- liftIO $ handshake istate
+    istate <- client tcp gen h
+    _ <- handshake istate
     return ConnInfo
         { connRead = recvD istate
-        , connWrite = liftIO . sendData istate . L.fromChunks
-        , connClose = liftIO $ bye istate >> hClose h
+        , connWrite = sendData istate . L.fromChunks
+        , connClose = bye istate >> hClose h
         }
   where
     recvD istate = do
-        x <- liftIO $ recvData istate
+        x <- recvData istate
         if L.null x
             then recvD istate
             else return $ L.toChunks x

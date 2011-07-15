@@ -188,11 +188,21 @@ withManagedConn
     -> Enumerator Blaze.Builder m ()
     -> Enumerator S.ByteString m a
 withManagedConn man key open req step = do
-    ci <- liftIO $ takeInsecureSocket man key
-          >>= maybe (liftIO open) return
-    a <- withCI ci req step
-    liftIO $ putInsecureSocket man key ci
-    return a
+    mci <- liftIO $ takeInsecureSocket man key
+    (ci, isManaged) <-
+        case mci of
+            Nothing -> do
+                ci <- liftIO open
+                return (ci, False)
+            Just ci -> return (ci, True)
+    catchError
+        (do
+            a <- withCI ci req step
+            liftIO $ putInsecureSocket man key ci
+            return a)
+        (\se -> if isManaged
+                    then withManagedConn man key open req step
+                    else throwError se)
 
 withSslConn :: MonadIO m
             => ([X509] -> IO TLS.TLSCertificateUsage)
@@ -711,7 +721,7 @@ catchParser :: Monad m => String -> Iteratee a m b -> Iteratee a m b
 catchParser s i = catchError i (const $ throwError $ HttpParserException s)
 
 -- | Keeps track of open connections for keep-alive.
-data Manager = Manager
+newtype Manager = Manager
     { mConns :: I.IORef (Map ConnKey TLS.ConnInfo)
     }
 
