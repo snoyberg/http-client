@@ -118,6 +118,7 @@ import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 import qualified Data.ByteString.Base64 as B64
 import System.IO (hClose, hFlush)
 import Blaze.ByteString.Builder (toByteString)
+import Control.Monad (when)
 #if !MIN_VERSION_base(4,3,0)
 import GHC.IO.Handle.Types
 import System.IO                (hWaitForInput, hIsEOF)
@@ -175,7 +176,8 @@ withSocketConn :: MonadIO m
                -> String
                -> Int
                -> Enumerator Blaze.Builder m ()
-               -> Enumerator S.ByteString m a
+               -> Step S.ByteString m (Bool, a)
+               -> Iteratee S.ByteString m a
 withSocketConn man host' port' =
     withManagedConn man (host', port', False) $
         fmap TLS.socketConn $ getSocket host' port'
@@ -186,7 +188,8 @@ withManagedConn
     -> ConnKey
     -> IO TLS.ConnInfo
     -> Enumerator Blaze.Builder m ()
-    -> Enumerator S.ByteString m a
+    -> Step S.ByteString m (Bool, a) -- ^ Bool indicates if the connection should go back in the manager
+    -> Iteratee S.ByteString m a
 withManagedConn man key open req step = do
     mci <- liftIO $ takeInsecureSocket man key
     (ci, isManaged) <-
@@ -197,8 +200,8 @@ withManagedConn man key open req step = do
             Just ci -> return (ci, True)
     catchError
         (do
-            a <- withCI ci req step
-            liftIO $ putInsecureSocket man key ci
+            (toPut, a) <- withCI ci req step
+            when toPut $ liftIO $ putInsecureSocket man key ci
             return a)
         (\se -> if isManaged
                     then withManagedConn man key open req step
@@ -210,7 +213,8 @@ withSslConn :: MonadIO m
             -> String -- ^ host
             -> Int -- ^ port
             -> Enumerator Blaze.Builder m () -- ^ request
-            -> Enumerator S.ByteString m a -- ^ response
+            -> Step S.ByteString m (Bool, a) -- ^ response
+            -> Iteratee S.ByteString m a -- ^ response
 withSslConn checkCert man host' port' =
     withManagedConn man (host', port', True) $
         (connectTo host' (PortNumber $ fromIntegral port') >>= TLS.sslClientConn checkCert)
@@ -223,7 +227,8 @@ withSslProxyConn :: MonadIO m
             -> String -- ^ Proxy host
             -> Int -- ^ Proxy port
             -> Enumerator Blaze.Builder m () -- ^ request
-            -> Enumerator S.ByteString m a -- ^ response
+            -> Step S.ByteString m (Bool, a) -- ^ response
+            -> Iteratee S.ByteString m a -- ^ response
 withSslProxyConn checkCert thost tport man phost pport =
     withManagedConn man (phost, pport, True) $
         doConnect >>= TLS.sslClientConn checkCert
@@ -414,14 +419,17 @@ http Request {..} bodyStep m = do
                     then joinI $ Z.ungzip x
                     else returnI x
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
-        if method == "HEAD" || sc == 204 -- No Content
-                            || sc == 304 -- Not Modified
-                            || (sc < 200 && sc >= 100)
-            then bodyStep s hs'
-            else body' $ decompress $$ do
-                    x <- bodyStep s hs'
-                    flushStream
-                    return x
+        res <-
+            if method == "HEAD" || sc == 204 -- No Content
+                                || sc == 304 -- Not Modified
+                                || (sc < 200 && sc >= 100)
+                then bodyStep s hs'
+                else body' $ decompress $$ do
+                        x <- bodyStep s hs'
+                        flushStream
+                        return x
+        let toPut = Just "close" /= lookup "connection" hs'
+        return (toPut, res)
 
 flushStream :: Monad m => Iteratee a m ()
 flushStream = do

@@ -15,6 +15,7 @@ import qualified Data.ByteString.Lazy as L
 import Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString.Char8 as S8
 import Warp
+import Data.IORef (newIORef, readIORef)
 
 main = hspec $ describe "http-enumerator"
     [ it "doesn't fail with unconsumed data, chunked" unconsumedChunked
@@ -42,7 +43,8 @@ unconsumedUnchunked = do
             ) m
 
 closedConnections = do
-    tid <- forkIO noKeepAlive
+    x <- newIORef False
+    tid <- forkIO $ noKeepAlive x
     flip finally (killThread tid) $ do
         req <- parseUrl "http://localhost:3000"
         withManager $ \m -> run_ $ do
@@ -50,3 +52,5 @@ closedConnections = do
             replicateM_ 10 $ do
                 res' <- httpLbs req m
                 liftIO $ res @?= res'
+    y <- readIORef x
+    assert $ not y
