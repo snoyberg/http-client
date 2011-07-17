@@ -118,7 +118,6 @@ import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 import qualified Data.ByteString.Base64 as B64
 import System.IO (hClose, hFlush)
 import Blaze.ByteString.Builder (toByteString)
-import Control.Monad (when)
 #if !MIN_VERSION_base(4,3,0)
 import GHC.IO.Handle.Types
 import System.IO                (hWaitForInput, hIsEOF)
@@ -201,7 +200,9 @@ withManagedConn man key open req step = do
     catchError
         (do
             (toPut, a) <- withCI ci req step
-            when toPut $ liftIO $ putInsecureSocket man key ci
+            liftIO $ if toPut
+                then putInsecureSocket man key ci
+                else TLS.connClose ci
             return a)
         (\se -> if isManaged
                     then withManagedConn man key open req step
