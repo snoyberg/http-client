@@ -90,7 +90,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
-    , returnI, (>==>)
+    , returnI, (>==>), enumEOF
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
@@ -424,7 +424,7 @@ http Request {..} bodyStep m = do
             if method == "HEAD" || sc == 204 -- No Content
                                 || sc == 304 -- Not Modified
                                 || (sc < 200 && sc >= 100)
-                then bodyStep s hs'
+                then enumEOF $$ bodyStep s hs'
                 else body' $ decompress $$ do
                         x <- bodyStep s hs'
                         flushStream
