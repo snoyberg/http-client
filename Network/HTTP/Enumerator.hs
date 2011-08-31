@@ -74,6 +74,9 @@ module Network.HTTP.Enumerator
     , addProxy
     , semiParseUrl
     , lbsIter
+      -- * Decompression predicates
+    , alwaysDecompress
+    , browserDecompress
       -- * Request bodies
     , urlEncodedBody
       -- * Exceptions
@@ -118,6 +121,7 @@ import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 import qualified Data.ByteString.Base64 as B64
 import System.IO (hClose, hFlush)
 import Blaze.ByteString.Builder (toByteString)
+import Data.Maybe (fromMaybe)
 #if !MIN_VERSION_base(4,3,0)
 import GHC.IO.Handle.Types
 import System.IO                (hWaitForInput, hIsEOF)
@@ -273,6 +277,8 @@ data Proxy = Proxy
     , proxyPort :: Int -- ^ The port numner of the HTTP proxy.
     }
 
+type ContentType = S.ByteString
+
 -- | All information on how to connect to a host and what should be sent in the
 -- HTTP request.
 --
@@ -289,6 +295,7 @@ data Request m = Request
     , requestBody :: RequestBody m
     , proxy :: Maybe Proxy -- ^ Optional HTTP proxy.
     , rawBody :: Bool -- ^ If True, a chunked and/or gzipped body will not be decoded. Use with caution.
+    , decompress :: ContentType -> Bool -- ^ Predicate to specify whether gzipped data should be decompressed on the fly.
     }
 
 -- | When using the 'RequestBodyEnum' constructor and any function which calls
@@ -332,6 +339,16 @@ data Response = Response
 enumSingle :: Monad m => a -> Enumerator a m b
 enumSingle x (Continue k) = k $ Chunks [x]
 enumSingle _ step = returnI step
+
+
+-- | Always decompress a compressed stream.
+alwaysDecompress :: ContentType -> Bool
+alwaysDecompress = const True
+
+-- | Decompress a compressed stream unless the content-type is 'application/x-tar'.
+browserDecompress :: ContentType -> Bool
+browserDecompress = (/= "application/x-tar")
+
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -415,8 +432,10 @@ http Request {..} bodyStep m = do
                     else case mcl >>= readMay . S8.unpack of
                         Just len -> joinI $ takeLBS len $$ x
                         Nothing -> x
-        let decompress x =
-                if not rawBody && ("content-encoding", "gzip") `elem` hs'
+        let decompresser x =
+                if not rawBody
+                        && ("content-encoding", "gzip") `elem` hs'
+                        && decompress (fromMaybe "" $ lookup "content-type" hs')
                     then joinI $ Z.ungzip x
                     else returnI x
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
@@ -425,7 +444,7 @@ http Request {..} bodyStep m = do
                                 || sc == 304 -- Not Modified
                                 || (sc < 200 && sc >= 100)
                 then enumEOF $$ bodyStep s hs'
-                else body' $ decompress $$ do
+                else body' $ decompresser $$ do
                         x <- bodyStep s hs'
                         flushStream
                         return x
@@ -551,6 +570,7 @@ parseUrl2 full sec parsePath s = do
         , method = "GET"
         , proxy = Nothing
         , rawBody = False
+        , decompress = alwaysDecompress
         }
   where
     (beforeSlash, afterSlash) = break (== '/') s
@@ -616,7 +636,8 @@ httpLbs req = run_ . http req lbsIter
 simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
 simpleHttp url = do
     url' <- parseUrl url
-    Response sc _ b <- liftIO $ withManager $ httpLbsRedirect url'
+    Response sc _ b <- liftIO $ withManager $ httpLbsRedirect
+                                            $ url' { decompress = browserDecompress }
     if 200 <= sc && sc < 300
         then return b
         else failure $ StatusCodeException sc b
