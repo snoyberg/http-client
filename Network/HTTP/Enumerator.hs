@@ -60,9 +60,23 @@ module Network.HTTP.Enumerator
     , redirectIter
       -- * Datatypes
     , Proxy (..)
-    , Request (..)
     , RequestBody (..)
     , Response (..)
+      -- ** Request
+    , Request
+    , def
+    , method
+    , secure
+    , checkCerts
+    , host
+    , port
+    , path
+    , queryString
+    , requestHeaders
+    , requestBody
+    , proxy
+    , rawBody
+    , decompress
       -- * Manager
     , Manager
     , newManager
@@ -122,6 +136,7 @@ import qualified Data.ByteString.Base64 as B64
 import System.IO (hClose, hFlush)
 import Blaze.ByteString.Builder (toByteString)
 import Data.Maybe (fromMaybe)
+import Data.Default (Default (def))
 #if !MIN_VERSION_base(4,3,0)
 import GHC.IO.Handle.Types
 import System.IO                (hWaitForInput, hIsEOF)
@@ -283,10 +298,16 @@ type ContentType = S.ByteString
 -- HTTP request.
 --
 -- If you simply wish to download from a URL, see 'parseUrl'.
+--
+-- The constructor for this data type is not exposed. Instead, you should use
+-- either the 'def' method to retrieve a default instance, or 'parseUrl' to
+-- construct from a URL, and then use the records below to make modifications.
+-- This approach allows http-enumerator to add configuration options without
+-- breaking backwards compatibility.
 data Request m = Request
     { method :: W.Method -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
-    , checkCerts :: [X509] -> IO TLS.TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
+    , checkCerts :: W.Ascii -> [X509] -> IO TLS.TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , host :: W.Ascii
     , port :: Int
     , path :: W.Ascii -- ^ Everything from the host to the query string.
@@ -380,8 +401,8 @@ http Request {..} bodyStep m = do
     withConn =
         case (secure, useProxy) of
             (False, _) -> withSocketConn
-            (True, False) -> withSslConn checkCerts
-            (True, True) -> withSslProxyConn checkCerts host port
+            (True, False) -> withSslConn $ checkCerts host
+            (True, True) -> withSslProxyConn (checkCerts host) host port
     (contentLength, bodyEnum) =
         case requestBody of
             RequestBodyLBS lbs -> (L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
@@ -546,19 +567,33 @@ parseUrl1 full sec parsePath s =
   where
     s' = encodeString s
 
+instance Default (Request m) where
+    def = Request
+        { host = "localhost"
+        , port = 80
+        , secure = False
+        , checkCerts = \host' certs ->
+            case certificateVerifyDomain (S8.unpack host') certs of
+                TLS.CertificateUsageAccept -> certificateVerifyChain certs
+                _                          -> return TLS.CertificateUsageAccept
+        , requestHeaders = []
+        , path = "/"
+        , queryString = []
+        , requestBody = RequestBodyLBS L.empty
+        , method = "GET"
+        , proxy = Nothing
+        , rawBody = False
+        , decompress = alwaysDecompress
+        }
+
 parseUrl2 :: Failure HttpException m
           => String -> Bool -> Bool -> String -> m (Request m')
 parseUrl2 full sec parsePath s = do
     port' <- mport
-    return Request
+    return def
         { host = S8.pack hostname
         , port = port'
         , secure = sec
-        , checkCerts = \x ->
-            case certificateVerifyDomain hostname x of
-                TLS.CertificateUsageAccept -> certificateVerifyChain x
-                _                          -> return TLS.CertificateUsageAccept
-        , requestHeaders = []
         , path = S8.pack
                     $ if null path''
                             then "/"
@@ -566,11 +601,6 @@ parseUrl2 full sec parsePath s = do
         , queryString = if parsePath
                             then W.parseQuery $ S8.pack qstring
                             else []
-        , requestBody = RequestBodyLBS L.empty
-        , method = "GET"
-        , proxy = Nothing
-        , rawBody = False
-        , decompress = alwaysDecompress
         }
   where
     (beforeSlash, afterSlash) = break (== '/') s
