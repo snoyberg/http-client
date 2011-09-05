@@ -77,6 +77,8 @@ module Network.HTTP.Enumerator
     , proxy
     , rawBody
     , decompress
+      -- *** Defaults
+    , defaultCheckCerts
       -- * Manager
     , Manager
     , newManager
@@ -567,15 +569,18 @@ parseUrl1 full sec parsePath s =
   where
     s' = encodeString s
 
+defaultCheckCerts :: W.Ascii -> [X509] -> IO TLS.TLSCertificateUsage
+defaultCheckCerts host' certs =
+    case certificateVerifyDomain (S8.unpack host') certs of
+        TLS.CertificateUsageAccept -> certificateVerifyChain certs
+        _                          -> return TLS.CertificateUsageAccept
+
 instance Default (Request m) where
     def = Request
         { host = "localhost"
         , port = 80
         , secure = False
-        , checkCerts = \host' certs ->
-            case certificateVerifyDomain (S8.unpack host') certs of
-                TLS.CertificateUsageAccept -> certificateVerifyChain certs
-                _                          -> return TLS.CertificateUsageAccept
+        , checkCerts = defaultCheckCerts
         , requestHeaders = []
         , path = "/"
         , queryString = []
