@@ -325,6 +325,11 @@ data Request m = Request
 -- | When using the 'RequestBodyEnum' constructor and any function which calls
 -- 'redirectIter', you must ensure that the 'Enumerator' can be called multiple
 -- times.
+--
+-- The 'RequestBodyEnumChunked' will send a chunked request body, note
+-- that not all servers support this. Only use 'RequestBodyEnumChunked'
+-- if you know the server you're sending to supports chunked request
+-- bodies.
 data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
