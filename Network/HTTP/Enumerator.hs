@@ -109,7 +109,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
-    , returnI, (>==>), enumEOF
+    , returnI, (>==>), (>>==), continue, checkDone, enumEOF
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
@@ -122,6 +122,7 @@ import Data.Typeable (Typeable)
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.Enumerator (builderToByteString)
+import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Data.Monoid (Monoid (..))
 import qualified Network.HTTP.Types as W
 import qualified Data.CaseInsensitive as CI
@@ -324,11 +325,17 @@ data Request m = Request
 -- | When using the 'RequestBodyEnum' constructor and any function which calls
 -- 'redirectIter', you must ensure that the 'Enumerator' can be called multiple
 -- times.
+--
+-- The 'RequestBodyEnumChunked' will send a chunked request body, note
+-- that not all servers support this. Only use 'RequestBodyEnumChunked'
+-- if you know the server you're sending to supports chunked request
+-- bodies.
 data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
     | RequestBodyBuilder Int64 Blaze.Builder
     | RequestBodyEnum Int64 (Enumerator Blaze.Builder m ())
+    | RequestBodyEnumChunked (Enumerator Blaze.Builder m ())
 
 
 -- | Add a Basic Auth header (with the specified user name and password) to the
@@ -407,18 +414,22 @@ http Request {..} bodyStep m = do
             (True, True) -> withSslProxyConn (checkCerts host) host port
     (contentLength, bodyEnum) =
         case requestBody of
-            RequestBodyLBS lbs -> (L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
-            RequestBodyBS bs -> (fromIntegral $ S.length bs, enumSingle $ Blaze.fromByteString bs)
-            RequestBodyBuilder i b -> (i, enumSingle b)
-            RequestBodyEnum i enum -> (i, enum)
+            RequestBodyLBS lbs -> (Just $ L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
+            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, enumSingle $ Blaze.fromByteString bs)
+            RequestBodyBuilder i b -> (Just $ i, enumSingle b)
+            RequestBodyEnum i enum -> (Just i, enum)
+            RequestBodyEnumChunked enum -> (Nothing, \step -> enum $$ joinI $ chunkIt step)
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
         | otherwise = host `mappend` S8.pack (':' : show port)
+    contentLengthHeader (Just contentLength') =
+            if method `elem` ["GET", "HEAD"] && contentLength' == 0
+                then id
+                else (:) ("Content-Length", S8.pack $ show contentLength')
+    contentLengthHeader Nothing = (:) ("Transfer-Encoding", "chunked")
     headers' = ("Host", hh)
-                 : (if method `elem` ["GET", "HEAD"] && contentLength == 0
-                    then id
-                    else (:) ("Content-Length", S8.pack $ show contentLength))
+                 : (contentLengthHeader contentLength)
                  (("Accept-Encoding", "gzip") : requestHeaders)
     requestHeaders' =
             Blaze.fromByteString method
@@ -491,6 +502,15 @@ chunkedEnumeratee k@(Continue _) = do
             catchParser "End of chunk newline" iterNewline
             chunkedEnumeratee k'
 chunkedEnumeratee step = return step
+
+chunkIt :: Monad m => Enumeratee Blaze.Builder Blaze.Builder m a
+chunkIt = checkDone $ continue . step
+  where
+    step k EOF = k (Chunks [chunkedTransferTerminator]) >>== return
+    step k (Chunks []) = continue $ step k
+    step k (Chunks xs) = k (Chunks [chunkedTransferEncoding $ mconcat xs])
+                         >>== chunkIt
+
 
 takeLBS :: MonadIO m => Int -> Enumeratee S.ByteString S.ByteString m a
 takeLBS 0 step = return step
