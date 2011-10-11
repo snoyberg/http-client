@@ -33,14 +33,14 @@ library
                  , http-types            >= 0.6     && < 0.7
                  , blaze-builder-enumerator >= 0.2  && < 0.3
                  , cprng-aes             >= 0.2     && < 0.3
-                 , tls                   >= 0.7     && < 0.8
-                 , tls-extra             >= 0.3     && < 0.4
+                 , tls                   >= 0.7     && < 0.9
+                 , tls-extra             >= 0.3     && < 0.5
                  , monad-control         >= 0.2     && < 0.3
                  , containers            >= 0.2     && < 0.5
                  , certificate           >= 0.7     && < 0.10
                  , case-insensitive      >= 0.2     && < 0.4
                  , base64-bytestring     >= 0.1     && < 0.2
-                 , asn1-data             >= 0.5.1   && < 0.6
+                 , asn1-data             >= 0.5.1   && < 0.7
                  , data-default          >= 0.3     && < 0.4
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
