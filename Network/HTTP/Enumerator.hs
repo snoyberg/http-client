@@ -110,6 +110,7 @@ import Data.Enumerator
     ( Iteratee (..), Stream (..), catchError, throwError
     , yield, Step (..), Enumeratee, ($$), joinI, Enumerator, run_
     , returnI, (>==>), (>>==), continue, checkDone, enumEOF
+    , (=$)
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
@@ -400,8 +401,8 @@ http
      -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
      -> Manager
      -> Iteratee S.ByteString m a
-http Request {..} bodyStep m = do
-    withConn m connhost connport requestEnum $$ go
+http req@(Request {..}) bodyStep m =
+    withConn m connhost connport requestEnum $$ getResponse req bodyStep
   where
     (useProxy, connhost, connport) =
         case proxy of
@@ -455,35 +456,52 @@ http Request {..} bodyStep m = do
                 `mappend` Blaze.fromByteString "\r\n")
             `mappend` Blaze.fromByteString "\r\n"
     requestEnum = enumSingle requestHeaders' >==> bodyEnum
-    go = do
-        ((_, sc, sm), hs) <- iterHeaders
-        let s = W.Status sc sm
-        let hs' = map (first CI.mk) hs
-        let mcl = lookup "content-length" hs'
-        let body' x =
-                if not rawBody && ("transfer-encoding", "chunked") `elem` hs'
-                    then joinI $ chunkedEnumeratee $$ x
-                    else case mcl >>= readMay . S8.unpack of
-                        Just len -> joinI $ takeLBS len $$ x
-                        Nothing -> x
-        let decompresser x =
-                if not rawBody
-                        && ("content-encoding", "gzip") `elem` hs'
-                        && decompress (fromMaybe "" $ lookup "content-type" hs')
-                    then joinI $ Z.ungzip x
-                    else returnI x
-        -- RFC 2616 section 4.4_1 defines responses that must not include a body
-        res <-
-            if method == "HEAD" || sc == 204 -- No Content
-                                || sc == 304 -- Not Modified
-                                || (sc < 200 && sc >= 100)
-                then enumEOF $$ bodyStep s hs'
-                else body' $ decompresser $$ do
-                        x <- bodyStep s hs'
-                        flushStream
-                        return x
-        let toPut = Just "close" /= lookup "connection" hs'
-        return (toPut, res)
+
+getResponse :: MonadIO m
+            => Request m
+            -> (W.Status -> [W.Header] -> Iteratee S8.ByteString m a)
+            -> Iteratee S8.ByteString m (Bool, a)
+getResponse Request {..} bodyStep = do
+    ((_, sc, sm), hs) <- iterHeaders
+    let s = W.Status sc sm
+    let hs' = map (first CI.mk) hs
+    let mcl = lookup "content-length" hs'
+    let body' =
+            if not rawBody && ("transfer-encoding", "chunked") `elem` hs'
+                then (chunkedEnumeratee =$)
+                else case mcl >>= readMay . S8.unpack of
+                    Just len -> (takeLBS len =$)
+                    Nothing -> id
+    let decompresser =
+            if needsGunzip hs'
+                then (Z.ungzip =$)
+                else id
+    -- RFC 2616 section 4.4_1 defines responses that must not include a body
+    res <-
+        if hasNoBody method sc
+            then enumEOF $$ bodyStep s hs'
+            else body' $ decompresser $ do
+                    x <- bodyStep s hs'
+                    flushStream
+                    return x
+
+    -- should we put this connection back into the connection manager?
+    let toPut = Just "close" /= lookup "connection" hs'
+    return (toPut, res)
+  where
+    hasNoBody :: S8.ByteString -- ^ request method
+              -> Int -- ^ status code
+              -> Bool
+    hasNoBody "HEAD" _ = True
+    hasNoBody _ 204 = True
+    hasNoBody _ 304 = True
+    hasNoBody _ i = 100 <= i && i < 200
+
+    needsGunzip :: [W.Header] -> Bool
+    needsGunzip hs' =
+            not rawBody
+         && ("content-encoding", "gzip") `elem` hs'
+         && decompress (fromMaybe "" $ lookup "content-type" hs')
 
 flushStream :: Monad m => Iteratee a m ()
 flushStream = do
