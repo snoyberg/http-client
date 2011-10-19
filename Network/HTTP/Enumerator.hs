@@ -145,6 +145,7 @@ import Data.Default (Default (def))
 import GHC.IO.Handle.Types
 import System.IO                (hWaitForInput, hIsEOF)
 import System.IO.Error          (mkIOError, illegalOperationErrorType)
+import Numeric (showHex)
 
 -- | Like 'hGet', except that a shorter 'ByteString' may be returned
 -- if there are not enough bytes immediately available to satisfy the
@@ -471,7 +472,7 @@ getResponse Request {..} bodyStep = do
                 then (chunkedEnumeratee =$)
                 else case mcl >>= readMay . S8.unpack of
                     Just len -> (takeLBS len =$)
-                    Nothing -> id
+                    Nothing -> (chunkedTerminator =$)
     let decompresser =
             if needsGunzip hs'
                 then (Z.ungzip =$)
@@ -520,6 +521,29 @@ chunkedEnumeratee k@(Continue _) = do
             catchParser "End of chunk newline" iterNewline
             chunkedEnumeratee k'
 chunkedEnumeratee step = return step
+
+chunkedTerminator :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
+chunkedTerminator (Continue k) = do
+    len <- catchParser "Chunk header" iterChunkHeader
+    liftIO $ print $ S8.pack $ showHex len "\r\n"
+    k' <- sendCont k $ S8.pack $ showHex len "\r\n"
+    if len == 0
+        then return k'
+        else do
+            step <- takeLBS len k'
+            catchParser "End of chunk newline" iterNewline
+            case step of
+                Continue k'' -> do
+                    k''' <- sendCont k'' "\r\n"
+                    chunkedTerminator k'''
+                _ -> return step
+chunkedTerminator step = return step
+
+sendCont :: Monad m
+         => (Stream S8.ByteString -> Iteratee S8.ByteString m a)
+         -> S8.ByteString
+         -> Iteratee S8.ByteString m (Step S8.ByteString m a)
+sendCont k bs = lift $ runIteratee $ k $ Chunks [bs]
 
 chunkIt :: Monad m => Enumeratee Blaze.Builder Blaze.Builder m a
 chunkIt = checkDone $ continue . step
