@@ -141,11 +141,11 @@ import System.IO (hClose, hFlush)
 import Blaze.ByteString.Builder (toByteString)
 import Data.Maybe (fromMaybe)
 import Data.Default (Default (def))
+import Numeric (showHex)
 #if !MIN_VERSION_base(4,3,0)
 import GHC.IO.Handle.Types
 import System.IO                (hWaitForInput, hIsEOF)
 import System.IO.Error          (mkIOError, illegalOperationErrorType)
-import Numeric (showHex)
 
 -- | Like 'hGet', except that a shorter 'ByteString' may be returned
 -- if there are not enough bytes immediately available to satisfy the
@@ -525,7 +525,6 @@ chunkedEnumeratee step = return step
 chunkedTerminator :: MonadIO m => Enumeratee S.ByteString S.ByteString m a
 chunkedTerminator (Continue k) = do
     len <- catchParser "Chunk header" iterChunkHeader
-    liftIO $ print $ S8.pack $ showHex len "\r\n"
     k' <- sendCont k $ S8.pack $ showHex len "\r\n"
     if len == 0
         then return k'
