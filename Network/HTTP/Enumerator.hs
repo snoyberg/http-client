@@ -468,11 +468,12 @@ getResponse Request {..} bodyStep = do
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs'
     let body' =
-            if not rawBody && ("transfer-encoding", "chunked") `elem` hs'
-                then (chunkedEnumeratee =$)
-                else case mcl >>= readMay . S8.unpack of
-                    Just len -> (takeLBS len =$)
-                    Nothing -> (chunkedTerminator =$)
+            case (rawBody, ("transfer-encoding", "chunked") `elem` hs') of
+                (False, True) -> (chunkedEnumeratee =$)
+                (True , True) -> (chunkedTerminator =$)
+                (_    , False) -> case mcl >>= readMay . S8.unpack of
+                                      Just len -> (takeLBS len =$)
+                                      Nothing  -> id
     let decompresser =
             if needsGunzip hs'
                 then (Z.ungzip =$)
