@@ -37,7 +37,7 @@ library
                  , tls-extra             >= 0.3     && < 0.5
                  , monad-control         >= 0.2     && < 0.3
                  , containers            >= 0.2     && < 0.5
-                 , certificate           >= 0.7     && < 0.10
+                 , certificate           >= 0.7     && < 1.1
                  , case-insensitive      >= 0.2     && < 0.4
                  , base64-bytestring     >= 0.1     && < 0.2
                  , asn1-data             >= 0.5.1   && < 0.7
