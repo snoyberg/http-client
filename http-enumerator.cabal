@@ -1,5 +1,5 @@
 name:            http-enumerator
-version:         0.7.1.5
+version:         0.7.1.6
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -26,7 +26,7 @@ library
                  , failure               >= 0.1     && < 0.2
                  , enumerator            >= 0.4.9   && < 0.5
                  , attoparsec            >= 0.8.0.2 && < 0.11
-                 , attoparsec-enumerator >= 0.2.0.4 && < 0.3
+                 , attoparsec-enumerator >= 0.2.0.4 && < 0.4
                  , utf8-string           >= 0.3.4   && < 0.4
                  , blaze-builder         >= 0.2.1   && < 0.4
                  , zlib-enum             >= 0.2     && < 0.3
