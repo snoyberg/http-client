@@ -1,5 +1,5 @@
 name:            http-enumerator
-version:         0.7.1.6
+version:         0.7.1.7
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -34,7 +34,7 @@ library
                  , blaze-builder-enumerator >= 0.2  && < 0.3
                  , cprng-aes             >= 0.2     && < 0.3
                  , tls                   >= 0.8.1   && < 0.9
-                 , tls-extra             >= 0.3     && < 0.5
+                 , tls-extra             >= 0.4     && < 0.5
                  , monad-control         >= 0.2     && < 0.3
                  , containers            >= 0.2
                  , certificate           >= 0.7     && < 1.1
