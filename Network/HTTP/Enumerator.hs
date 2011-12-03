@@ -129,7 +129,11 @@ import qualified Network.HTTP.Types as W
 import qualified Data.CaseInsensitive as CI
 import Data.Int (Int64)
 import qualified Codec.Zlib.Enum as Z
+#if MIN_VERSION_monad_control(0,3,0)
+import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp)
+#else
 import Control.Monad.IO.Control (MonadControlIO, liftIOOp)
+#endif
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.IORef as I
@@ -881,5 +885,10 @@ closeManager (Manager i) = do
     mapM_ TLS.connClose $ Map.elems m
 
 -- | Create a new 'Manager', call the supplied function and then close it.
+#if MIN_VERSION_monad_control(0,3,0)
+withManager :: MonadBaseControl IO m => (Manager -> m a) -> m a
+withManager = liftBaseOp $ bracket newManager closeManager
+#else
 withManager :: MonadControlIO m => (Manager -> m a) -> m a
 withManager = liftIOOp $ bracket newManager closeManager
+#endif
