@@ -726,7 +726,7 @@ httpLbs req = run_ . http req lbsIter
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
 --
--- This function will 'failure' an 'HttpException' for any response with a
+-- This function will 'throwIO' an 'HttpException' for any response with a
 -- non-2xx status code. It uses 'parseUrl' to parse the input. This function
 -- essentially wraps 'httpLbsRedirect'.
 --
@@ -734,14 +734,14 @@ httpLbs req = run_ . http req lbsIter
 -- utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-simpleHttp :: (MonadIO m, Failure HttpException m) => String -> m L.ByteString
+simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = do
-    url' <- parseUrl url
+    url' <- liftIO $ parseUrl url
     Response sc _ b <- liftIO $ withManager $ httpLbsRedirect
                                             $ url' { decompress = browserDecompress }
     if 200 <= sc && sc < 300
         then return b
-        else failure $ StatusCodeException sc b
+        else liftIO $ throwIO $ StatusCodeException sc b
 
 data HttpException = StatusCodeException Int L.ByteString
                    | InvalidUrlException String String
@@ -753,7 +753,7 @@ instance Exception HttpException
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
 httpRedirect
-    :: (MonadIO m, Failure HttpException m)
+    :: MonadIO m
     => Request m
     -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
     -> Manager
@@ -764,7 +764,7 @@ httpRedirect req bodyStep manager =
 -- | Make a request automatically follow 3xx redirects.
 --
 -- Used internally by 'httpRedirect' and family.
-redirectIter :: (MonadIO m, Failure HttpException m)
+redirectIter :: MonadIO m
              => Int -- ^ number of redirects to attempt
              -> Request m -- ^ Original request
              -> (W.Status -> W.ResponseHeaders -> Iteratee S.ByteString m a)
@@ -787,7 +787,7 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
                                 , S8.unpack l''
                                 ]
                             _ -> S8.unpack l''
-                l <- lift $ parseUrl l'
+                l <- liftIO $ parseUrl l'
                 let req' = req
                         { host = host l
                         , port = port l
@@ -800,7 +800,7 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
                                 else method l
                         }
                 if redirects == 0
-                    then lift $ failure TooManyRedirects
+                    then liftIO $ throwIO TooManyRedirects
                     else (http req') (redirectIter (redirects - 1) req' bodyStep manager) manager
             Nothing -> bodyStep s hs
     | otherwise = bodyStep s hs
@@ -822,7 +822,7 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbsRedirect :: (MonadIO m, Failure HttpException m) => Request m -> Manager -> m Response
+httpLbsRedirect :: MonadIO m => Request m -> Manager -> m Response
 httpLbsRedirect req = run_ . httpRedirect req lbsIter
 
 readMay :: Read a => String -> Maybe a
