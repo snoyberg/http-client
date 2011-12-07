@@ -232,7 +232,8 @@ withManagedConn man key open req step = do
                 then putInsecureSocket man key ci
                 else TLS.connClose ci
             return a)
-        (\se -> if isManaged
+        (\se -> liftIO (TLS.connClose ci) >>
+                if isManaged
                     then withManagedConn man key open req step
                     else throwError se)
 
