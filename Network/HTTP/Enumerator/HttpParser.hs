@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Enumerator.HttpParser
-    ( iterHeaders
+    ( sinkHeaders
     , iterChunkHeader
     , iterNewline
     , parserHeadersFromByteString
@@ -8,12 +9,13 @@ module Network.HTTP.Enumerator.HttpParser
 
 import Prelude hiding (take, takeWhile)
 import Data.Attoparsec
-import Data.Attoparsec.Enumerator
-import Data.Enumerator (Iteratee)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Control.Applicative
 import Data.Word (Word8)
+import Data.Conduit.Attoparsec (sinkParser)
+import Data.Conduit (SinkM)
+import Control.Monad.Base (MonadBase)
 
 type Header = (S.ByteString, S.ByteString)
 
@@ -54,8 +56,8 @@ parseHeaders = do
     h <- manyTill parseHeader newline <?> "Response headers"
     return (s, h)
 
-iterHeaders :: Monad m => Iteratee S.ByteString m (Status, [Header])
-iterHeaders = iterParser parseHeaders
+sinkHeaders :: MonadBase IO m => SinkM S.ByteString m (Status, [Header])
+sinkHeaders = sinkParser parseHeaders
 
 
 parserHeadersFromByteString :: Monad m => S.ByteString -> m (Either String (Status, [Header]))
@@ -88,12 +90,12 @@ parseChunkHeader = do
     newline <|> attribs
     return len
 
-iterChunkHeader :: Monad m => Iteratee S.ByteString m Int
+iterChunkHeader :: MonadBase IO m => SinkM S.ByteString m Int
 iterChunkHeader =
-    iterParser (parseChunkHeader <?> "Chunked transfer encoding header")
+    sinkParser (parseChunkHeader <?> "Chunked transfer encoding header")
 
-iterNewline :: Monad m => Iteratee S.ByteString m ()
-iterNewline = iterParser newline
+iterNewline :: MonadBase IO m => SinkM S.ByteString m ()
+iterNewline = sinkParser newline
 
 attribs :: Parser ()
 attribs = do
@@ -121,11 +123,11 @@ hex =
         return $ d - 87
 
 {-
-iterParserTill :: Monad m
+sinkParserTill :: Monad m
                => Parser a
                -> Parser end
                -> E.Enumeratee a S.ByteString m b
-iterParserTill p pend =
+sinkParserTill p pend =
     E.continue $ step $ parse p
   where
     step parse (E.Chunks xs) = parseLoop parse xs
@@ -133,7 +135,7 @@ iterParserTill p pend =
         Done extra a -> E.yield a $ if S.null extra
             then E.Chunks []
             else E.Chunks [extra]
-        Partial _ -> err [] "iterParser: divergent parser"
+        Partial _ -> err [] "sinkParser: divergent parser"
         Fail _ ctx msg -> err ctx msg
 
     parseLoop parse [] = E.continue (step parse)

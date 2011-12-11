@@ -1,9 +1,10 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Network.TLS.Client.Enumerator
     ( ConnInfo
     , connClose
-    , connIter
-    , connEnum
+    , connSink
+    , connSource
     , sslClientConn
     , socketConn
     , TLSCertificateRejectReason(..)
@@ -19,13 +20,11 @@ import Network.Socket.ByteString (recv, sendAll)
 import Network.TLS
 import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
-import Data.Enumerator
-    ( Iteratee (..), Enumerator, Step (..), Stream (..), continue, returnI
-    , tryIO
-    )
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
 import Crypto.Random.AESCtr (makeSystem)
+import qualified Data.Conduit as C
+import Control.Monad.Base (MonadBase, liftBase)
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]
@@ -33,27 +32,21 @@ data ConnInfo = ConnInfo
     , connClose :: IO ()
     }
 
-connIter :: MonadIO m => ConnInfo -> Iteratee ByteString m ()
-connIter ConnInfo { connWrite = write } =
-    continue go
-  where
-    go EOF = return ()
-    go (Chunks bss) = do
-        tryIO $ write bss
-        continue go
+connSink :: MonadBase IO m => ConnInfo -> C.SinkM ByteString m ()
+connSink ConnInfo { connWrite = write } = C.SinkM $ return $ C.SinkData
+    { C.sinkPush = \bss -> liftBase (write bss) >> return (C.SinkResult [] Nothing)
+    , C.sinkClose = return $ C.SinkResult [] ()
+    }
 
-connEnum :: MonadIO m => ConnInfo -> Enumerator ByteString m b
-connEnum ConnInfo { connRead = read' } =
-    go
-  where
-    go (Continue k) = do
-        bs <- tryIO read'
+connSource :: MonadBase IO m => ConnInfo -> C.SourceM m ByteString
+connSource ConnInfo { connRead = read' } = C.sourceM
+    (return ())
+    return
+    (const $ do
+        bs <- liftBase read'
         if all S.null bs
-            then continue k
-            else do
-                step <- lift $ runIteratee $ k $ Chunks bs
-                go step
-    go step = returnI step
+            then return C.EOF
+            else return $ C.Chunks bs)
 
 socketConn :: Socket -> ConnInfo
 socketConn sock = ConnInfo
