@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
-import Network.HTTP.Enumerator
+import Network.HTTP.Conduit
 import Network
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8

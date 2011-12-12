@@ -33,7 +33,7 @@ library
                  , cprng-aes             >= 0.2     && < 0.3
                  , tls                   >= 0.8.1   && < 0.9
                  , tls-extra             >= 0.4     && < 0.5
-                 , monad-control         >= 0.2     && < 0.4
+                 , monad-control         >= 0.3     && < 0.4
                  , containers            >= 0.2
                  , certificate           >= 0.7     && < 1.1
                  , case-insensitive      >= 0.2
@@ -51,6 +51,9 @@ library
     exposed-modules: Network.HTTP.Conduit
     other-modules:   Network.HTTP.Conduit.Parser
                      Network.HTTP.Conduit.ConnInfo
+                     Network.HTTP.Conduit.Request
+                     Network.HTTP.Conduit.Util
+                     Network.HTTP.Conduit.Manager
     ghc-options:     -Wall
 
 executable http-conduit

@@ -9,6 +9,7 @@ module Network.HTTP.Conduit.ConnInfo
     , socketConn
     , TLSCertificateRejectReason(..)
     , TLSCertificateUsage(..)
+    , getSocket
     ) where
 
 import Data.ByteString (ByteString)
@@ -23,6 +24,8 @@ import Network.TLS.Extra (ciphersuite_all)
 import Crypto.Random.AESCtr (makeSystem)
 import qualified Data.Conduit as C
 import Control.Monad.Base (MonadBase, liftBase)
+import Control.Exception (SomeException, throwIO, try)
+import qualified Network.Socket as NS
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]
@@ -75,3 +78,20 @@ sslClientConn onCerts h = do
         if L.null x
             then recvD istate
             else return $ L.toChunks x
+
+getSocket :: String -> Int -> IO NS.Socket
+getSocket host' port' = do
+    let hints = NS.defaultHints {
+                          NS.addrFlags = [NS.AI_ADDRCONFIG]
+                        , NS.addrSocketType = NS.Stream
+                        }
+    (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+    sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
+                      (NS.addrProtocol addr)
+    ee <- try' $ NS.connect sock (NS.addrAddress addr)
+    case ee of
+        Left e -> NS.sClose sock >> throwIO e
+        Right () -> return sock
+  where
+    try' :: IO a -> IO (Either SomeException a)
+    try' = try

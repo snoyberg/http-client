@@ -82,8 +82,6 @@ module Network.HTTP.Conduit
       -- * Manager
     , Manager
     , newManager
-    , closeManager
-    , withManager
       -- * Utility functions
     , parseUrl
     , applyBasicAuth
@@ -100,6 +98,7 @@ module Network.HTTP.Conduit
     ) where
 
 import Network.HTTP.Conduit.ConnInfo
+import Network.HTTP.Conduit.Manager
 import Network (connectTo, PortID (PortNumber))
 
 import qualified Network.Socket as NS
@@ -116,6 +115,7 @@ import Control.Monad.Trans.Class (lift)
 import Control.Failure (Failure (failure))
 import Data.Typeable (Typeable)
 import Codec.Binary.UTF8.String (encodeString)
+import qualified Data.Text as T
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
 import Data.Monoid (Monoid (..))
@@ -145,239 +145,8 @@ import Numeric (showHex)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-#if 0
--- FIXME !MIN_VERSION_base(4,3,0)
-import GHC.IO.Handle.Types
-import System.IO                (hWaitForInput, hIsEOF)
-import System.IO.Error          (mkIOError, illegalOperationErrorType)
-
--- | Like 'hGet', except that a shorter 'ByteString' may be returned
--- if there are not enough bytes immediately available to satisfy the
--- whole request.  'hGetSome' only blocks if there is no data
--- available, and EOF has not yet been reached.
---
-hGetSome :: Handle -> Int -> IO S.ByteString
-hGetSome hh i
-    | i >  0    = let
-                   loop = do
-                     s <- S.hGetNonBlocking hh i
-                     if not (S.null s)
-                        then return s
-                        else do eof <- hIsEOF hh
-                                if eof then return s
-                                       else hWaitForInput hh (-1) >> loop
-                                         -- for this to work correctly, the
-                                         -- Handle should be in binary mode
-                                         -- (see GHC ticket #3808)
-                  in loop
-    | i == 0    = return S.empty
-    | otherwise = illegalBufferSize hh "hGetSome" i
-
-illegalBufferSize :: Handle -> String -> Int -> IO a
-illegalBufferSize handle fn sz =
-    ioError (mkIOError illegalOperationErrorType msg (Just handle) Nothing)
-    --TODO: System.IO uses InvalidArgument here, but it's not exported :-(
-    where
-      msg = fn ++ ": illegal ByteString size " ++ showsPrec 9 sz []
-#endif
-
-getSocket :: String -> Int -> IO NS.Socket
-getSocket host' port' = do
-    let hints = NS.defaultHints {
-                          NS.addrFlags = [NS.AI_ADDRCONFIG]
-                        , NS.addrSocketType = NS.Stream
-                        }
-    (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
-    sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
-                      (NS.addrProtocol addr)
-    ee <- try' $ NS.connect sock (NS.addrAddress addr)
-    case ee of
-        Left e -> NS.sClose sock >> throwIO e
-        Right () -> return sock
-  where
-    try' :: IO a -> IO (Either SomeException a)
-    try' = try
-
-withSocketConn
-    :: MonadBaseControl IO m
-    => Manager
-    -> String
-    -> Int
-    -> (ConnInfo -> ResourceT m (Bool, a))
-    -> ResourceT m a
-withSocketConn man host' port' =
-    withManagedConn man (host', port', False) $
-        fmap socketConn $ getSocket host' port'
-
-withSslConn, withSslProxyConn :: a
-withSslConn = error "withSslConn"
-withSslProxyConn = error "withSslProxyConn"
-
-withManagedConn
-    :: MonadBaseControl IO m
-    => Manager
-    -> ConnKey
-    -> IO ConnInfo
-    -> (ConnInfo -> ResourceT m (Bool, a))
-    -> ResourceT m a
-withManagedConn man key open f = mask $ \restore -> do
-    mci <- restore $ liftBase $ takeInsecureSocket man key
-    (ci, isManaged) <-
-        case mci of
-            Nothing -> do
-                ci <- restore $ liftBase open
-                return (ci, False)
-            Just ci -> return (ci, True)
-    ea <- restore $ try $ f ci
-    case ea of
-        Left e -> do
-            liftBase $ connClose ci
-            if isManaged
-                then restore $ withManagedConn man key open f
-                else throwIO (e :: SomeException)
-        Right (toPut, a) -> do
-            if toPut
-                then restore $ liftBase $ putInsecureSocket man key ci
-                else restore $ liftBase $ connClose ci
-            return a
-
-{- FIXME
-    {-
-    -> Enumerator Blaze.Builder m ()
-    -> Step S.ByteString m (Bool, a) -- ^ Bool indicates if the connection should go back in the manager
-    -> Iteratee S.ByteString m a
-    -}
-withManagedConn man key open req step = do
-    mci <- liftBase $ takeInsecureSocket man key
-    (ci, isManaged) <-
-        case mci of
-            Nothing -> do
-                ci <- liftBase open
-                return (ci, False)
-            Just ci -> return (ci, True)
-    catchError
-        (do
-            (toPut, a) <- withCI ci req step
-            liftBase $ if toPut
-                then putInsecureSocket man key ci
-                else connClose ci
-            return a)
-        (\se -> liftBase (connClose ci) >>
-                if isManaged
-                    then withManagedConn man key open req step
-                    else throwError se)
--}
-
-{-
-withSslConn :: MonadBaseControl IO m
-            => ([X509] -> IO TLSCertificateUsage)
-            -> Manager
-            -> String -- ^ host
-            -> Int -- ^ port
-            -> Enumerator Blaze.Builder m () -- ^ request
-            -> Step S.ByteString m (Bool, a) -- ^ response
-            -> Iteratee S.ByteString m a -- ^ response
-withSslConn checkCert man host' port' =
-    withManagedConn man (host', port', True) $
-        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn checkCert)
-
-withSslProxyConn :: MonadBaseControl IO m
-            => ([X509] -> IO TLSCertificateUsage)
-            -> S8.ByteString -- ^ Target host
-            -> Int -- ^ Target port
-            -> Manager
-            -> String -- ^ Proxy host
-            -> Int -- ^ Proxy port
-            -> Enumerator Blaze.Builder m () -- ^ request
-            -> Step S.ByteString m (Bool, a) -- ^ response
-            -> Iteratee S.ByteString m a -- ^ response
-withSslProxyConn checkCert thost tport man phost pport =
-    withManagedConn man (phost, pport, True) $
-        doConnect >>= sslClientConn checkCert
-  where
-    doConnect = do
-        h <- connectTo phost (PortNumber $ fromIntegral pport)
-        S8.hPutStr h $ toByteString connectRequest
-        hFlush h
-#if 1
--- FIXME MIN_VERSION_base(4,3,0)
-        r <- S.hGetSome h 2048
-#else
-        r <- hGetSome h 2048
-#endif
-        res <- parserHeadersFromByteString r
-        case res of
-            Right ((_, 200, _), _) -> return h
-            Right ((_, _, msg), _) -> hClose h >> proxyError (S8.unpack msg)
-            Left s -> hClose h >> proxyError s
-
-    connectRequest =
-        Blaze.fromByteString "CONNECT "
-            `mappend` Blaze.fromByteString thost
-            `mappend` Blaze.fromByteString (S8.pack (':' : show tport))
-            `mappend` Blaze.fromByteString " HTTP/1.1\r\n\r\n"
-    proxyError s =
-        error $ "Proxy failed to CONNECT to '"
-                ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
-
-withCI :: MonadBaseControl IO m => ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
-withCI ci req step0 = do
-    lift $ run_ $ req $$ joinI $ error "builderToByteString" $$ connIter ci
-    a <- connEnum ci step0
-    -- FIXME liftBase $ hClose handle
-    return a
--}
-
-
--- | Define a HTTP proxy, consisting of a hostname and port number.
-
-data Proxy = Proxy
-    { proxyHost :: W.Ascii -- ^ The host name of the HTTP proxy.
-    , proxyPort :: Int -- ^ The port numner of the HTTP proxy.
-    }
-
-type ContentType = S.ByteString
-
--- | All information on how to connect to a host and what should be sent in the
--- HTTP request.
---
--- If you simply wish to download from a URL, see 'parseUrl'.
---
--- The constructor for this data type is not exposed. Instead, you should use
--- either the 'def' method to retrieve a default instance, or 'parseUrl' to
--- construct from a URL, and then use the records below to make modifications.
--- This approach allows http-enumerator to add configuration options without
--- breaking backwards compatibility.
-data Request m = Request
-    { method :: W.Method -- ^ HTTP request method, eg GET, POST.
-    , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
-    , checkCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
-    , host :: W.Ascii
-    , port :: Int
-    , path :: W.Ascii -- ^ Everything from the host to the query string.
-    , queryString :: W.Query -- ^ Automatically escaped for your convenience.
-    , requestHeaders :: W.RequestHeaders
-    , requestBody :: RequestBody m
-    , proxy :: Maybe Proxy -- ^ Optional HTTP proxy.
-    , rawBody :: Bool -- ^ If True, a chunked and/or gzipped body will not be decoded. Use with caution.
-    , decompress :: ContentType -> Bool -- ^ Predicate to specify whether gzipped data should be decompressed on the fly.
-    }
-
--- | When using the 'RequestBodyEnum' constructor and any function which calls
--- 'redirectIter', you must ensure that the 'Enumerator' can be called multiple
--- times.
---
--- The 'RequestBodyEnumChunked' will send a chunked request body, note
--- that not all servers support this. Only use 'RequestBodyEnumChunked'
--- if you know the server you're sending to supports chunked request
--- bodies.
-data RequestBody m
-    = RequestBodyLBS L.ByteString
-    | RequestBodyBS S.ByteString
-    | RequestBodyBuilder Int64 Blaze.Builder
-    | RequestBodySource Int64 (C.SourceM m Blaze.Builder)
-    | RequestBodySourceChunked (C.SourceM m Blaze.Builder)
-
+import Network.HTTP.Conduit.Request
+import Network.HTTP.Conduit.Util
 
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
@@ -445,20 +214,11 @@ http
      -> Manager
      -> ResourceT m a
 http req@(Request {..}) bodyStep m = do
-    (bsrc, sink) <- withConn m connhost connport useConn
+    (bsrc, sink) <- withConn req m useConn
     (_FIXMEbool, a) <- getResponse req bodyStep bsrc
     return a
   where
-    (useProxy, connhost, connport) =
-        case proxy of
-            Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
-            Nothing -> (False, S8.unpack host, port)
-    withConn =
-        case (secure, useProxy) of
-            (False, _) -> withSocketConn
-            (True, False) -> withSslConn $ checkCerts host
-            (True, True) -> withSslProxyConn (checkCerts host) host port
-    useConn :: a
+    useConn :: ConnInfo -> ResourceT m (Bool, a)
     useConn = error "useConn"
     (contentLength, bodyEnum) =
         case requestBody of
@@ -483,7 +243,7 @@ http req@(Request {..}) bodyStep m = do
             Blaze.fromByteString method
             `mappend` Blaze.fromByteString " "
             `mappend`
-                (if useProxy
+                (if error "FIXME useProxy"
                     then Blaze.fromByteString (if secure then "https://" else "http://")
                             `mappend` Blaze.fromByteString hh
                     else mempty)
@@ -793,10 +553,12 @@ httpLbs req m = runResourceT (http req lbsIter m)
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: MonadBaseControl IO m => String -> m L.ByteString
-simpleHttp url = do
+simpleHttp url = runResourceT $ do
     url' <- liftBase $ parseUrl url
-    Response sc _ b <- liftBase $ withManager $ httpLbsRedirect
-                                            $ url' { decompress = browserDecompress }
+    man <- newManager
+    Response sc _ b <- httpLbsRedirect url'
+        { decompress = browserDecompress
+        } man
     if 200 <= sc && sc < 300
         then return b
         else liftBase $ throwIO $ StatusCodeException sc b
@@ -880,8 +642,8 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs bsrc
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> m Response
-httpLbsRedirect req m = runResourceT $ httpRedirect req lbsIter m
+httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
+httpLbsRedirect req m = httpRedirect req lbsIter m
 
 readMay :: Read a => String -> Maybe a
 readMay s = case reads s of
@@ -909,46 +671,3 @@ urlEncodedBody headers req = req
 catchParser :: String -> a -> a -- FIXME
 --catchParser s i = catchError i (const $ throwError $ HttpParserException s)
 catchParser _ = id
-
--- | Keeps track of open connections for keep-alive.
-newtype Manager = Manager
-    { mConns :: I.IORef (Map ConnKey ConnInfo)
-    }
-
--- | ConnKey consists of a hostname, a port and a Bool specifying whether to
---   use keepalive.
-type ConnKey = (String, Int, Bool)
-
-takeInsecureSocket :: Manager -> ConnKey -> IO (Maybe ConnInfo)
-takeInsecureSocket man key =
-    I.atomicModifyIORef (mConns man) go
-  where
-    go m = (Map.delete key m, Map.lookup key m)
-
-putInsecureSocket :: Manager -> ConnKey -> ConnInfo -> IO ()
-putInsecureSocket man key ci = do
-    msock <- I.atomicModifyIORef (mConns man) go
-    maybe (return ()) connClose msock
-  where
-    go m = (Map.insert key ci m, Map.lookup key m)
-
--- | Create a new 'Manager' with no open connection.
-newManager :: IO Manager
-newManager = Manager <$> I.newIORef Map.empty
-
--- | Close all connections in a 'Manager'. Afterwards, the 'Manager' can be
--- reused if desired.
-closeManager :: Manager -> IO ()
-closeManager (Manager i) = do
-    m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
-    mapM_ connClose $ Map.elems m
-
--- | Create a new 'Manager', call the supplied function and then close it.
-#if 1
--- FIXME MIN_VERSION_monad_control(0,3,0)
-withManager :: MonadBaseControl IO m => (Manager -> m a) -> m a
-withManager = liftBaseOp $ bracket newManager closeManager
-#else
-withManager :: MonadControlIO m => (Manager -> m a) -> m a
-withManager = liftBaseOp $ bracket newManager closeManager
-#endif
