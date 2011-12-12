@@ -2,9 +2,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Conduit.Parser
     ( sinkHeaders
-    , iterChunkHeader
-    , iterNewline
+    , newline
     , parserHeadersFromByteString
+    , parseChunkHeader
     ) where
 
 import Prelude hiding (take, takeWhile)
@@ -16,6 +16,7 @@ import Data.Word (Word8)
 import Data.Conduit.Attoparsec (sinkParser)
 import Data.Conduit (SinkM)
 import Control.Monad.Base (MonadBase)
+import Data.Int (Int64)
 
 type Header = (S.ByteString, S.ByteString)
 
@@ -83,19 +84,12 @@ parseStatus = do
         then newline >> parseStatus
         else return (ver, statCode', statMsg)
 
-parseChunkHeader :: Parser Int
+parseChunkHeader :: Parser Int64
 parseChunkHeader = do
     len <- hexs
     skipWhile isSpace
     newline <|> attribs
     return len
-
-iterChunkHeader :: MonadBase IO m => SinkM S.ByteString m Int
-iterChunkHeader =
-    sinkParser (parseChunkHeader <?> "Chunked transfer encoding header")
-
-iterNewline :: MonadBase IO m => SinkM S.ByteString m ()
-iterNewline = sinkParser newline
 
 attribs :: Parser ()
 attribs = do
@@ -103,7 +97,7 @@ attribs = do
     skipWhile notNewline
     newline
 
-hexs :: Parser Int
+hexs :: Parser Int64
 hexs = do
     ws <- many1 hex
     return $ foldl1 (\a b -> a * 16 + b) $ map fromIntegral ws

@@ -36,7 +36,7 @@ data ConnInfo = ConnInfo
 connSink :: MonadBase IO m => ConnInfo -> C.SinkM ByteString m ()
 connSink ConnInfo { connWrite = write } = C.SinkM $ return $ C.SinkData
     { C.sinkPush = \bss -> liftBase (write bss) >> return (C.SinkResult [] Nothing)
-    , C.sinkClose = return $ C.SinkResult [] ()
+    , C.sinkClose = \bss -> liftBase (write bss) >> return (C.SinkResult [] ())
     }
 
 connSource :: MonadBase IO m => ConnInfo -> C.SourceM m ByteString
@@ -44,9 +44,10 @@ connSource ConnInfo { connRead = read' } = C.sourceM
     (return ())
     return
     (const $ do
+        liftBase $ putStrLn "connSource: reading"
         bs <- liftBase read'
         if all S.null bs
-            then return C.EOF
+            then return $ C.EOF []
             else return $ C.Chunks bs)
 
 socketConn :: Socket -> ConnInfo

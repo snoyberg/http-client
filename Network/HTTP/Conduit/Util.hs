@@ -58,7 +58,7 @@ infixr 5 <>
 (<>) :: Monoid m => m -> m -> m
 (<>) = mappend
 
-readDec :: String -> Maybe Int
+readDec :: Integral i => String -> Maybe i
 readDec s =
     case Data.Text.Read.decimal $ T.pack s of
         Right (i, t)
