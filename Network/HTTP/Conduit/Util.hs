@@ -1,7 +1,13 @@
 {-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.Util
     ( hGetSome
+    , (<>)
+    , readDec
     ) where
+
+import Data.Monoid (Monoid, mappend)
+import qualified Data.Text as T
+import qualified Data.Text.Read
 
 #if 1
 -- FIXME MIN_VERSION_base(4,3,0)
@@ -40,3 +46,14 @@ illegalBufferSize handle fn sz =
     where
       msg = fn ++ ": illegal ByteString size " ++ showsPrec 9 sz []
 #endif
+
+infixr 5 <>
+(<>) :: Monoid m => m -> m -> m
+(<>) = mappend
+
+readDec :: String -> Maybe Int
+readDec s =
+    case Data.Text.Read.decimal $ T.pack s of
+        Right (i, t)
+            | T.null t -> Just i
+        _ -> Nothing

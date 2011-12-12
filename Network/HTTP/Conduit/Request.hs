@@ -1,8 +1,20 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Conduit.Request
     ( Request (..)
     , RequestBody (..)
     , ContentType
     , Proxy (..)
+    , parseUrl
+    , browserDecompress
+    , HttpException (..)
+    , defaultCheckCerts
+    , semiParseUrl
+    , alwaysDecompress
+    , addProxy
+    , applyBasicAuth
+    , urlEncodedBody
     ) where
 
 import qualified Data.Conduit as C
@@ -13,6 +25,17 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Data.Certificate.X509 (X509)
 import Network.TLS (TLSCertificateUsage)
+import qualified Data.ByteString.Char8 as S8
+import Control.Exception (Exception)
+import Data.Typeable (Typeable)
+import Control.Failure (Failure (failure))
+import Data.Default (Default (def))
+import Network.TLS (TLSCertificateUsage (CertificateUsageAccept))
+import Codec.Binary.UTF8.String (encodeString)
+import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
+import qualified Data.CaseInsensitive as CI
+import qualified Data.ByteString.Base64 as B64
+import Network.HTTP.Conduit.Util (readDec)
 
 type ContentType = S.ByteString
 
@@ -62,3 +85,169 @@ data Proxy = Proxy
     { proxyHost :: W.Ascii -- ^ The host name of the HTTP proxy.
     , proxyPort :: Int -- ^ The port numner of the HTTP proxy.
     }
+
+encodeUrlCharPI :: Bool -> Char -> String
+encodeUrlCharPI _ '/' = "/"
+encodeUrlCharPI False '?' = "?"
+encodeUrlCharPI False '&' = "&"
+encodeUrlCharPI False '=' = "="
+encodeUrlCharPI _ c = encodeUrlChar c
+
+encodeUrlChar :: Char -> String
+encodeUrlChar c
+    -- List of unreserved characters per RFC 3986
+    -- Gleaned from http://en.wikipedia.org/wiki/Percent-encoding
+    | 'A' <= c && c <= 'Z' = [c]
+    | 'a' <= c && c <= 'z' = [c]
+    | '0' <= c && c <= '9' = [c]
+encodeUrlChar c@'-' = [c]
+encodeUrlChar c@'_' = [c]
+encodeUrlChar c@'.' = [c]
+encodeUrlChar c@'~' = [c]
+encodeUrlChar ' ' = "+"
+encodeUrlChar y =
+    let (a, c) = fromEnum y `divMod` 16
+        b = a `mod` 16
+        showHex' x
+            | x < 10 = toEnum $ x + (fromEnum '0')
+            | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
+            | otherwise = error $ "Invalid argument to showHex: " ++ show x
+     in ['%', showHex' b, showHex' c]
+
+-- | Convert a URL into a 'Request'.
+--
+-- This defaults some of the values in 'Request', such as setting 'method' to
+-- GET and 'requestHeaders' to @[]@.
+--
+-- Since this function uses 'Failure', the return monad can be anything that is
+-- an instance of 'Failure', such as 'IO' or 'Maybe'.
+parseUrl :: Failure HttpException m => String -> m (Request m')
+parseUrl = parseUrlHelper True
+
+-- | Same as 'parseUrl', with one distinction: this function will not attempt
+-- to parse the query string, but instead leave it with the path info. This can
+-- be useful if you need precise control of the rendering of the query string,
+-- such as using semicolons instead of ampersands.
+semiParseUrl :: Failure HttpException m => String -> m (Request m')
+semiParseUrl = parseUrlHelper False
+
+parseUrlHelper :: Failure HttpException m => Bool -> String -> m (Request m')
+parseUrlHelper parsePath s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False parsePath rest
+parseUrlHelper parsePath s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True parsePath rest
+parseUrlHelper _ x = failure $ InvalidUrlException x "Invalid scheme"
+
+parseUrl1 :: Failure HttpException m
+          => String -> Bool -> Bool -> String -> m (Request m')
+parseUrl1 full sec parsePath s =
+    parseUrl2 full sec parsePath s'
+  where
+    s' = encodeString s
+
+defaultCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+defaultCheckCerts host' certs =
+    case certificateVerifyDomain (S8.unpack host') certs of
+        CertificateUsageAccept -> certificateVerifyChain certs
+        _                          -> return CertificateUsageAccept
+
+instance Default (Request m) where
+    def = Request
+        { host = "localhost"
+        , port = 80
+        , secure = False
+        , checkCerts = defaultCheckCerts
+        , requestHeaders = []
+        , path = "/"
+        , queryString = []
+        , requestBody = RequestBodyLBS L.empty
+        , method = "GET"
+        , proxy = Nothing
+        , rawBody = False
+        , decompress = alwaysDecompress
+        }
+
+parseUrl2 :: Failure HttpException m
+          => String -> Bool -> Bool -> String -> m (Request m')
+parseUrl2 full sec parsePath s = do
+    port' <- mport
+    return def
+        { host = S8.pack hostname
+        , port = port'
+        , secure = sec
+        , path = S8.pack
+                    $ if null path''
+                            then "/"
+                            else concatMap (encodeUrlCharPI parsePath) path''
+        , queryString = if parsePath
+                            then W.parseQuery $ S8.pack qstring
+                            else []
+        }
+  where
+    (beforeSlash, afterSlash) = break (== '/') s
+    (hostname, portStr) = break (== ':') beforeSlash
+    (path', qstring') = break (== '?') afterSlash
+    path'' = if parsePath then path' else afterSlash
+    qstring'' = case qstring' of
+                '?':x -> x
+                _ -> qstring'
+    qstring = takeWhile (/= '#') qstring''
+    mport =
+        case (portStr, sec) of
+            ("", False) -> return 80
+            ("", True) -> return 443
+            (':':rest, _) -> maybe
+                (failure $ InvalidUrlException full "Invalid port")
+                return
+                (readDec rest)
+            x -> error $ "parseUrl1: this should never happen: " ++ show x
+
+data HttpException = StatusCodeException Int L.ByteString
+                   | InvalidUrlException String String
+                   | TooManyRedirects
+                   | HttpParserException String
+    deriving (Show, Typeable)
+instance Exception HttpException
+
+-- | Always decompress a compressed stream.
+alwaysDecompress :: ContentType -> Bool
+alwaysDecompress = const True
+
+-- | Decompress a compressed stream unless the content-type is 'application/x-tar'.
+browserDecompress :: ContentType -> Bool
+browserDecompress = (/= "application/x-tar")
+
+-- | Add a Basic Auth header (with the specified user name and password) to the
+-- given Request. Ignore error handling:
+--
+--    applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
+
+applyBasicAuth :: S.ByteString -> S.ByteString -> Request m -> Request m
+applyBasicAuth user passwd req =
+    req { requestHeaders = authHeader : requestHeaders req }
+  where
+    authHeader = (CI.mk "Authorization", basic)
+    basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
+
+
+-- | Add a proxy to the the Request so that the Request when executed will use
+-- the provided proxy.
+addProxy :: S.ByteString -> Int -> Request m -> Request m
+addProxy hst prt req =
+    req { proxy = Just $ Proxy hst prt }
+
+-- FIXME add a helper for generating POST bodies
+
+-- | Add url-encoded paramters to the 'Request'.
+--
+-- This sets a new 'requestBody', adds a content-type request header and
+-- changes the 'method' to POST.
+urlEncodedBody :: Monad m => [(S.ByteString, S.ByteString)] -> Request m' -> Request m
+urlEncodedBody headers req = req
+    { requestBody = RequestBodyLBS body
+    , method = "POST"
+    , requestHeaders =
+        (ct, "application/x-www-form-urlencoded")
+      : filter (\(x, _) -> x /= ct) (requestHeaders req)
+    }
+  where
+    ct = "Content-Type"
+    body = L.fromChunks . return $ W.renderSimpleQuery False headers

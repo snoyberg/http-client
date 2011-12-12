@@ -1,6 +1,6 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
 -- | This module contains everything you need to initiate HTTP connections.  If
@@ -124,12 +124,7 @@ import qualified Data.CaseInsensitive as CI
 import Data.Int (Int64)
 import qualified Codec.Zlib.Enum as Z
 import Control.Monad.Trans.Resource (with, release)
-#if 1
--- FIXME MIN_VERSION_monad_control(0,3,0)
 import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp)
-#else
-import Control.Monad.IO.Control (MonadControlIO, liftBaseOp)
-#endif
 import Data.Map (Map)
 import qualified Data.Map as Map
 import qualified Data.IORef as I
@@ -148,25 +143,6 @@ import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
 
--- | Add a Basic Auth header (with the specified user name and password) to the
--- given Request. Ignore error handling:
---
---    applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
-
-applyBasicAuth :: S.ByteString -> S.ByteString -> Request m -> Request m
-applyBasicAuth user passwd req =
-    req { requestHeaders = authHeader : requestHeaders req }
-  where
-    authHeader = (CI.mk "Authorization", basic)
-    basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
-
-
--- | Add a proxy to the the Request so that the Request when executed will use
--- the provided proxy.
-addProxy :: S.ByteString -> Int -> Request m -> Request m
-addProxy hst prt req =
-    req { proxy = Just $ Proxy hst prt }
-
 
 -- | A simple representation of the HTTP response created by 'lbsIter'.
 data Response = Response
@@ -183,14 +159,6 @@ enumSingle :: Monad m => a -> Enumerator a m b
 enumSingle x (Continue k) = k $ Chunks [x]
 enumSingle _ step = returnI step
 -}
-
--- | Always decompress a compressed stream.
-alwaysDecompress :: ContentType -> Bool
-alwaysDecompress = const True
-
--- | Decompress a compressed stream unless the content-type is 'application/x-tar'.
-browserDecompress :: ContentType -> Bool
-browserDecompress = (/= "application/x-tar")
 
 
 -- | The most low-level function for initiating an HTTP request.
@@ -230,7 +198,7 @@ http req@(Request {..}) bodyStep m = do
     hh
         | port == 80 && not secure = host
         | port == 443 && secure = host
-        | otherwise = host `mappend` S8.pack (':' : show port)
+        | otherwise = host <> S8.pack (':' : show port)
     contentLengthHeader (Just contentLength') =
             if method `elem` ["GET", "HEAD"] && contentLength' == 0
                 then id
@@ -241,27 +209,27 @@ http req@(Request {..}) bodyStep m = do
                  (("Accept-Encoding", "gzip") : requestHeaders)
     requestHeaders' =
             Blaze.fromByteString method
-            `mappend` Blaze.fromByteString " "
-            `mappend`
+            <> Blaze.fromByteString " "
+            <>
                 (if error "FIXME useProxy"
                     then Blaze.fromByteString (if secure then "https://" else "http://")
-                            `mappend` Blaze.fromByteString hh
+                            <> Blaze.fromByteString hh
                     else mempty)
-            `mappend`
+            <>
                 (case S8.uncons path of
                     Just ('/', _) -> Blaze.fromByteString path
                     _ -> Blaze.fromByteString "/"
-                            `mappend` Blaze.fromByteString path)
-            `mappend` (if null queryString
+                            <> Blaze.fromByteString path)
+            <> (if null queryString
                         then mempty
                         else W.renderQueryBuilder True queryString)
-            `mappend` Blaze.fromByteString " HTTP/1.1\r\n"
-            `mappend` mconcat (flip map headers' $ \(k, v) ->
+            <> Blaze.fromByteString " HTTP/1.1\r\n"
+            <> mconcat (flip map headers' $ \(k, v) ->
                 Blaze.fromByteString (CI.original k)
-                `mappend`  Blaze.fromByteString ": "
-                `mappend` Blaze.fromByteString v
-                `mappend` Blaze.fromByteString "\r\n")
-            `mappend` Blaze.fromByteString "\r\n"
+                <>  Blaze.fromByteString ": "
+                <> Blaze.fromByteString v
+                <> Blaze.fromByteString "\r\n")
+            <> Blaze.fromByteString "\r\n"
     requestEnum sink = CL.fromList [requestHeaders'] C.<$$> sink
 
 getResponse :: MonadBaseControl IO m
@@ -278,8 +246,8 @@ getResponse Request {..} bodyStep bsrc = do
             case (rawBody, ("transfer-encoding", "chunked") `elem` hs') of
                 (False, True) -> (chunkedEnumeratee =$)
                 (True , True) -> (chunkedTerminator =$)
-                (_    , False) -> case mcl >>= readMay . S8.unpack of
-                                      Just len -> (takeLBS len =$)
+                (_    , False) -> case mcl >>= readDec . S8.unpack of
+                                      Just len -> (CB.isolate len =$)
                                       Nothing  -> id-}
     let decompresser = error "decompresser 489" {-
             if needsGunzip hs'
@@ -328,7 +296,7 @@ chunkedEnumeratee k@(Continue _) = do
     if len == 0
         then return k
         else do
-            k' <- takeLBS len k
+            k' <- CB.isolate len k
             catchParser "End of chunk newline" iterNewline
             chunkedEnumeratee k'
 chunkedEnumeratee step = return step
@@ -340,7 +308,7 @@ chunkedTerminator (Continue k) = do
     if len == 0
         then return k'
         else do
-            step <- takeLBS len k'
+            step <- CB.isolate len k'
             catchParser "End of chunk newline" iterNewline
             case step of
                 Continue k'' -> do
@@ -366,146 +334,6 @@ chunkIt = checkDone $ continue . step
 
 chunkIt :: a
 chunkIt = error "561 chunkIt"
-
-
-takeLBS :: Int -> C.ConduitM S.ByteString m S.ByteString
-takeLBS = error "takeLBS"
--- FIXME this is just isolate
-{-
-takeLBS :: MonadBaseControl IO m => Int -> Enumeratee S.ByteString S.ByteString m a
-takeLBS 0 step = return step
-takeLBS len (Continue k) = do
-    mbs <- EL.head
-    case mbs of
-        Nothing -> return $ Continue k
-        Just bs -> do
-            let (len', chunk, rest) =
-                    if S.length bs > len
-                        then (0, S.take len bs,
-                                if S.length bs == len
-                                    then Chunks []
-                                    else Chunks [S.drop len bs])
-                        else (len - S.length bs, bs, Chunks [])
-            step' <- lift $ runIteratee $ k $ Chunks [chunk]
-            if len' == 0
-                then yield step' rest
-                else takeLBS len' step'
-takeLBS _ step = return step
--}
-
-encodeUrlCharPI :: Bool -> Char -> String
-encodeUrlCharPI _ '/' = "/"
-encodeUrlCharPI False '?' = "?"
-encodeUrlCharPI False '&' = "&"
-encodeUrlCharPI False '=' = "="
-encodeUrlCharPI _ c = encodeUrlChar c
-
-encodeUrlChar :: Char -> String
-encodeUrlChar c
-    -- List of unreserved characters per RFC 3986
-    -- Gleaned from http://en.wikipedia.org/wiki/Percent-encoding
-    | 'A' <= c && c <= 'Z' = [c]
-    | 'a' <= c && c <= 'z' = [c]
-    | '0' <= c && c <= '9' = [c]
-encodeUrlChar c@'-' = [c]
-encodeUrlChar c@'_' = [c]
-encodeUrlChar c@'.' = [c]
-encodeUrlChar c@'~' = [c]
-encodeUrlChar ' ' = "+"
-encodeUrlChar y =
-    let (a, c) = fromEnum y `divMod` 16
-        b = a `mod` 16
-        showHex' x
-            | x < 10 = toEnum $ x + (fromEnum '0')
-            | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
-            | otherwise = error $ "Invalid argument to showHex: " ++ show x
-     in ['%', showHex' b, showHex' c]
-
--- | Convert a URL into a 'Request'.
---
--- This defaults some of the values in 'Request', such as setting 'method' to
--- GET and 'requestHeaders' to @[]@.
---
--- Since this function uses 'Failure', the return monad can be anything that is
--- an instance of 'Failure', such as 'IO' or 'Maybe'.
-parseUrl :: Failure HttpException m => String -> m (Request m')
-parseUrl = parseUrlHelper True
-
--- | Same as 'parseUrl', with one distinction: this function will not attempt
--- to parse the query string, but instead leave it with the path info. This can
--- be useful if you need precise control of the rendering of the query string,
--- such as using semicolons instead of ampersands.
-semiParseUrl :: Failure HttpException m => String -> m (Request m')
-semiParseUrl = parseUrlHelper False
-
-parseUrlHelper :: Failure HttpException m => Bool -> String -> m (Request m')
-parseUrlHelper parsePath s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False parsePath rest
-parseUrlHelper parsePath s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True parsePath rest
-parseUrlHelper _ x = failure $ InvalidUrlException x "Invalid scheme"
-
-parseUrl1 :: Failure HttpException m
-          => String -> Bool -> Bool -> String -> m (Request m')
-parseUrl1 full sec parsePath s =
-    parseUrl2 full sec parsePath s'
-  where
-    s' = encodeString s
-
-defaultCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
-defaultCheckCerts host' certs =
-    case certificateVerifyDomain (S8.unpack host') certs of
-        CertificateUsageAccept -> certificateVerifyChain certs
-        _                          -> return CertificateUsageAccept
-
-instance Default (Request m) where
-    def = Request
-        { host = "localhost"
-        , port = 80
-        , secure = False
-        , checkCerts = defaultCheckCerts
-        , requestHeaders = []
-        , path = "/"
-        , queryString = []
-        , requestBody = RequestBodyLBS L.empty
-        , method = "GET"
-        , proxy = Nothing
-        , rawBody = False
-        , decompress = alwaysDecompress
-        }
-
-parseUrl2 :: Failure HttpException m
-          => String -> Bool -> Bool -> String -> m (Request m')
-parseUrl2 full sec parsePath s = do
-    port' <- mport
-    return def
-        { host = S8.pack hostname
-        , port = port'
-        , secure = sec
-        , path = S8.pack
-                    $ if null path''
-                            then "/"
-                            else concatMap (encodeUrlCharPI parsePath) path''
-        , queryString = if parsePath
-                            then W.parseQuery $ S8.pack qstring
-                            else []
-        }
-  where
-    (beforeSlash, afterSlash) = break (== '/') s
-    (hostname, portStr) = break (== ':') beforeSlash
-    (path', qstring') = break (== '?') afterSlash
-    path'' = if parsePath then path' else afterSlash
-    qstring'' = case qstring' of
-                '?':x -> x
-                _ -> qstring'
-    qstring = takeWhile (/= '#') qstring''
-    mport =
-        case (portStr, sec) of
-            ("", False) -> return 80
-            ("", True) -> return 443
-            (':':rest, _) ->
-                case readMay rest of
-                    Just i -> return i
-                    Nothing -> failure $ InvalidUrlException full "Invalid port"
-            x -> error $ "parseUrl1: this should never happen: " ++ show x
 
 -- | Convert the HTTP response into a 'Response' value.
 --
@@ -562,13 +390,6 @@ simpleHttp url = runResourceT $ do
     if 200 <= sc && sc < 300
         then return b
         else liftBase $ throwIO $ StatusCodeException sc b
-
-data HttpException = StatusCodeException Int L.ByteString
-                   | InvalidUrlException String String
-                   | TooManyRedirects
-                   | HttpParserException String
-    deriving (Show, Typeable)
-instance Exception HttpException
 
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
@@ -644,29 +465,6 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs bsrc
 -- iteratee and use 'http' or 'httpRedirect' directly.
 httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
 httpLbsRedirect req m = httpRedirect req lbsIter m
-
-readMay :: Read a => String -> Maybe a
-readMay s = case reads s of
-                [] -> Nothing
-                (x, _):_ -> Just x
-
--- FIXME add a helper for generating POST bodies
-
--- | Add url-encoded paramters to the 'Request'.
---
--- This sets a new 'requestBody', adds a content-type request header and
--- changes the 'method' to POST.
-urlEncodedBody :: Monad m => [(S.ByteString, S.ByteString)] -> Request m' -> Request m
-urlEncodedBody headers req = req
-    { requestBody = RequestBodyLBS body
-    , method = "POST"
-    , requestHeaders =
-        (ct, "application/x-www-form-urlencoded")
-      : filter (\(x, _) -> x /= ct) (requestHeaders req)
-    }
-  where
-    ct = "Content-Type"
-    body = L.fromChunks . return $ W.renderSimpleQuery False headers
 
 catchParser :: String -> a -> a -- FIXME
 --catchParser s i = catchError i (const $ throwError $ HttpParserException s)
