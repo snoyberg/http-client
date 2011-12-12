@@ -1,4 +1,4 @@
-name:            http-enumerator
+name:            http-conduit
 version:         0.8.0
 license:         BSD3
 license-file:    LICENSE
@@ -48,12 +48,12 @@ library
                      , network-bytestring    >= 0.1.3   && < 0.1.4
     else
         build-depends: network               >= 2.3     && < 2.4
-    exposed-modules: Network.HTTP.Enumerator
-    other-modules:   Network.HTTP.Enumerator.HttpParser
-                     Network.TLS.Client.Enumerator
+    exposed-modules: Network.HTTP.Conduit
+    other-modules:   Network.HTTP.Conduit.Parser
+                     Network.HTTP.Conduit.ConnInfo
     ghc-options:     -Wall
 
-executable http-enumerator
+executable http-conduit
     main-is: test.hs
     if flag(test)
         Buildable: True

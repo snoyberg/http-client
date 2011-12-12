@@ -1,6 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Network.TLS.Client.Enumerator
+module Network.HTTP.Conduit.ConnInfo
     ( ConnInfo
     , connClose
     , connSink
@@ -18,8 +18,6 @@ import System.IO (Handle, hClose)
 import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
 import Network.TLS
-import Control.Monad.IO.Class (MonadIO)
-import Control.Monad.Trans.Class (lift)
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
 import Crypto.Random.AESCtr (makeSystem)

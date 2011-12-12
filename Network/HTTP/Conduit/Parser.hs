@@ -1,6 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
-module Network.HTTP.Enumerator.HttpParser
+module Network.HTTP.Conduit.Parser
     ( sinkHeaders
     , iterChunkHeader
     , iterNewline

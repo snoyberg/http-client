@@ -50,7 +50,7 @@
 -- >
 -- > main = withSocketsDo
 -- >      $ simpleHttp "http://www.haskell.org/" >>= L.putStr
-module Network.HTTP.Enumerator
+module Network.HTTP.Conduit
     ( -- * Perform a request
       simpleHttp
     , httpLbs
@@ -99,14 +99,14 @@ module Network.HTTP.Enumerator
     , HttpException (..)
     ) where
 
-import qualified Network.TLS.Client.Enumerator as TLS
+import Network.HTTP.Conduit.ConnInfo
 import Network (connectTo, PortID (PortNumber))
 
 import qualified Network.Socket as NS
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
-import Network.HTTP.Enumerator.HttpParser
+import Network.HTTP.Conduit.Parser
 import Control.Exception (Exception, bracket, SomeException)
 import Control.Exception.Lifted (mask, try, throwIO)
 import Control.Arrow (first)
@@ -203,11 +203,11 @@ withSocketConn
     => Manager
     -> String
     -> Int
-    -> (TLS.ConnInfo -> ResourceT m (Bool, a))
+    -> (ConnInfo -> ResourceT m (Bool, a))
     -> ResourceT m a
 withSocketConn man host' port' =
     withManagedConn man (host', port', False) $
-        fmap TLS.socketConn $ getSocket host' port'
+        fmap socketConn $ getSocket host' port'
 
 withSslConn, withSslProxyConn :: a
 withSslConn = error "withSslConn"
@@ -217,8 +217,8 @@ withManagedConn
     :: MonadBaseControl IO m
     => Manager
     -> ConnKey
-    -> IO TLS.ConnInfo
-    -> (TLS.ConnInfo -> ResourceT m (Bool, a))
+    -> IO ConnInfo
+    -> (ConnInfo -> ResourceT m (Bool, a))
     -> ResourceT m a
 withManagedConn man key open f = mask $ \restore -> do
     mci <- restore $ liftBase $ takeInsecureSocket man key
@@ -231,14 +231,14 @@ withManagedConn man key open f = mask $ \restore -> do
     ea <- restore $ try $ f ci
     case ea of
         Left e -> do
-            liftBase $ TLS.connClose ci
+            liftBase $ connClose ci
             if isManaged
                 then restore $ withManagedConn man key open f
                 else throwIO (e :: SomeException)
         Right (toPut, a) -> do
             if toPut
                 then restore $ liftBase $ putInsecureSocket man key ci
-                else restore $ liftBase $ TLS.connClose ci
+                else restore $ liftBase $ connClose ci
             return a
 
 {- FIXME
@@ -260,9 +260,9 @@ withManagedConn man key open req step = do
             (toPut, a) <- withCI ci req step
             liftBase $ if toPut
                 then putInsecureSocket man key ci
-                else TLS.connClose ci
+                else connClose ci
             return a)
-        (\se -> liftBase (TLS.connClose ci) >>
+        (\se -> liftBase (connClose ci) >>
                 if isManaged
                     then withManagedConn man key open req step
                     else throwError se)
@@ -270,7 +270,7 @@ withManagedConn man key open req step = do
 
 {-
 withSslConn :: MonadBaseControl IO m
-            => ([X509] -> IO TLS.TLSCertificateUsage)
+            => ([X509] -> IO TLSCertificateUsage)
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
@@ -279,10 +279,10 @@ withSslConn :: MonadBaseControl IO m
             -> Iteratee S.ByteString m a -- ^ response
 withSslConn checkCert man host' port' =
     withManagedConn man (host', port', True) $
-        (connectTo host' (PortNumber $ fromIntegral port') >>= TLS.sslClientConn checkCert)
+        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn checkCert)
 
 withSslProxyConn :: MonadBaseControl IO m
-            => ([X509] -> IO TLS.TLSCertificateUsage)
+            => ([X509] -> IO TLSCertificateUsage)
             -> S8.ByteString -- ^ Target host
             -> Int -- ^ Target port
             -> Manager
@@ -293,7 +293,7 @@ withSslProxyConn :: MonadBaseControl IO m
             -> Iteratee S.ByteString m a -- ^ response
 withSslProxyConn checkCert thost tport man phost pport =
     withManagedConn man (phost, pport, True) $
-        doConnect >>= TLS.sslClientConn checkCert
+        doConnect >>= sslClientConn checkCert
   where
     doConnect = do
         h <- connectTo phost (PortNumber $ fromIntegral pport)
@@ -320,10 +320,10 @@ withSslProxyConn checkCert thost tport man phost pport =
         error $ "Proxy failed to CONNECT to '"
                 ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
 
-withCI :: MonadBaseControl IO m => TLS.ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
+withCI :: MonadBaseControl IO m => ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
 withCI ci req step0 = do
-    lift $ run_ $ req $$ joinI $ error "builderToByteString" $$ TLS.connIter ci
-    a <- TLS.connEnum ci step0
+    lift $ run_ $ req $$ joinI $ error "builderToByteString" $$ connIter ci
+    a <- connEnum ci step0
     -- FIXME liftBase $ hClose handle
     return a
 -}
@@ -351,7 +351,7 @@ type ContentType = S.ByteString
 data Request m = Request
     { method :: W.Method -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
-    , checkCerts :: W.Ascii -> [X509] -> IO TLS.TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
+    , checkCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , host :: W.Ascii
     , port :: Int
     , path :: W.Ascii -- ^ Everything from the host to the query string.
@@ -690,11 +690,11 @@ parseUrl1 full sec parsePath s =
   where
     s' = encodeString s
 
-defaultCheckCerts :: W.Ascii -> [X509] -> IO TLS.TLSCertificateUsage
+defaultCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
 defaultCheckCerts host' certs =
     case certificateVerifyDomain (S8.unpack host') certs of
-        TLS.CertificateUsageAccept -> certificateVerifyChain certs
-        _                          -> return TLS.CertificateUsageAccept
+        CertificateUsageAccept -> certificateVerifyChain certs
+        _                          -> return CertificateUsageAccept
 
 instance Default (Request m) where
     def = Request
@@ -912,23 +912,23 @@ catchParser _ = id
 
 -- | Keeps track of open connections for keep-alive.
 newtype Manager = Manager
-    { mConns :: I.IORef (Map ConnKey TLS.ConnInfo)
+    { mConns :: I.IORef (Map ConnKey ConnInfo)
     }
 
 -- | ConnKey consists of a hostname, a port and a Bool specifying whether to
 --   use keepalive.
 type ConnKey = (String, Int, Bool)
 
-takeInsecureSocket :: Manager -> ConnKey -> IO (Maybe TLS.ConnInfo)
+takeInsecureSocket :: Manager -> ConnKey -> IO (Maybe ConnInfo)
 takeInsecureSocket man key =
     I.atomicModifyIORef (mConns man) go
   where
     go m = (Map.delete key m, Map.lookup key m)
 
-putInsecureSocket :: Manager -> ConnKey -> TLS.ConnInfo -> IO ()
+putInsecureSocket :: Manager -> ConnKey -> ConnInfo -> IO ()
 putInsecureSocket man key ci = do
     msock <- I.atomicModifyIORef (mConns man) go
-    maybe (return ()) TLS.connClose msock
+    maybe (return ()) connClose msock
   where
     go m = (Map.insert key ci m, Map.lookup key m)
 
@@ -941,7 +941,7 @@ newManager = Manager <$> I.newIORef Map.empty
 closeManager :: Manager -> IO ()
 closeManager (Manager i) = do
     m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
-    mapM_ TLS.connClose $ Map.elems m
+    mapM_ connClose $ Map.elems m
 
 -- | Create a new 'Manager', call the supplied function and then close it.
 #if 1
