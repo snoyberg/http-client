@@ -4,6 +4,9 @@ module Network.HTTP.Conduit.Manager
     , ConnKey (..)
     , newManager
     , withConn
+    , WithConnResponse (..)
+    , ConnReuse (..)
+    , UseConn
     ) where
 
 import Control.Monad.Trans.Control
@@ -55,12 +58,14 @@ closeManager (Manager i) = do
     m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
     mapM_ connClose $ Map.elems m
 
+type UseConn m a = ConnInfo -> ResourceT m (WithConnResponse a)
+
 withSocketConn
     :: MonadBaseControl IO m
     => Manager
     -> String
     -> Int
-    -> (ConnInfo -> ResourceT m (Bool, a))
+    -> UseConn m a
     -> ResourceT m a
 withSocketConn man host' port' =
     withManagedConn man (ConnKey (T.pack host') port' False) $
@@ -75,7 +80,7 @@ withManagedConn
     => Manager
     -> ConnKey
     -> IO ConnInfo
-    -> (ConnInfo -> ResourceT m (Bool, a))
+    -> UseConn m a
     -> ResourceT m a
 withManagedConn man key open f = mask $ \restore -> do
     mci <- restore $ liftBase $ takeSocket man key
@@ -92,10 +97,10 @@ withManagedConn man key open f = mask $ \restore -> do
             if isManaged
                 then restore $ withManagedConn man key open f
                 else throwIO (e :: SomeException)
-        Right (toPut, a) -> do
-            if toPut
-                then restore $ liftBase $ putSocket man key ci
-                else restore $ liftBase $ connClose ci
+        Right (WithConnResponse cr a) -> do
+            case cr of
+                Reuse -> restore $ liftBase $ putSocket man key ci
+                DontReuse -> restore $ liftBase $ connClose ci
             return a
 
 {- FIXME
@@ -180,10 +185,14 @@ withCI ci req step0 = do
     return a
 -}
 
+data WithConnResponse a = WithConnResponse !ConnReuse !a
+
+data ConnReuse = Reuse | DontReuse
+
 withConn :: MonadBaseControl IO m
          => Request m
          -> Manager
-         -> (ConnInfo -> ResourceT m (Bool, a))
+         -> UseConn m a
          -> ResourceT m a
 withConn req m =
     go m connhost connport

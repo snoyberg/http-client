@@ -15,6 +15,8 @@ module Network.HTTP.Conduit.Request
     , addProxy
     , applyBasicAuth
     , urlEncodedBody
+    , needsGunzip
+    , requestHeadersBuilder
     ) where
 
 import qualified Data.Conduit as C
@@ -35,7 +37,10 @@ import Codec.Binary.UTF8.String (encodeString)
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
-import Network.HTTP.Conduit.Util (readDec)
+import Network.HTTP.Conduit.Util (readDec, (<>))
+import Data.Maybe (fromMaybe)
+import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
+import Data.Monoid (mempty)
 
 type ContentType = S.ByteString
 
@@ -251,3 +256,78 @@ urlEncodedBody headers req = req
   where
     ct = "Content-Type"
     body = L.fromChunks . return $ W.renderSimpleQuery False headers
+
+needsGunzip :: Request m
+            -> [W.Header] -- ^ response headers
+            -> Bool
+needsGunzip req hs' =
+        not (rawBody req)
+     && ("content-encoding", "gzip") `elem` hs'
+     && decompress req (fromMaybe "" $ lookup "content-type" hs')
+
+requestHeadersBuilder
+    :: Request m
+    -> Builder
+requestHeadersBuilder req =
+    builder
+  where
+    (contentLength, bodyEnum) =
+        case requestBody req of
+            RequestBodyLBS lbs -> (Just $ L.length lbs, enumSingle $ fromLazyByteString lbs)
+            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, enumSingle $ fromByteString bs)
+            RequestBodyBuilder i b -> (Just $ i, enumSingle b)
+            RequestBodySource i enum -> (Just i, enum)
+            -- FIXME RequestBodySourceChunked enum -> (Nothing, \step -> enum C.$$ chunkIt C.=$ step)
+
+    hh
+        | port req == 80 && not (secure req) = host req
+        | port req == 443 && secure req = host req
+        | otherwise = host req <> S8.pack (':' : show (port req))
+
+    contentLengthHeader (Just contentLength') =
+            if method req `elem` ["GET", "HEAD"] && contentLength' == 0
+                then id
+                else (:) ("Content-Length", S8.pack $ show contentLength')
+    contentLengthHeader Nothing = (:) ("Transfer-Encoding", "chunked")
+
+    headerPairs :: W.RequestHeaders
+    headerPairs
+        = ("Host", hh)
+        : ("Accept-Encoding", "gzip")
+        : (contentLengthHeader contentLength)
+          (requestHeaders req)
+
+    builder :: Builder
+    builder =
+            fromByteString (method req)
+            <> fromByteString " "
+            <> (case proxy req of
+                    Just{} ->
+                        fromByteString (if secure req then "https://" else "http://")
+                        <> fromByteString hh
+                    Nothing -> mempty)
+            <> (case S8.uncons $ path req of
+                    Just ('/', _) -> fromByteString $ path req
+                    _ -> fromByteString "/" <> fromByteString (path req))
+            <> (if null (queryString req)
+                        then mempty
+                        else W.renderQueryBuilder True (queryString req))
+            <> fromByteString " HTTP/1.1\r\n"
+            <> foldr
+                (\a b -> headerPairToBuilder a <> b)
+                (fromByteString "\r\n")
+                headerPairs
+
+    headerPairToBuilder (k, v) =
+           fromByteString (CI.original k)
+        <> fromByteString ": "
+        <> fromByteString v
+        <> fromByteString "\r\n"
+
+enumSingle :: a
+enumSingle = error "379 enumSingle"
+{- FIXME
+enumSingle :: Monad m => a -> Enumerator a m b
+enumSingle x (Continue k) = k $ Chunks [x]
+enumSingle _ step = returnI step
+-}

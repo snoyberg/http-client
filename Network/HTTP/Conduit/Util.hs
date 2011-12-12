@@ -1,13 +1,20 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Conduit.Util
     ( hGetSome
     , (<>)
     , readDec
+    , hasNoBody
+    , flushStream
     ) where
 
 import Data.Monoid (Monoid, mappend)
 import qualified Data.Text as T
 import qualified Data.Text.Read
+import qualified Data.ByteString.Char8 as S8
+import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 
 #if 1
 -- FIXME MIN_VERSION_base(4,3,0)
@@ -57,3 +64,18 @@ readDec s =
         Right (i, t)
             | T.null t -> Just i
         _ -> Nothing
+
+hasNoBody :: S8.ByteString -- ^ request method
+          -> Int -- ^ status code
+          -> Bool
+hasNoBody "HEAD" _ = True
+hasNoBody _ 204 = True
+hasNoBody _ 304 = True
+hasNoBody _ i = 100 <= i && i < 200
+
+flushStream :: C.MonadBaseControl IO m => C.SinkM a m ()
+flushStream = do
+    x <- CL.head
+    case x of
+        Nothing -> return ()
+        Just _ -> flushStream

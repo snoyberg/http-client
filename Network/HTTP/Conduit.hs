@@ -1,8 +1,6 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE CPP #-}
 -- | This module contains everything you need to initiate HTTP connections.  If
 -- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
 -- want raw power, 'http' is the underlying workhorse of this package. Some
@@ -62,6 +60,7 @@ module Network.HTTP.Conduit
     , Proxy (..)
     , RequestBody (..)
     , Response (..)
+    , ResponseConsumer
       -- ** Request
     , Request
     , def
@@ -87,7 +86,7 @@ module Network.HTTP.Conduit
     , applyBasicAuth
     , addProxy
     , semiParseUrl
-    , lbsIter
+    , lbsConsumer
       -- * Decompression predicates
     , alwaysDecompress
     , browserDecompress
@@ -97,69 +96,27 @@ module Network.HTTP.Conduit
     , HttpException (..)
     ) where
 
-import Network.HTTP.Conduit.ConnInfo
-import Network.HTTP.Conduit.Manager
-import Network (connectTo, PortID (PortNumber))
-
-import qualified Network.Socket as NS
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 import Network.HTTP.Conduit.Parser
-import Control.Exception (Exception, bracket, SomeException)
-import Control.Exception.Lifted (mask, try, throwIO)
+import Control.Exception.Lifted (throwIO)
 import Control.Arrow (first)
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Base (liftBase)
-import Control.Monad.Trans.Class (lift)
-import Control.Failure (Failure (failure))
-import Data.Typeable (Typeable)
-import Codec.Binary.UTF8.String (encodeString)
-import qualified Data.Text as T
-import qualified Blaze.ByteString.Builder as Blaze
-import Blaze.ByteString.Builder.HTTP (chunkedTransferEncoding, chunkedTransferTerminator)
+import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
 import Data.Monoid (Monoid (..))
 import qualified Network.HTTP.Types as W
 import qualified Data.CaseInsensitive as CI
-import Data.Int (Int64)
-import qualified Codec.Zlib.Enum as Z
-import Control.Monad.Trans.Resource (with, release)
-import Control.Monad.Trans.Control (MonadBaseControl, liftBaseOp)
-import Data.Map (Map)
-import qualified Data.Map as Map
-import qualified Data.IORef as I
-import Control.Applicative ((<$>))
-import Data.Certificate.X509 (X509)
-import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
-import qualified Data.ByteString.Base64 as B64
-import System.IO (hClose, hFlush)
-import Blaze.ByteString.Builder (toByteString)
-import Data.Maybe (fromMaybe)
-import Data.Default (Default (def))
-import Numeric (showHex)
+import Data.Default (def)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
-
-
--- | A simple representation of the HTTP response created by 'lbsIter'.
-data Response = Response
-    { statusCode :: Int
-    , responseHeaders :: W.ResponseHeaders
-    , responseBody :: L.ByteString
-    }
-    deriving (Show, Read, Eq, Typeable)
-
-enumSingle :: a
-enumSingle = error "379 enumSingle"
-{- FIXME
-enumSingle :: Monad m => a -> Enumerator a m b
-enumSingle x (Continue k) = k $ Chunks [x]
-enumSingle _ step = returnI step
--}
-
+import Network.HTTP.Conduit.Response
+import Network.HTTP.Conduit.Manager
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -170,7 +127,7 @@ enumSingle _ step = returnI step
 -- The second argument specifies how the response should be handled. It's a
 -- function that takes two arguments: the first is the HTTP status code of the
 -- response, and the second is a list of all response headers. This module
--- exports 'lbsIter', which generates a 'Response' value.
+-- exports 'lbsConsumer', which generates a 'Response' value.
 --
 -- Note that this allows you to have fully interleaved IO actions during your
 -- HTTP download, making it possible to download very large responses in
@@ -178,65 +135,21 @@ enumSingle _ step = returnI step
 http
      :: MonadBaseControl IO m
      => Request m
-     -> (W.Status -> W.ResponseHeaders -> C.BSource m S.ByteString -> ResourceT m a)
+     -> ResponseConsumer m a
      -> Manager
      -> ResourceT m a
-http req@(Request {..}) bodyStep m = do
-    (bsrc, sink) <- withConn req m useConn
-    (_FIXMEbool, a) <- getResponse req bodyStep bsrc
-    return a
-  where
-    useConn :: ConnInfo -> ResourceT m (Bool, a)
-    useConn = error "useConn"
-    (contentLength, bodyEnum) =
-        case requestBody of
-            RequestBodyLBS lbs -> (Just $ L.length lbs, enumSingle $ Blaze.fromLazyByteString lbs)
-            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, enumSingle $ Blaze.fromByteString bs)
-            RequestBodyBuilder i b -> (Just $ i, enumSingle b)
-            RequestBodySource i enum -> (Just i, enum)
-            -- FIXME RequestBodySourceChunked enum -> (Nothing, \step -> enum C.$$ chunkIt C.=$ step)
-    hh
-        | port == 80 && not secure = host
-        | port == 443 && secure = host
-        | otherwise = host <> S8.pack (':' : show port)
-    contentLengthHeader (Just contentLength') =
-            if method `elem` ["GET", "HEAD"] && contentLength' == 0
-                then id
-                else (:) ("Content-Length", S8.pack $ show contentLength')
-    contentLengthHeader Nothing = (:) ("Transfer-Encoding", "chunked")
-    headers' = ("Host", hh)
-                 : (contentLengthHeader contentLength)
-                 (("Accept-Encoding", "gzip") : requestHeaders)
-    requestHeaders' =
-            Blaze.fromByteString method
-            <> Blaze.fromByteString " "
-            <>
-                (if error "FIXME useProxy"
-                    then Blaze.fromByteString (if secure then "https://" else "http://")
-                            <> Blaze.fromByteString hh
-                    else mempty)
-            <>
-                (case S8.uncons path of
-                    Just ('/', _) -> Blaze.fromByteString path
-                    _ -> Blaze.fromByteString "/"
-                            <> Blaze.fromByteString path)
-            <> (if null queryString
-                        then mempty
-                        else W.renderQueryBuilder True queryString)
-            <> Blaze.fromByteString " HTTP/1.1\r\n"
-            <> mconcat (flip map headers' $ \(k, v) ->
-                Blaze.fromByteString (CI.original k)
-                <>  Blaze.fromByteString ": "
-                <> Blaze.fromByteString v
-                <> Blaze.fromByteString "\r\n")
-            <> Blaze.fromByteString "\r\n"
-    requestEnum sink = CL.fromList [requestHeaders'] C.<$$> sink
+http req bodyStep m = withConn req m (useConn req)
+
+useConn :: MonadBaseControl IO m => Request m -> UseConn m a
+useConn req =
+    error "useConn"
+    --(_FIXMEbool, a) <- getResponse req bodyStep bsrc
 
 getResponse :: MonadBaseControl IO m
             => Request m
-            -> (W.Status -> [W.Header] -> C.BSource m S8.ByteString -> ResourceT m a)
+            -> ResponseConsumer m a
             -> C.BSource m S8.ByteString
-            -> ResourceT m (Bool, a)
+            -> ResourceT m (WithConnResponse a)
 getResponse Request {..} bodyStep bsrc = do
     ((_, sc, sm), hs) <- bsrc C.$$ sinkHeaders
     let s = W.Status sc sm
@@ -266,89 +179,7 @@ getResponse Request {..} bodyStep bsrc = do
 
     -- should we put this connection back into the connection manager?
     let toPut = Just "close" /= lookup "connection" hs'
-    return (toPut, res)
-  where
-    hasNoBody :: S8.ByteString -- ^ request method
-              -> Int -- ^ status code
-              -> Bool
-    hasNoBody "HEAD" _ = True
-    hasNoBody _ 204 = True
-    hasNoBody _ 304 = True
-    hasNoBody _ i = 100 <= i && i < 200
-
-    needsGunzip :: [W.Header] -> Bool
-    needsGunzip hs' =
-            not rawBody
-         && ("content-encoding", "gzip") `elem` hs'
-         && decompress (fromMaybe "" $ lookup "content-type" hs')
-
-flushStream :: MonadBaseControl IO m => C.SinkM a m ()
-flushStream = do
-    x <- CL.head
-    case x of
-        Nothing -> return ()
-        Just _ -> flushStream
-
-{- FIXME
-chunkedEnumeratee :: MonadBaseControl IO m => Enumeratee S.ByteString S.ByteString m a
-chunkedEnumeratee k@(Continue _) = do
-    len <- catchParser "Chunk header" iterChunkHeader
-    if len == 0
-        then return k
-        else do
-            k' <- CB.isolate len k
-            catchParser "End of chunk newline" iterNewline
-            chunkedEnumeratee k'
-chunkedEnumeratee step = return step
-
-chunkedTerminator :: MonadBaseControl IO m => Enumeratee S.ByteString S.ByteString m a
-chunkedTerminator (Continue k) = do
-    len <- catchParser "Chunk header" iterChunkHeader
-    k' <- sendCont k $ S8.pack $ showHex len "\r\n"
-    if len == 0
-        then return k'
-        else do
-            step <- CB.isolate len k'
-            catchParser "End of chunk newline" iterNewline
-            case step of
-                Continue k'' -> do
-                    k''' <- sendCont k'' "\r\n"
-                    chunkedTerminator k'''
-                _ -> return step
-chunkedTerminator step = return step
-
-sendCont :: Monad m
-         => (Stream S8.ByteString -> Iteratee S8.ByteString m a)
-         -> S8.ByteString
-         -> Iteratee S8.ByteString m (Step S8.ByteString m a)
-sendCont k bs = lift $ runIteratee $ k $ Chunks [bs]
-
-chunkIt :: Monad m => Enumeratee Blaze.Builder Blaze.Builder m a
-chunkIt = checkDone $ continue . step
-  where
-    step k EOF = k (Chunks [chunkedTransferTerminator]) >>== return
-    step k (Chunks []) = continue $ step k
-    step k (Chunks xs) = k (Chunks [chunkedTransferEncoding $ mconcat xs])
-                         >>== chunkIt
--}
-
-chunkIt :: a
-chunkIt = error "561 chunkIt"
-
--- | Convert the HTTP response into a 'Response' value.
---
--- Even though a 'Response' contains a lazy bytestring, this function does
--- /not/ utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
-lbsIter :: MonadBaseControl IO m
-        => W.Status
-        -> W.ResponseHeaders
-        -> C.BSource m S.ByteString
-        -> ResourceT m Response
-lbsIter (W.Status sc _) hs bsrc = do
-    lbs <- fmap L.fromChunks $ bsrc C.$$ CL.consume
-    return $ Response sc hs lbs
+    return $ WithConnResponse (if toPut then Reuse else DontReuse) res
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -357,9 +188,9 @@ lbsIter (W.Status sc _) hs bsrc = do
 -- interleaved actions on the response body during download, you'll need to use
 -- 'http' directly. This function is defined as:
 --
--- @httpLbs = http lbsIter@
+-- @httpLbs = http lbsConsumer@
 --
--- Please see 'lbsIter' for more information on how the 'Response' value is
+-- Please see 'lbsConsumer' for more information on how the 'Response' value is
 -- created.
 --
 -- Even though a 'Response' contains a lazy bytestring, this function does
@@ -367,7 +198,7 @@ lbsIter (W.Status sc _) hs bsrc = do
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
 httpLbs :: MonadBaseControl IO m => Request m -> Manager -> m Response
-httpLbs req m = runResourceT (http req lbsIter m)
+httpLbs req m = runResourceT (http req lbsConsumer m)
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
@@ -454,9 +285,9 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs bsrc
 -- such as interleaved actions on the response body during download, you'll
 -- need to use 'httpRedirect' directly. This function is defined as:
 --
--- @httpLbsRedirect = httpRedirect lbsIter@
+-- @httpLbsRedirect = httpRedirect lbsConsumer@
 --
--- Please see 'lbsIter' for more information on how the 'Response' value is
+-- Please see 'lbsConsumer' for more information on how the 'Response' value is
 -- created.
 --
 -- Even though a 'Response' contains a lazy bytestring, this function does
@@ -464,7 +295,7 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs bsrc
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
 httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
-httpLbsRedirect req m = httpRedirect req lbsIter m
+httpLbsRedirect req m = httpRedirect req lbsConsumer m
 
 catchParser :: String -> a -> a -- FIXME
 --catchParser s i = catchError i (const $ throwError $ HttpParserException s)

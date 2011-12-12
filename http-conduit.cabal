@@ -54,6 +54,7 @@ library
                      Network.HTTP.Conduit.Request
                      Network.HTTP.Conduit.Util
                      Network.HTTP.Conduit.Manager
+                     Network.HTTP.Conduit.Chunk
     ghc-options:     -Wall
 
 executable http-conduit
