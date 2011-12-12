@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 -- | This module contains everything you need to initiate HTTP connections.  If
 -- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
@@ -55,7 +54,7 @@ module Network.HTTP.Conduit
     , httpLbsRedirect
     , http
     , httpRedirect
-    , redirectIter
+    , redirectConsumer
       -- * Datatypes
     , Proxy (..)
     , RequestBody (..)
@@ -99,24 +98,23 @@ module Network.HTTP.Conduit
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
-import Network.HTTP.Conduit.Parser
+
+import Blaze.ByteString.Builder (toLazyByteString)
+import qualified Network.HTTP.Types as W
+import Data.Default (def)
+
 import Control.Exception.Lifted (throwIO)
-import Control.Arrow (first)
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Base (liftBase)
-import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
-import Data.Monoid (Monoid (..))
-import qualified Network.HTTP.Types as W
-import qualified Data.CaseInsensitive as CI
-import Data.Default (def)
+
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
 import Control.Monad.Trans.Resource (ResourceT, runResourceT)
 
 import Network.HTTP.Conduit.Request
-import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Response
 import Network.HTTP.Conduit.Manager
+import Network.HTTP.Conduit.ConnInfo
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -138,48 +136,12 @@ http
      -> ResponseConsumer m a
      -> Manager
      -> ResourceT m a
-http req bodyStep m = withConn req m (useConn req)
-
-useConn :: MonadBaseControl IO m => Request m -> UseConn m a
-useConn req =
-    error "useConn"
-    --(_FIXMEbool, a) <- getResponse req bodyStep bsrc
-
-getResponse :: MonadBaseControl IO m
-            => Request m
-            -> ResponseConsumer m a
-            -> C.BSource m S8.ByteString
-            -> ResourceT m (WithConnResponse a)
-getResponse Request {..} bodyStep bsrc = do
-    ((_, sc, sm), hs) <- bsrc C.$$ sinkHeaders
-    let s = W.Status sc sm
-    let hs' = map (first CI.mk) hs
-    let mcl = lookup "content-length" hs'
-    let body' = error "472" {-
-            case (rawBody, ("transfer-encoding", "chunked") `elem` hs') of
-                (False, True) -> (chunkedEnumeratee =$)
-                (True , True) -> (chunkedTerminator =$)
-                (_    , False) -> case mcl >>= readDec . S8.unpack of
-                                      Just len -> (CB.isolate len =$)
-                                      Nothing  -> id-}
-    let decompresser = error "decompresser 489" {-
-            if needsGunzip hs'
-                then (Z.ungzip C.=$)
-                else id -}
-    -- RFC 2616 section 4.4_1 defines responses that must not include a body
-    res <-
-        if hasNoBody method sc
-            then do
-                bsrcNull <- C.bsourceM $ CL.fromList []
-                bodyStep s hs' bsrcNull
-            else body' $ decompresser $ do
-                    x <- bodyStep s hs'
-                    -- FIXME flushStream
-                    return x
-
-    -- should we put this connection back into the connection manager?
-    let toPut = Just "close" /= lookup "connection" hs'
-    return $ WithConnResponse (if toPut then Reuse else DontReuse) res
+http req consumer m = withConn req m $ \ci -> do
+    bsrc <- C.bsourceM $ connSource ci
+    let sink = connSink ci
+    CL.fromList (L.toChunks $ toLazyByteString (requestHeadersBuilder req))
+        C.<$$> sink
+    getResponse req consumer bsrc
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -197,8 +159,8 @@ getResponse Request {..} bodyStep bsrc = do
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbs :: MonadBaseControl IO m => Request m -> Manager -> m Response
-httpLbs req m = runResourceT (http req lbsConsumer m)
+httpLbs :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
+httpLbs req = http req lbsConsumer
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
@@ -231,18 +193,38 @@ httpRedirect
     -> Manager
     -> ResourceT m a
 httpRedirect req bodyStep manager =
-    http req (redirectIter 10 req bodyStep manager) manager
+    http req (redirectConsumer 10 req bodyStep manager) manager
+
+-- | Download the specified 'Request', returning the results as a 'Response'
+-- and automatically handling redirects.
+--
+-- This is a simplified version of 'httpRedirect' for the common case where you
+-- simply want the response data as a simple datatype. If you want more power,
+-- such as interleaved actions on the response body during download, you'll
+-- need to use 'httpRedirect' directly. This function is defined as:
+--
+-- @httpLbsRedirect = httpRedirect lbsConsumer@
+--
+-- Please see 'lbsConsumer' for more information on how the 'Response' value is
+-- created.
+--
+-- Even though a 'Response' contains a lazy bytestring, this function does
+-- /not/ utilize lazy I/O, and therefore the entire response body will live in
+-- memory. If you want constant memory usage, you'll need to write your own
+-- iteratee and use 'http' or 'httpRedirect' directly.
+httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
+httpLbsRedirect req m = httpRedirect req lbsConsumer m
 
 -- | Make a request automatically follow 3xx redirects.
 --
 -- Used internally by 'httpRedirect' and family.
-redirectIter :: MonadBaseControl IO m
+redirectConsumer :: MonadBaseControl IO m
              => Int -- ^ number of redirects to attempt
              -> Request m -- ^ Original request
-             -> (W.Status -> W.ResponseHeaders -> C.BSource m S.ByteString -> ResourceT m a)
+             -> ResponseConsumer m a
              -> Manager
-             -> (W.Status -> W.ResponseHeaders -> C.BSource m S.ByteString -> ResourceT m a)
-redirectIter redirects req bodyStep manager s@(W.Status code _) hs bsrc
+             -> ResponseConsumer m a
+redirectConsumer redirects req bodyStep manager s@(W.Status code _) hs bsrc
     | 300 <= code && code < 400 =
         case lookup "location" hs of
             Just l'' -> do
@@ -273,30 +255,6 @@ redirectIter redirects req bodyStep manager s@(W.Status code _) hs bsrc
                         }
                 if redirects == 0
                     then liftBase $ throwIO TooManyRedirects
-                    else (http req') (redirectIter (redirects - 1) req' bodyStep manager) manager
+                    else (http req') (redirectConsumer (redirects - 1) req' bodyStep manager) manager
             Nothing -> bodyStep s hs bsrc
     | otherwise = bodyStep s hs bsrc
-
--- | Download the specified 'Request', returning the results as a 'Response'
--- and automatically handling redirects.
---
--- This is a simplified version of 'httpRedirect' for the common case where you
--- simply want the response data as a simple datatype. If you want more power,
--- such as interleaved actions on the response body during download, you'll
--- need to use 'httpRedirect' directly. This function is defined as:
---
--- @httpLbsRedirect = httpRedirect lbsConsumer@
---
--- Please see 'lbsConsumer' for more information on how the 'Response' value is
--- created.
---
--- Even though a 'Response' contains a lazy bytestring, this function does
--- /not/ utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
-httpLbsRedirect req m = httpRedirect req lbsConsumer m
-
-catchParser :: String -> a -> a -- FIXME
---catchParser s i = catchError i (const $ throwError $ HttpParserException s)
-catchParser _ = id

@@ -7,6 +7,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import System.Environment.UTF8 (getArgs)
 import Data.CaseInsensitive (original)
+import Data.Conduit
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -18,16 +19,19 @@ main = withSocketsDo $ do
                 , ("baz%%38**.8fn", "bin")
                 ] _req2
     -}
-    Response sc hs b <- withManager $ httpLbsRedirect _req2
+    runResourceT $ do
+        man <- newManager
+        Response sc hs b <- httpLbsRedirect _req2 man
 #if DEBUG
-    return ()
+        return ()
 #else
-    print sc
-    mapM_ (\(x, y) -> do
-        S.putStr $ original x
-        putStr ": "
-        S.putStr y
-        putStrLn "") hs
-    putStrLn ""
-    L.putStr b
+        liftBase $ do
+            print sc
+            mapM_ (\(x, y) -> do
+                S.putStr $ original x
+                putStr ": "
+                S.putStr y
+                putStrLn "") hs
+            putStrLn ""
+            L.putStr b
 #endif
