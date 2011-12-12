@@ -23,19 +23,12 @@ chunkedConduit = C.conduitMState
     (push id)
     close
   where
-    push front state [] = do
-        C.liftBase $ putStrLn "here1"
-        return (state, C.ConduitResult [] $ C.Chunks $ front [])
-    push front (NeedHeader f) (x:xs) = do
-        C.liftBase $ putStrLn "here2"
+    push front state [] = return (state, C.ConduitResult [] $ C.Chunks $ front [])
+    push front (NeedHeader f) (x:xs) =
         case f x of
             A.Done x' i
-                | i == 0 -> do
-                    C.liftBase $ putStrLn "here3"
-                    push front Complete (x':xs)
-                | otherwise -> do
-                    C.liftBase $ print ("here4", i)
-                    push front (Isolate i) (x':xs)
+                | i == 0 -> push front Complete (x':xs)
+                | otherwise -> push front (Isolate i) (x':xs)
     push front (Isolate i) xs = do
         let lbs = L.fromChunks xs
             (a, b) = L.splitAt i lbs
@@ -46,9 +39,7 @@ chunkedConduit = C.conduitMState
     push front (NeedNewline f) (x:xs) =
         case f x of
             A.Done x' () -> push front (NeedHeader $ A.parse parseChunkHeader) (x':xs)
-    push front Complete leftover = do
-        C.liftBase $ putStrLn "here5"
-        return (Complete, C.ConduitResult leftover $ C.EOF $ front [])
+    push front Complete leftover = return (Complete, C.ConduitResult leftover $ C.EOF $ front [])
     close = error "close 22"
   {-
     len <- {-catchParser "Chunk header"-} iterChunkHeader

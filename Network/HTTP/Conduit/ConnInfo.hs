@@ -44,7 +44,6 @@ connSource ConnInfo { connRead = read' } = C.sourceM
     (return ())
     return
     (const $ do
-        liftBase $ putStrLn "connSource: reading"
         bs <- liftBase read'
         if all S.null bs
             then return $ C.EOF []

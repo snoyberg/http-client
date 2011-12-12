@@ -89,7 +89,7 @@ getResponse req@(Request {..}) bodyStep bsrc = do
                 bodyStep s hs' bsrcNull
             else do
                 x <- bodyStep s hs' $ decompressor $ body' bsrc
-                bsrc C.$$ flushStream
+                -- FIXME this is causing hangs, need to look into it bsrc C.$$ flushStream
                 return x
 
     -- should we put this connection back into the connection manager?
