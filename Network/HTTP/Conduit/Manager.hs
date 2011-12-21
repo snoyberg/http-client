@@ -1,4 +1,5 @@
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Conduit.Manager
     ( Manager
     , ConnKey (..)
@@ -21,6 +22,14 @@ import Control.Monad.Base (liftBase)
 import Control.Exception.Lifted (mask, try, throwIO, SomeException)
 import qualified Data.ByteString.Char8 as S8
 import Network.HTTP.Conduit.Request
+import Data.Certificate.X509 (X509)
+import Network (connectTo, PortID (PortNumber))
+import Data.Monoid (mappend)
+import qualified Blaze.ByteString.Builder as Blaze
+import System.IO (hClose, hFlush)
+import qualified Data.ByteString.Lazy as L
+import Network.HTTP.Conduit.Util (hGetSome)
+import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
 
 -- | Keeps track of open connections for keep-alive.
 newtype Manager = Manager
@@ -74,9 +83,50 @@ withSocketConn man host' port' =
     withManagedConn man (ConnKey (T.pack host') port' False) $
         fmap socketConn $ getSocket host' port'
 
-withSslConn, withSslProxyConn :: a
-withSslConn = error "withSslConn"
-withSslProxyConn = error "withSslProxyConn"
+withSslConn :: ResourceIO m
+            => ([X509] -> IO TLSCertificateUsage)
+            -> Manager
+            -> String -- ^ host
+            -> Int -- ^ port
+            -> UseConn m a
+            -> ResourceT m a
+withSslConn checkCert man host' port' =
+    withManagedConn man (ConnKey (T.pack host') port' True) $
+        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn checkCert)
+
+withSslProxyConn
+            :: ResourceIO m
+            => ([X509] -> IO TLSCertificateUsage)
+            -> S8.ByteString -- ^ Target host
+            -> Int -- ^ Target port
+            -> Manager
+            -> String -- ^ Proxy host
+            -> Int -- ^ Proxy port
+            -> UseConn m a
+            -> ResourceT m a
+withSslProxyConn checkCert thost tport man phost pport =
+    withManagedConn man (ConnKey (T.pack phost) pport True) $
+        doConnect >>= sslClientConn checkCert
+  where
+    doConnect = do
+        h <- connectTo phost (PortNumber $ fromIntegral pport)
+        L.hPutStr h $ Blaze.toLazyByteString connectRequest
+        hFlush h
+        r <- hGetSome h 2048
+        res <- parserHeadersFromByteString r
+        case res of
+            Right ((_, 200, _), _) -> return h
+            Right ((_, _, msg), _) -> hClose h >> proxyError (S8.unpack msg)
+            Left s -> hClose h >> proxyError s
+
+    connectRequest =
+        Blaze.fromByteString "CONNECT "
+            `mappend` Blaze.fromByteString thost
+            `mappend` Blaze.fromByteString (S8.pack (':' : show tport))
+            `mappend` Blaze.fromByteString " HTTP/1.1\r\n\r\n"
+    proxyError s =
+        error $ "Proxy failed to CONNECT to '"
+                ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
 
 withManagedConn
     :: ResourceIO m
@@ -105,88 +155,6 @@ withManagedConn man key open f = mask $ \restore -> do
                 Reuse -> restore $ liftBase $ putSocket man key ci
                 DontReuse -> restore $ liftBase $ connClose ci
             return a
-
-{- FIXME
-    {-
-    -> Enumerator Blaze.Builder m ()
-    -> Step S.ByteString m (Bool, a) -- ^ Bool indicates if the connection should go back in the manager
-    -> Iteratee S.ByteString m a
-    -}
-withManagedConn man key open req step = do
-    mci <- liftBase $ takeInsecureSocket man key
-    (ci, isManaged) <-
-        case mci of
-            Nothing -> do
-                ci <- liftBase open
-                return (ci, False)
-            Just ci -> return (ci, True)
-    catchError
-        (do
-            (toPut, a) <- withCI ci req step
-            liftBase $ if toPut
-                then putInsecureSocket man key ci
-                else connClose ci
-            return a)
-        (\se -> liftBase (connClose ci) >>
-                if isManaged
-                    then withManagedConn man key open req step
-                    else throwError se)
--}
-
-{-
-withSslConn :: MonadBaseControl IO m
-            => ([X509] -> IO TLSCertificateUsage)
-            -> Manager
-            -> String -- ^ host
-            -> Int -- ^ port
-            -> Enumerator Blaze.Builder m () -- ^ request
-            -> Step S.ByteString m (Bool, a) -- ^ response
-            -> Iteratee S.ByteString m a -- ^ response
-withSslConn checkCert man host' port' =
-    withManagedConn man (host', port', True) $
-        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn checkCert)
-
-withSslProxyConn :: MonadBaseControl IO m
-            => ([X509] -> IO TLSCertificateUsage)
-            -> S8.ByteString -- ^ Target host
-            -> Int -- ^ Target port
-            -> Manager
-            -> String -- ^ Proxy host
-            -> Int -- ^ Proxy port
-            -> Enumerator Blaze.Builder m () -- ^ request
-            -> Step S.ByteString m (Bool, a) -- ^ response
-            -> Iteratee S.ByteString m a -- ^ response
-withSslProxyConn checkCert thost tport man phost pport =
-    withManagedConn man (phost, pport, True) $
-        doConnect >>= sslClientConn checkCert
-  where
-    doConnect = do
-        h <- connectTo phost (PortNumber $ fromIntegral pport)
-        S8.hPutStr h $ toByteString connectRequest
-        hFlush h
-        r <- hGetSome h 2048
-        res <- parserHeadersFromByteString r
-        case res of
-            Right ((_, 200, _), _) -> return h
-            Right ((_, _, msg), _) -> hClose h >> proxyError (S8.unpack msg)
-            Left s -> hClose h >> proxyError s
-
-    connectRequest =
-        Blaze.fromByteString "CONNECT "
-            `mappend` Blaze.fromByteString thost
-            `mappend` Blaze.fromByteString (S8.pack (':' : show tport))
-            `mappend` Blaze.fromByteString " HTTP/1.1\r\n\r\n"
-    proxyError s =
-        error $ "Proxy failed to CONNECT to '"
-                ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
-
-withCI :: MonadBaseControl IO m => ConnInfo -> Enumerator Blaze.Builder m () -> Enumerator S.ByteString m a
-withCI ci req step0 = do
-    lift $ run_ $ req $$ joinI $ error "builderToByteString" $$ connIter ci
-    a <- connEnum ci step0
-    -- FIXME liftBase $ hClose handle
-    return a
--}
 
 data WithConnResponse a = WithConnResponse !ConnReuse !a
 
