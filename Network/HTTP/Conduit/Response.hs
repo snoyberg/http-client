@@ -71,7 +71,7 @@ getResponse req@(Request {..}) bodyStep bsrc = do
             bsrc' <-
                 case (rawBody, ("transfer-encoding", "chunked") `elem` hs') of
                     (False, True) -> C.bufferSource $ bsrc C.$= chunkedConduit
-                    (True , True) -> error "chunk2" -- (chunkedTerminator =$)
+                    (True , True) -> C.bufferSource $ bsrc C.$= chunkedTerminator
                     (_    , False) ->
                         case mcl >>= readDec . S8.unpack of
                             Just len -> C.bufferSource $ bsrc C.$= CB.isolate len

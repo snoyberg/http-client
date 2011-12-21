@@ -99,7 +99,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import qualified Data.ByteString.Char8 as S8
 
-import Blaze.ByteString.Builder (toLazyByteString)
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
@@ -107,7 +106,7 @@ import Control.Exception.Lifted (throwIO)
 import Control.Monad.Base (liftBase)
 
 import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
+import Data.Conduit.Blaze (builderToByteString)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, ResourceIO)
 
 import Network.HTTP.Conduit.Request
@@ -137,9 +136,7 @@ http
      -> ResourceT m a
 http req consumer m = withConn req m $ \ci -> do
     bsrc <- C.bufferSource $ connSource ci
-    let sink = connSink ci
-    CL.fromList (L.toChunks $ toLazyByteString (requestHeadersBuilder req))
-        C.$$ sink
+    requestBuilder req C.$$ builderToByteString C.=$ connSink ci
     getResponse req consumer bsrc
 
 -- | Download the specified 'Request', returning the results as a 'Response'.

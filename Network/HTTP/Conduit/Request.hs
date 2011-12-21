@@ -16,10 +16,11 @@ module Network.HTTP.Conduit.Request
     , applyBasicAuth
     , urlEncodedBody
     , needsGunzip
-    , requestHeadersBuilder
+    , requestBuilder
     ) where
 
 import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 import qualified Blaze.ByteString.Builder as Blaze
 import Data.Int (Int64)
 import qualified Data.ByteString as S
@@ -40,7 +41,8 @@ import qualified Data.ByteString.Base64 as B64
 import Network.HTTP.Conduit.Util (readDec, (<>))
 import Data.Maybe (fromMaybe)
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
-import Data.Monoid (mempty)
+import Data.Monoid (mempty, mappend)
+import Network.HTTP.Conduit.Chunk (chunkIt)
 
 type ContentType = S.ByteString
 
@@ -265,19 +267,22 @@ needsGunzip req hs' =
      && ("content-encoding", "gzip") `elem` hs'
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
 
-requestHeadersBuilder
-    :: Request m
-    -> Builder
-requestHeadersBuilder req =
-    builder
+requestBuilder
+    :: C.Resource m
+    => Request m
+    -> C.SourceM m Builder
+requestBuilder req =
+    CL.fromList [builder] `mappend` bodyEnum
   where
+    enumSingle = CL.fromList . return
+
     (contentLength, bodyEnum) =
         case requestBody req of
             RequestBodyLBS lbs -> (Just $ L.length lbs, enumSingle $ fromLazyByteString lbs)
             RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, enumSingle $ fromByteString bs)
             RequestBodyBuilder i b -> (Just $ i, enumSingle b)
             RequestBodySource i enum -> (Just i, enum)
-            -- FIXME RequestBodySourceChunked enum -> (Nothing, \step -> enum C.$$ chunkIt C.=$ step)
+            RequestBodySourceChunked enum -> (Nothing, enum C.$= chunkIt)
 
     hh
         | port req == 80 && not (secure req) = host req
@@ -323,11 +328,3 @@ requestHeadersBuilder req =
         <> fromByteString ": "
         <> fromByteString v
         <> fromByteString "\r\n"
-
-enumSingle :: a
-enumSingle = error "379 enumSingle"
-{- FIXME
-enumSingle :: Monad m => a -> Enumerator a m b
-enumSingle x (Continue k) = k $ Chunks [x]
-enumSingle _ step = returnI step
--}
