@@ -14,6 +14,7 @@ import Data.Int (Int64)
 import Data.Monoid (mconcat)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.HTTP
+import Control.Exception (assert)
 
 data CState = NeedHeader (S.ByteString -> A.Result Int64)
             | Isolate Int64
@@ -43,10 +44,10 @@ chunkedConduit = C.conduitMState
                     (front . (L.toChunks a ++))
                     (NeedNewline $ A.parse newline)
                     (L.toChunks b)
-            else return
+            else assert (L.null b) $ return
                 ( Isolate i'
                 , C.ConduitResult
-                    (C.Done $ L.toChunks b)
+                    C.Processing
                     (front $ L.toChunks a)
                 )
     push front (NeedNewline f) (x:xs) =
