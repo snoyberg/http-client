@@ -15,13 +15,15 @@ import Data.Monoid (mconcat)
 import qualified Blaze.ByteString.Builder as Blaze
 import Blaze.ByteString.Builder.HTTP
 import Control.Exception (assert)
+import Data.Conduit.Attoparsec (ParseError (ParseError))
+import Control.Monad.Trans.Class (lift)
 
 data CState = NeedHeader (S.ByteString -> A.Result Int64)
             | Isolate Int64
             | NeedNewline (S.ByteString -> A.Result ())
             | Complete
 
-chunkedConduit :: C.Resource m
+chunkedConduit :: C.ResourceThrow m
                => C.ConduitM S.ByteString m S.ByteString
 chunkedConduit = C.conduitMState
     (NeedHeader $ A.parse parseChunkHeader)
@@ -35,6 +37,8 @@ chunkedConduit = C.conduitMState
             A.Done x' i
                 | i == 0 -> push front Complete (x':xs)
                 | otherwise -> push front (Isolate i) (x':xs)
+            A.Partial f' -> push front (NeedHeader f') xs
+            A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
     push front (Isolate i) xs = do
         let lbs = L.fromChunks xs
             (a, b) = L.splitAt i lbs
@@ -56,6 +60,8 @@ chunkedConduit = C.conduitMState
                 front
                 (NeedHeader $ A.parse parseChunkHeader)
                 (x':xs)
+            A.Partial f' -> push front (NeedNewline f') xs
+            A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
     push front Complete leftover =
         return (Complete, C.ConduitResult (C.Done leftover) $ front [])
     close state bss = do

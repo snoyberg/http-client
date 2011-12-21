@@ -15,7 +15,6 @@ import Control.Applicative
 import Data.Word (Word8)
 import Data.Conduit.Attoparsec (sinkParser)
 import Data.Conduit (SinkM, ResourceIO)
-import Control.Monad.Base (MonadBase)
 import Data.Int (Int64)
 
 type Header = (S.ByteString, S.ByteString)

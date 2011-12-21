@@ -3,7 +3,6 @@
 import Network.HTTP.Conduit
 import Network
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import System.Environment.UTF8 (getArgs)
 import Data.CaseInsensitive (original)
