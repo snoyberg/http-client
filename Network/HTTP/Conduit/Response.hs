@@ -9,7 +9,7 @@ module Network.HTTP.Conduit.Response
     , getResponse
     ) where
 
-import Control.Monad.Trans.Resource (ResourceT)
+import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
@@ -23,7 +23,6 @@ import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
-import Control.Monad.Trans.Control (MonadBaseControl)
 import qualified Data.ByteString.Char8 as S8
 import Control.Arrow (first)
 import qualified Data.CaseInsensitive as CI
@@ -34,7 +33,7 @@ import qualified Data.CaseInsensitive as CI
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-lbsConsumer :: C.MonadBaseControl IO m => ResponseConsumer m Response
+lbsConsumer :: ResourceIO m => ResponseConsumer m Response
 lbsConsumer (W.Status sc _) hs bsrc = do
     lbs <- fmap L.fromChunks $ bsrc C.$$ CL.consume
     return $ Response sc hs lbs
@@ -53,7 +52,7 @@ type ResponseConsumer m a
    -> C.BSource m S.ByteString
    -> ResourceT m a
 
-getResponse :: MonadBaseControl IO m
+getResponse :: ResourceIO m
             => Request m
             -> ResponseConsumer m a
             -> C.BSource m S8.ByteString
@@ -63,34 +62,27 @@ getResponse req@(Request {..}) bodyStep bsrc = do
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs'
-    body' <-
-        case (rawBody, ("transfer-encoding", "chunked") `elem` hs') of
-            (False, True) -> do
-                c <- C.bconduitM chunkedConduit
-                return (C.$= c)
-            (True , True) -> error "chunk2" -- (chunkedTerminator =$)
-            (_    , False) ->
-                case mcl >>= readDec . S8.unpack of
-                    Just len -> do
-                        i <- C.bconduitM $ CB.isolate len
-                        return (C.$= i)
-                    Nothing  -> return id
-    decompressor <-
-        if needsGunzip req hs'
-            then do
-                ug <- C.bconduitM CZ.ungzip
-                return (C.$= ug)
-            else return id
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
-    res <-
-        if hasNoBody method sc
-            then do
-                bsrcNull <- C.bsourceM $ CL.fromList []
-                bodyStep s hs' bsrcNull
-            else do
-                x <- bodyStep s hs' $ decompressor $ body' bsrc
-                -- FIXME this is causing hangs, need to look into it bsrc C.$$ flushStream
-                return x
+    res <- if hasNoBody method sc
+        then do
+            bsrcNull <- C.bufferSource $ CL.fromList []
+            bodyStep s hs' bsrcNull
+        else do
+            bsrc' <-
+                case (rawBody, ("transfer-encoding", "chunked") `elem` hs') of
+                    (False, True) -> C.bufferSource $ bsrc C.$= chunkedConduit
+                    (True , True) -> error "chunk2" -- (chunkedTerminator =$)
+                    (_    , False) ->
+                        case mcl >>= readDec . S8.unpack of
+                            Just len -> C.bufferSource $ bsrc C.$= CB.isolate len
+                            Nothing  -> return bsrc
+            bsrc'' <-
+                if needsGunzip req hs'
+                    then C.bufferSource $ bsrc' C.$= CZ.ungzip
+                    else return bsrc'
+            bodyStep s hs' bsrc''
+            -- FIXME this is causing hangs, need to look into it bsrc C.$$ flushStream
+            -- Most likely just need to flush the actual buffer
 
     -- should we put this connection back into the connection manager?
     let toPut = Just "close" /= lookup "connection" hs'

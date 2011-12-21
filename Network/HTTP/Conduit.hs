@@ -104,12 +104,11 @@ import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
 import Control.Exception.Lifted (throwIO)
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Base (liftBase)
 
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT, ResourceIO)
 
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Response
@@ -131,16 +130,16 @@ import Network.HTTP.Conduit.ConnInfo
 -- HTTP download, making it possible to download very large responses in
 -- constant memory.
 http
-     :: MonadBaseControl IO m
+     :: ResourceIO m
      => Request m
      -> ResponseConsumer m a
      -> Manager
      -> ResourceT m a
 http req consumer m = withConn req m $ \ci -> do
-    bsrc <- C.bsourceM $ connSource ci
+    bsrc <- C.bufferSource $ connSource ci
     let sink = connSink ci
     CL.fromList (L.toChunks $ toLazyByteString (requestHeadersBuilder req))
-        C.<$$> sink
+        C.$$ sink
     getResponse req consumer bsrc
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
@@ -159,7 +158,7 @@ http req consumer m = withConn req m $ \ci -> do
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbs :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
+httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m Response
 httpLbs req = http req lbsConsumer
 
 -- | Download the specified URL, following any redirects, and return the
@@ -173,7 +172,7 @@ httpLbs req = http req lbsConsumer
 -- utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-simpleHttp :: MonadBaseControl IO m => String -> m L.ByteString
+simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
     url' <- liftBase $ parseUrl url
     man <- newManager
@@ -187,7 +186,7 @@ simpleHttp url = runResourceT $ do
 -- | Same as 'http', but follows all 3xx redirect status codes that contain a
 -- location header.
 httpRedirect
-    :: MonadBaseControl IO m
+    :: ResourceIO m
     => Request m
     -> (W.Status -> W.ResponseHeaders -> C.BSource m S.ByteString -> ResourceT m a)
     -> Manager
@@ -212,13 +211,13 @@ httpRedirect req bodyStep manager =
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbsRedirect :: MonadBaseControl IO m => Request m -> Manager -> ResourceT m Response
+httpLbsRedirect :: ResourceIO m => Request m -> Manager -> ResourceT m Response
 httpLbsRedirect req m = httpRedirect req lbsConsumer m
 
 -- | Make a request automatically follow 3xx redirects.
 --
 -- Used internally by 'httpRedirect' and family.
-redirectConsumer :: MonadBaseControl IO m
+redirectConsumer :: ResourceIO m
              => Int -- ^ number of redirects to attempt
              -> Request m -- ^ Original request
              -> ResponseConsumer m a

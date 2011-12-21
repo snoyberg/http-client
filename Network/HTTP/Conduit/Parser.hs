@@ -14,7 +14,7 @@ import qualified Data.ByteString.Char8 as S8
 import Control.Applicative
 import Data.Word (Word8)
 import Data.Conduit.Attoparsec (sinkParser)
-import Data.Conduit (SinkM)
+import Data.Conduit (SinkM, ResourceIO)
 import Control.Monad.Base (MonadBase)
 import Data.Int (Int64)
 
@@ -57,7 +57,7 @@ parseHeaders = do
     h <- manyTill parseHeader newline <?> "Response headers"
     return (s, h)
 
-sinkHeaders :: MonadBase IO m => SinkM S.ByteString m (Status, [Header])
+sinkHeaders :: ResourceIO m => SinkM S.ByteString m (Status, [Header])
 sinkHeaders = sinkParser parseHeaders
 
 

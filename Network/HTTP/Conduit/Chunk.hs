@@ -16,14 +16,14 @@ data CState = NeedHeader (S.ByteString -> A.Result Int64)
             | NeedNewline (S.ByteString -> A.Result ())
             | Complete
 
-chunkedConduit :: C.MonadBaseControl IO m
+chunkedConduit :: C.Resource m
                => C.ConduitM S.ByteString m S.ByteString
 chunkedConduit = C.conduitMState
     (NeedHeader $ A.parse parseChunkHeader)
     (push id)
     close
   where
-    push front state [] = return (state, C.ConduitResult [] $ C.Chunks $ front [])
+    push front state [] = return (state, C.ConduitResult C.Processing $ front [])
     push front (NeedHeader f) (x:xs) =
         case f x of
             A.Done x' i
@@ -35,11 +35,11 @@ chunkedConduit = C.conduitMState
             i' = i - L.length a
         if i' == 0
             then push (front . (L.toChunks a ++)) (NeedNewline $ A.parse newline) (L.toChunks b)
-            else return (Isolate i', C.ConduitResult (L.toChunks b) $ C.Chunks $ front $ L.toChunks a)
+            else return (Isolate i', C.ConduitResult (C.Done $ L.toChunks b) $ front $ L.toChunks a)
     push front (NeedNewline f) (x:xs) =
         case f x of
             A.Done x' () -> push front (NeedHeader $ A.parse parseChunkHeader) (x':xs)
-    push front Complete leftover = return (Complete, C.ConduitResult leftover $ C.EOF $ front [])
+    push front Complete leftover = return (Complete, C.ConduitResult (C.Done leftover) $ front [])
     close = error "close 22"
   {-
     len <- {-catchParser "Chunk header"-} iterChunkHeader

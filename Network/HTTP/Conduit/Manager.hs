@@ -7,9 +7,9 @@ module Network.HTTP.Conduit.Manager
     , WithConnResponse (..)
     , ConnReuse (..)
     , UseConn
+    , withManager
     ) where
 
-import Control.Monad.Trans.Control
 import Control.Monad.Trans.Resource
 import qualified Data.Map as Map
 import Network.HTTP.Conduit.ConnInfo
@@ -46,10 +46,13 @@ putSocket man key ci = do
     go m = (Map.insert key ci m, Map.lookup key m)
 
 -- | Create a new 'Manager' with no open connection.
-newManager :: MonadBaseControl IO m => ResourceT m Manager
-newManager = snd <$> with
+newManager :: ResourceIO m => ResourceT m Manager
+newManager = snd <$> withIO
     (Manager <$> I.newIORef Map.empty)
     closeManager
+
+withManager :: ResourceIO m => (Manager -> ResourceT m a) -> m a
+withManager f = runResourceT $ newManager >>= f
 
 -- | Close all connections in a 'Manager'. Afterwards, the 'Manager' can be
 -- reused if desired.
@@ -61,7 +64,7 @@ closeManager (Manager i) = do
 type UseConn m a = ConnInfo -> ResourceT m (WithConnResponse a)
 
 withSocketConn
-    :: MonadBaseControl IO m
+    :: ResourceIO m
     => Manager
     -> String
     -> Int
@@ -76,7 +79,7 @@ withSslConn = error "withSslConn"
 withSslProxyConn = error "withSslProxyConn"
 
 withManagedConn
-    :: MonadBaseControl IO m
+    :: ResourceIO m
     => Manager
     -> ConnKey
     -> IO ConnInfo
@@ -189,7 +192,7 @@ data WithConnResponse a = WithConnResponse !ConnReuse !a
 
 data ConnReuse = Reuse | DontReuse
 
-withConn :: MonadBaseControl IO m
+withConn :: ResourceIO m
          => Request m
          -> Manager
          -> UseConn m a

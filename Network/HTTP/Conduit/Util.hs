@@ -73,7 +73,7 @@ hasNoBody _ 204 = True
 hasNoBody _ 304 = True
 hasNoBody _ i = 100 <= i && i < 200
 
-flushStream :: C.MonadBaseControl IO m => C.SinkM a m ()
+flushStream :: C.ResourceIO m => C.SinkM a m ()
 flushStream = do
     x <- CL.head
     case x of
