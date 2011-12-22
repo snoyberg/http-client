@@ -26,8 +26,8 @@ data CState = NeedHeader (S.ByteString -> A.Result Int64)
 
 chunkedConduit :: C.ResourceThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy
-               -> C.ConduitM S.ByteString m S.ByteString
-chunkedConduit sendHeaders = C.conduitMState
+               -> C.Conduit S.ByteString m S.ByteString
+chunkedConduit sendHeaders = C.conduitState
     (NeedHeader $ A.parse parseChunkHeader)
     (push id)
     close
@@ -78,8 +78,8 @@ chunkedConduit sendHeaders = C.conduitMState
         let leftover = C.result [] id x
         return $ C.ConduitResult leftover rest
 
-chunkIt :: C.Resource m => C.ConduitM Blaze.Builder m Blaze.Builder
-chunkIt = C.ConduitM $ return $ C.Conduit
+chunkIt :: C.Resource m => C.Conduit Blaze.Builder m Blaze.Builder
+chunkIt = C.Conduit $ return $ C.PreparedConduit
     { C.conduitPush = \xs ->
         return $ C.ConduitResult C.Processing [go xs]
     , C.conduitClose = \xs ->

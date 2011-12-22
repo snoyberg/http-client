@@ -83,8 +83,8 @@ data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
     | RequestBodyBuilder Int64 Blaze.Builder
-    | RequestBodySource Int64 (C.SourceM m Blaze.Builder)
-    | RequestBodySourceChunked (C.SourceM m Blaze.Builder)
+    | RequestBodySource Int64 (C.Source m Blaze.Builder)
+    | RequestBodySourceChunked (C.Source m Blaze.Builder)
 
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
@@ -270,11 +270,11 @@ needsGunzip req hs' =
 requestBuilder
     :: C.Resource m
     => Request m
-    -> C.SourceM m Builder
+    -> C.Source m Builder
 requestBuilder req =
-    CL.fromList [builder] `mappend` bodyEnum
+    CL.sourceList [builder] `mappend` bodyEnum
   where
-    enumSingle = CL.fromList . return
+    enumSingle = CL.sourceList . return
 
     (contentLength, bodyEnum) =
         case requestBody req of

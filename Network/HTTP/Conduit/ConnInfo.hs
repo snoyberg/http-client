@@ -33,14 +33,14 @@ data ConnInfo = ConnInfo
     , connClose :: IO ()
     }
 
-connSink :: MonadBase IO m => ConnInfo -> C.SinkM ByteString m ()
-connSink ConnInfo { connWrite = write } = C.SinkM $ return $ C.SinkData
+connSink :: MonadBase IO m => ConnInfo -> C.Sink ByteString m ()
+connSink ConnInfo { connWrite = write } = C.Sink $ return $ C.SinkData
     { C.sinkPush = \bss -> liftBase (write bss) >> return C.Processing
     , C.sinkClose = \bss -> liftBase (write bss) >> return (C.SinkResult [] ())
     }
 
-connSource :: MonadBase IO m => ConnInfo -> C.SourceM m ByteString
-connSource ConnInfo { connRead = read' } = C.SourceM $ return $ C.Source
+connSource :: MonadBase IO m => ConnInfo -> C.Source m ByteString
+connSource ConnInfo { connRead = read' } = C.Source $ return $ C.PreparedSource
     { C.sourcePull = do
         bs <- liftBase read'
         if all S.null bs

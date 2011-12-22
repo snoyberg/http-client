@@ -49,13 +49,13 @@ data Response = Response
 type ResponseConsumer m a
     = W.Status
    -> W.ResponseHeaders
-   -> C.BSource m S.ByteString
+   -> C.BufferedSource m S.ByteString
    -> ResourceT m a
 
 getResponse :: ResourceIO m
             => Request m
             -> ResponseConsumer m a
-            -> C.BSource m S8.ByteString
+            -> C.BufferedSource m S8.ByteString
             -> ResourceT m (WithConnResponse a)
 getResponse req@(Request {..}) bodyStep bsrc = do
     ((_, sc, sm), hs) <- bsrc C.$$ sinkHeaders
@@ -65,7 +65,7 @@ getResponse req@(Request {..}) bodyStep bsrc = do
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
     res <- if hasNoBody method sc
         then do
-            bsrcNull <- C.bufferSource $ CL.fromList []
+            bsrcNull <- C.bufferSource $ CL.sourceList []
             bodyStep s hs' bsrcNull
         else do
             bsrc' <-

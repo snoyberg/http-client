@@ -185,7 +185,7 @@ simpleHttp url = runResourceT $ do
 httpRedirect
     :: ResourceIO m
     => Request m
-    -> (W.Status -> W.ResponseHeaders -> C.BSource m S.ByteString -> ResourceT m a)
+    -> (W.Status -> W.ResponseHeaders -> C.BufferedSource m S.ByteString -> ResourceT m a)
     -> Manager
     -> ResourceT m a
 httpRedirect req bodyStep manager =
