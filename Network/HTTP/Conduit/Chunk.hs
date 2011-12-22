@@ -2,7 +2,6 @@
 module Network.HTTP.Conduit.Chunk
     ( chunkedConduit
     , chunkIt
-    , chunkedTerminator
     ) where
 
 import qualified Data.Conduit as C
@@ -17,6 +16,8 @@ import Blaze.ByteString.Builder.HTTP
 import Control.Exception (assert)
 import Data.Conduit.Attoparsec (ParseError (ParseError))
 import Control.Monad.Trans.Class (lift)
+import qualified Data.ByteString.Char8 as S8
+import Numeric (showHex)
 
 data CState = NeedHeader (S.ByteString -> A.Result Int64)
             | Isolate Int64
@@ -24,8 +25,9 @@ data CState = NeedHeader (S.ByteString -> A.Result Int64)
             | Complete
 
 chunkedConduit :: C.ResourceThrow m
-               => C.ConduitM S.ByteString m S.ByteString
-chunkedConduit = C.conduitMState
+               => Bool -- ^ send the headers as well, necessary for a proxy
+               -> C.ConduitM S.ByteString m S.ByteString
+chunkedConduit sendHeaders = C.conduitMState
     (NeedHeader $ A.parse parseChunkHeader)
     (push id)
     close
@@ -36,7 +38,10 @@ chunkedConduit = C.conduitMState
         case f x of
             A.Done x' i
                 | i == 0 -> push front Complete (x':xs)
-                | otherwise -> push front (Isolate i) (x':xs)
+                | otherwise -> do
+                    let header = S8.pack $ showHex i "\r\n"
+                    let addHeader = if sendHeaders then (header:) else id
+                    push (front . addHeader) (Isolate i) (x':xs)
             A.Partial f' -> push front (NeedHeader f') xs
             A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
     push front (Isolate i) xs = do
@@ -56,34 +61,22 @@ chunkedConduit = C.conduitMState
                 )
     push front (NeedNewline f) (x:xs) =
         case f x of
-            A.Done x' () -> push
-                front
-                (NeedHeader $ A.parse parseChunkHeader)
-                (x':xs)
+            A.Done x' () -> do
+                let header = S8.pack "\r\n"
+                let addHeader = if sendHeaders then (header:) else id
+                push
+                    (front . addHeader)
+                    (NeedHeader $ A.parse parseChunkHeader)
+                    (x':xs)
             A.Partial f' -> push front (NeedNewline f') xs
             A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
-    push front Complete leftover =
-        return (Complete, C.ConduitResult (C.Done leftover) $ front [])
+    push front Complete leftover = do
+        let end = if sendHeaders then [S8.pack "0\r\n"] else []
+        return (Complete, C.ConduitResult (C.Done leftover) $ front end)
     close state bss = do
         (_, C.ConduitResult x rest) <- push id state bss
         let leftover = C.result [] id x
         return $ C.ConduitResult leftover rest
-
-chunkedTerminator :: C.Resource m => C.ConduitM S.ByteString m S.ByteString
-chunkedTerminator = error "FIXME chunkedTerminator" {- do
-    len <- catchParser "Chunk header" iterChunkHeader
-    k' <- sendCont k $ S8.pack $ showHex len "\r\n"
-    if len == 0
-        then return k'
-        else do
-            step <- CB.isolate len k'
-            catchParser "End of chunk newline" iterNewline
-            case step of
-                Continue k'' -> do
-                    k''' <- sendCont k'' "\r\n"
-                    chunkedTerminator k'''
-                _ -> return step
-chunkedTerminator step = return step -}
 
 chunkIt :: C.Resource m => C.ConduitM Blaze.Builder m Blaze.Builder
 chunkIt = C.ConduitM $ return $ C.Conduit
