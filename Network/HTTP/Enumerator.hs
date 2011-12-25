@@ -597,7 +597,6 @@ encodeUrlChar c@'-' = [c]
 encodeUrlChar c@'_' = [c]
 encodeUrlChar c@'.' = [c]
 encodeUrlChar c@'~' = [c]
-encodeUrlChar ' ' = "+"
 encodeUrlChar y =
     let (a, c) = fromEnum y `divMod` 16
         b = a `mod` 16
