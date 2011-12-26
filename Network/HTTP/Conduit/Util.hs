@@ -25,7 +25,6 @@ import System.IO.Error          (mkIOError, illegalOperationErrorType)
 -- if there are not enough bytes immediately available to satisfy the
 -- whole request.  'hGetSome' only blocks if there is no data
 -- available, and EOF has not yet been reached.
---
 hGetSome :: Handle -> Int -> IO S.ByteString
 hGetSome hh i
     | i >  0    = let

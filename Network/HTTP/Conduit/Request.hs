@@ -54,31 +54,44 @@ type ContentType = S.ByteString
 -- The constructor for this data type is not exposed. Instead, you should use
 -- either the 'def' method to retrieve a default instance, or 'parseUrl' to
 -- construct from a URL, and then use the records below to make modifications.
--- This approach allows http-enumerator to add configuration options without
+-- This approach allows http-conduit to add configuration options without
 -- breaking backwards compatibility.
 data Request m = Request
-    { method :: W.Method -- ^ HTTP request method, eg GET, POST.
-    , secure :: Bool -- ^ Whether to use HTTPS (ie, SSL).
-    , checkCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
+    { method :: W.Method
+    -- ^ HTTP request method, eg GET, POST.
+    , secure :: Bool
+    -- ^ Whether to use HTTPS (ie, SSL).
+    , checkCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+    -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , host :: W.Ascii
     , port :: Int
-    , path :: W.Ascii -- ^ Everything from the host to the query string.
-    , queryString :: W.Query -- ^ Automatically escaped for your convenience.
+    , path :: W.Ascii
+    -- ^ Everything from the host to the query string.
+    , queryString :: W.Query
+    -- ^ Automatically escaped for your convenience.
     , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
-    , proxy :: Maybe Proxy -- ^ Optional HTTP proxy.
-    , rawBody :: Bool -- ^ If True, a chunked and/or gzipped body will not be decoded. Use with caution.
-    , decompress :: ContentType -> Bool -- ^ Predicate to specify whether gzipped data should be decompressed on the fly.
+    , proxy :: Maybe Proxy
+    -- ^ Optional HTTP proxy.
+    , rawBody :: Bool
+    -- ^ If @True@, a chunked and\/or gzipped body will not be
+    -- decoded. Use with caution.
+    , decompress :: ContentType -> Bool
+    -- ^ Predicate to specify whether gzipped data should be
+    -- decompressed on the fly (see 'alwaysDecompress' and
+    -- 'browserDecompress').
     }
 
--- | When using the 'RequestBodyEnum' constructor and any function which calls
--- 'redirectIter', you must ensure that the 'Enumerator' can be called multiple
--- times.
+-- | When using one of the
+-- 'RequestBodySource'\/'RequestBodySourceChunked' constructors
+-- and any function which calls 'redirectIter', you must ensure
+-- that the 'Source' can be called multiple times.  Usually this
+-- is not a problem.
 --
--- The 'RequestBodyEnumChunked' will send a chunked request body, note
--- that not all servers support this. Only use 'RequestBodyEnumChunked'
--- if you know the server you're sending to supports chunked request
--- bodies.
+-- The 'RequestBodySourceChunked' will send a chunked request
+-- body, note that not all servers support this. Only use
+-- 'RequestBodySourceChunked' if you know the server you're
+-- sending to supports chunked request bodies.
 data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
@@ -90,7 +103,7 @@ data RequestBody m
 
 data Proxy = Proxy
     { proxyHost :: W.Ascii -- ^ The host name of the HTTP proxy.
-    , proxyPort :: Int -- ^ The port numner of the HTTP proxy.
+    , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
 
 encodeUrlCharPI :: Bool -> Char -> String
@@ -272,17 +285,17 @@ requestBuilder
     => Request m
     -> C.Source m Builder
 requestBuilder req =
-    CL.sourceList [builder] `mappend` bodyEnum
+    CL.sourceList [builder] `mappend` bodySource
   where
-    enumSingle = CL.sourceList . return
+    sourceSingle = CL.sourceList . return
 
-    (contentLength, bodyEnum) =
+    (contentLength, bodySource) =
         case requestBody req of
-            RequestBodyLBS lbs -> (Just $ L.length lbs, enumSingle $ fromLazyByteString lbs)
-            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, enumSingle $ fromByteString bs)
-            RequestBodyBuilder i b -> (Just $ i, enumSingle b)
-            RequestBodySource i enum -> (Just i, enum)
-            RequestBodySourceChunked enum -> (Nothing, enum C.$= chunkIt)
+            RequestBodyLBS lbs -> (Just $ L.length lbs, sourceSingle $ fromLazyByteString lbs)
+            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, sourceSingle $ fromByteString bs)
+            RequestBodyBuilder i b -> (Just $ i, sourceSingle b)
+            RequestBodySource i source -> (Just i, source)
+            RequestBodySourceChunked source -> (Nothing, source C.$= chunkIt)
 
     hh
         | port req == 80 && not (secure req) = host req
