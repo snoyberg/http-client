@@ -80,7 +80,7 @@ getResponse req@(Request {..}) bodyStep bsrc = do
                     then C.bufferSource $ bsrc' C.$= CZ.ungzip
                     else return bsrc'
             bodyStep s hs' bsrc''
-            -- FIXME this is causing hangs, need to look into it bsrc C.$$ flushStream
+            -- FIXME this is causing hangs, need to look into it bsrc C.$$ CL.sinkNull
             -- Most likely just need to flush the actual buffer
 
     -- should we put this connection back into the connection manager?
