@@ -15,7 +15,6 @@ import Control.Applicative
 import Data.Word (Word8)
 import Data.Conduit.Attoparsec (sinkParser)
 import Data.Conduit (Sink, ResourceIO)
-import Data.Int (Int64)
 
 type Header = (S.ByteString, S.ByteString)
 
@@ -83,7 +82,7 @@ parseStatus = do
         then newline >> parseStatus
         else return (ver, statCode', statMsg)
 
-parseChunkHeader :: Parser Int64
+parseChunkHeader :: Parser Int
 parseChunkHeader = do
     len <- hexs
     skipWhile isSpace
@@ -96,7 +95,7 @@ attribs = do
     skipWhile notNewline
     newline
 
-hexs :: Parser Int64
+hexs :: Parser Int
 hexs = do
     ws <- many1 hex
     return $ foldl1 (\a b -> a * 16 + b) $ map fromIntegral ws

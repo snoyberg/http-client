@@ -25,6 +25,9 @@ library
                  , transformers          >= 0.2     && < 0.3
                  , failure               >= 0.1     && < 0.2
                  , conduit               >= 0.0     && < 0.1
+                 , zlib-conduit          >= 0.0     && < 0.1
+                 , blaze-builder-conduit >= 0.0     && < 0.1
+                 , attoparsec-conduit    >= 0.0     && < 0.1
                  , attoparsec            >= 0.8.0.2 && < 0.11
                  , utf8-string           >= 0.3.4   && < 0.4
                  , blaze-builder         >= 0.2.1   && < 0.4
@@ -55,6 +58,7 @@ library
                      Network.HTTP.Conduit.Util
                      Network.HTTP.Conduit.Manager
                      Network.HTTP.Conduit.Chunk
+                     Network.HTTP.Conduit.Response
     ghc-options:     -Wall
 
 executable http-conduit

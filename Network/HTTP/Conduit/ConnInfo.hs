@@ -23,6 +23,7 @@ import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
 import Crypto.Random.AESCtr (makeSystem)
 import qualified Data.Conduit as C
+import qualified Data.Conduit.List as CL
 import Control.Monad.Base (MonadBase, liftBase)
 import Control.Exception (SomeException, throwIO, try)
 import qualified Network.Socket as NS
@@ -33,21 +34,21 @@ data ConnInfo = ConnInfo
     , connClose :: IO ()
     }
 
-connSink :: MonadBase IO m => ConnInfo -> C.Sink ByteString m ()
+connSink :: C.ResourceIO m => ConnInfo -> C.Sink ByteString m ()
 connSink ConnInfo { connWrite = write } = C.Sink $ return $ C.SinkData
-    { C.sinkPush = \bss -> liftBase (write bss) >> return C.Processing
-    , C.sinkClose = \bss -> liftBase (write bss) >> return (C.SinkResult [] ())
+    { C.sinkPush = \bss -> liftBase (write [bss]) >> return C.Processing
+    , C.sinkClose = return ()
     }
 
-connSource :: MonadBase IO m => ConnInfo -> C.Source m ByteString
-connSource ConnInfo { connRead = read' } = C.Source $ return $ C.PreparedSource
+connSource :: C.ResourceIO m => ConnInfo -> C.Source m ByteString
+connSource ConnInfo { connRead = read' } = (C.Source $ return $ C.PreparedSource
     { C.sourcePull = do
         bs <- liftBase read'
         if all S.null bs
-            then return $ C.SourceResult C.StreamClosed []
-            else return $ C.SourceResult C.StreamOpen bs
+            then return C.Closed
+            else return $ C.Open bs
     , C.sourceClose = return ()
-    }
+    }) C.$= CL.concatMap id
 
 socketConn :: Socket -> ConnInfo
 socketConn sock = ConnInfo
