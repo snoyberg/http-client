@@ -37,31 +37,31 @@ import qualified Data.Conduit.List as CL
 
 
 data ConnInfo = ConnInfo
-    { connRead :: IO [ByteString]
-    , connWrite :: [ByteString] -> IO ()
+    { connRead :: IO ByteString
+    , connWrite :: ByteString -> IO ()
     , connClose :: IO ()
     }
 
 connSink :: C.ResourceIO m => ConnInfo -> C.Sink ByteString m ()
 connSink ConnInfo { connWrite = write } = C.Sink $ return $ C.SinkData
-    { C.sinkPush = \bss -> liftBase (write [bss]) >> return C.Processing
+    { C.sinkPush = \bss -> liftBase (write bss]) >> return C.Processing
     , C.sinkClose = return ()
     }
 
 connSource :: C.ResourceIO m => ConnInfo -> C.Source m ByteString
-connSource ConnInfo { connRead = read' } = (C.Source $ return $ C.PreparedSource
+connSource ConnInfo { connRead = read' } = C.Source $ return $ C.PreparedSource
     { C.sourcePull = do
         bs <- liftBase read'
-        if all S.null bs
+        if S.null bs
             then return C.Closed
             else return $ C.Open bs
     , C.sourceClose = return ()
-    }) C.$= CL.concatMap id
+    }
 
 socketConn :: Socket -> ConnInfo
 socketConn sock = ConnInfo
-    { connRead = fmap return $ recv sock 4096
-    , connWrite = mapM_ (sendAll sock)
+    { connRead  = recv sock 4096
+    , connWrite = sendAll sock
     , connClose = sClose sock
     }
 
@@ -78,7 +78,7 @@ sslClientConn onCerts h = do
     _ <- handshake istate
     return ConnInfo
         { connRead = recvD istate
-        , connWrite = sendData istate . L.fromChunks
+        , connWrite = sendData istate . L.fromChunks . (:[])
         , connClose = bye istate >> hClose h
         }
   where
@@ -86,7 +86,10 @@ sslClientConn onCerts h = do
         x <- recvData istate
         if L.null x
             then recvD istate
-            else return $ L.toChunks x
+            else return $ S.concat $ L.toChunks x
+            -- Although a 'concat' seems like a bad idea, at
+            -- least on tls-0.8.4 it's guaranteed to always
+            -- return a lazy bytestring with a single chunk.
 
 getSocket :: String -> Int -> IO NS.Socket
 getSocket host' port' = do
