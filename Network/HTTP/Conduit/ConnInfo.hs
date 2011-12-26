@@ -1,5 +1,6 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.HTTP.Conduit.ConnInfo
     ( ConnInfo
     , connClose
@@ -15,6 +16,8 @@ module Network.HTTP.Conduit.ConnInfo
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import Data.Typeable (Typeable)
+import Control.Exception (Exception)
 import System.IO (Handle, hClose)
 import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
