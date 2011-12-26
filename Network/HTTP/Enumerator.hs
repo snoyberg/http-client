@@ -114,7 +114,10 @@ import Data.Enumerator
     )
 import qualified Data.Enumerator.List as EL
 import Network.HTTP.Enumerator.HttpParser
-import Control.Exception (Exception, bracket, throwIO, SomeException, try)
+import Control.Exception
+    ( Exception, bracket, throwIO, SomeException, try
+    , fromException
+    )
 import Control.Arrow (first)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Class (lift)
@@ -209,6 +212,13 @@ withSocketConn man host' port' =
     withManagedConn man (host', port', False) $
         fmap TLS.socketConn $ getSocket host' port'
 
+checkReset :: SomeException -> Bool
+checkReset e = isReset || isIOReset
+    where isReset = case fromException e of
+                      Just TLS.ConnectionReset -> True
+                      _ -> False
+          isIOReset = show e == "recv: resource vanished (Connection reset by peer)"
+
 withManagedConn
     :: MonadIO m
     => Manager
@@ -233,9 +243,11 @@ withManagedConn man key open req step = do
                 else TLS.connClose ci
             return a)
         (\se -> liftIO (TLS.connClose ci) >>
-                if isManaged
-                    then withManagedConn man key open req step
-                    else throwError se)
+                liftIO (putStrLn $ "Error during enum: " ++ show se) >>
+                if checkReset se && isManaged
+                   then withManagedConn man key open req step
+                   else throwError se
+        )
 
 withSslConn :: MonadIO m
             => ([X509] -> IO TLS.TLSCertificateUsage)

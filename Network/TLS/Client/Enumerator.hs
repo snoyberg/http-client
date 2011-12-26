@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.TLS.Client.Enumerator
     ( ConnInfo
     , connClose
@@ -8,11 +9,14 @@ module Network.TLS.Client.Enumerator
     , socketConn
     , TLSCertificateRejectReason(..)
     , TLSCertificateUsage(..)
+    , ConnectionReset (..)
     ) where
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+import Data.Typeable (Typeable)
+import Control.Exception (Exception)
 import System.IO (Handle, hClose)
 import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
@@ -21,7 +25,7 @@ import Control.Monad.IO.Class (MonadIO)
 import Control.Monad.Trans.Class (lift)
 import Data.Enumerator
     ( Iteratee (..), Enumerator, Step (..), Stream (..), continue, returnI
-    , tryIO
+    , tryIO, throwError
     )
 import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
@@ -32,6 +36,10 @@ data ConnInfo = ConnInfo
     , connWrite :: [ByteString] -> IO ()
     , connClose :: IO ()
     }
+
+data ConnectionReset = ConnectionReset
+    deriving (Show,Typeable)
+instance Exception ConnectionReset
 
 connIter :: MonadIO m => ConnInfo -> Iteratee ByteString m ()
 connIter ConnInfo { connWrite = write } =
@@ -49,7 +57,7 @@ connEnum ConnInfo { connRead = read' } =
     go (Continue k) = do
         bs <- tryIO read'
         if all S.null bs
-            then continue k
+            then throwError ConnectionReset
             else do
                 step <- lift $ runIteratee $ k $ Chunks bs
                 go step

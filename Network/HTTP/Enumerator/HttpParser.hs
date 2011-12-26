@@ -14,6 +14,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Control.Applicative
 import Data.Word (Word8)
+import Control.Monad (when)
 
 type Header = (S.ByteString, S.ByteString)
 
@@ -66,7 +67,9 @@ type Status = (S.ByteString, Int, S.ByteString)
 
 parseStatus :: Parser Status
 parseStatus = do
-    _ <- string "HTTP/"
+    end <- atEnd
+    when end $ fail "EOF reached"
+    _ <- manyTill (take 1 >> return ()) (try $ string "HTTP/") <?> "HTTP/"
     ver <- takeWhile1 $ not . isSpace
     _ <- word8 32 -- space
     statCode <- takeWhile1 $ not . isSpace
