@@ -19,30 +19,38 @@ module Network.HTTP.Conduit.Request
     , requestBuilder
     ) where
 
+import Data.Int (Int64)
+import Data.Maybe (fromMaybe)
+import Data.Monoid (mempty, mappend)
+import Data.Typeable (Typeable)
+
+import Data.Default (Default (def))
+
+import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
+import qualified Blaze.ByteString.Builder as Blaze
+
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import qualified Blaze.ByteString.Builder as Blaze
-import Data.Int (Int64)
+
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
+
 import qualified Network.HTTP.Types as W
 import Data.Certificate.X509 (X509)
-import Network.TLS (TLSCertificateUsage)
-import qualified Data.ByteString.Char8 as S8
-import Control.Exception (Exception)
-import Data.Typeable (Typeable)
-import Control.Failure (Failure (failure))
-import Data.Default (Default (def))
+
 import Network.TLS (TLSCertificateUsage (CertificateUsageAccept))
-import Codec.Binary.UTF8.String (encodeString)
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
+
+import Control.Exception (Exception)
+import Control.Failure (Failure (failure))
+import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
-import Network.HTTP.Conduit.Util (readDec, (<>))
-import Data.Maybe (fromMaybe)
-import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
-import Data.Monoid (mempty, mappend)
+
 import Network.HTTP.Conduit.Chunk (chunkIt)
+import Network.HTTP.Conduit.Util (readDec, (<>))
+
 
 type ContentType = S.ByteString
 

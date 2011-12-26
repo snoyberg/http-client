@@ -12,21 +12,29 @@ module Network.HTTP.Conduit.ConnInfo
     , getSocket
     ) where
 
+import Control.Exception (SomeException, throwIO, try)
+import System.IO (Handle, hClose)
+
+import Control.Monad.Base (MonadBase, liftBase)
+
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import System.IO (Handle, hClose)
+
 import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
+import qualified Network.Socket as NS
+
 import Network.TLS
-import Data.Certificate.X509 (X509)
 import Network.TLS.Extra (ciphersuite_all)
+
+import Data.Certificate.X509 (X509)
+
 import Crypto.Random.AESCtr (makeSystem)
+
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
-import Control.Monad.Base (MonadBase, liftBase)
-import Control.Exception (SomeException, throwIO, try)
-import qualified Network.Socket as NS
+
 
 data ConnInfo = ConnInfo
     { connRead :: IO [ByteString]

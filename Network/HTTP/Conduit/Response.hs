@@ -9,23 +9,29 @@ module Network.HTTP.Conduit.Response
     , getResponse
     ) where
 
+import Control.Arrow (first)
+import Data.Typeable (Typeable)
+
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy as L
+
+import qualified Data.CaseInsensitive as CI
+
 import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
+
 import qualified Network.HTTP.Types as W
-import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString as S
-import Data.Typeable (Typeable)
+
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
-import qualified Data.ByteString.Char8 as S8
-import Control.Arrow (first)
-import qualified Data.CaseInsensitive as CI
+
 
 -- | Convert the HTTP response into a 'Response' value.
 --

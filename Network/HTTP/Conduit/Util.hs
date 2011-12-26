@@ -9,9 +9,11 @@ module Network.HTTP.Conduit.Util
     ) where
 
 import Data.Monoid (Monoid, mappend)
+
+import qualified Data.ByteString.Char8 as S8
+
 import qualified Data.Text as T
 import qualified Data.Text.Read
-import qualified Data.ByteString.Char8 as S8
 
 #if 1
 -- FIXME MIN_VERSION_base(4,3,0)

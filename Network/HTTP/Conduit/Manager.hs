@@ -11,33 +11,41 @@ module Network.HTTP.Conduit.Manager
     , withManager
     ) where
 
-import Control.Monad.Trans.Resource
-import qualified Data.Map as Map
-import Network.HTTP.Conduit.ConnInfo
-import qualified Data.IORef as I
 import Control.Applicative ((<$>))
+import Data.Monoid (mappend)
+import System.IO (hClose, hFlush)
+import qualified Data.IORef as I
+import qualified Data.Map as Map
+
+import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy as L
+
+import qualified Blaze.ByteString.Builder as Blaze
+
 import Data.Text (Text)
 import qualified Data.Text as T
+
 import Control.Monad.Base (liftBase)
 import Control.Exception.Lifted (mask, try, throwIO, SomeException)
-import qualified Data.ByteString.Char8 as S8
-import Network.HTTP.Conduit.Request
-import Data.Certificate.X509 (X509)
+import Control.Monad.Trans.Resource
+
 import Network (connectTo, PortID (PortNumber))
-import Data.Monoid (mappend)
-import qualified Blaze.ByteString.Builder as Blaze
-import System.IO (hClose, hFlush)
-import qualified Data.ByteString.Lazy as L
+import Data.Certificate.X509 (X509)
+
+import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
+import Network.HTTP.Conduit.Request
 
--- | Keeps track of open connections for keep-alive.
+
+-- | Keeps track of open connections for keep-alive.  May be used
+-- concurrently by multiple threads.
 newtype Manager = Manager
     { mConns :: I.IORef (Map.Map ConnKey ConnInfo)
     }
 
--- | ConnKey consists of a hostname, a port and a Bool specifying whether to
---   use keepalive.
+-- | @ConnKey@ consists of a hostname, a port and a @Bool@
+-- specifying whether to use keepalive.
 data ConnKey = ConnKey !Text !Int !Bool
     deriving (Eq, Show, Ord)
 
@@ -54,7 +62,7 @@ putSocket man key ci = do
   where
     go m = (Map.insert key ci m, Map.lookup key m)
 
--- | Create a new 'Manager' with no open connection.
+-- | Create a new 'Manager' with no open connections.
 newManager :: ResourceIO m => ResourceT m Manager
 newManager = snd <$> withIO
     (Manager <$> I.newIORef Map.empty)
@@ -63,8 +71,8 @@ newManager = snd <$> withIO
 withManager :: ResourceIO m => (Manager -> ResourceT m a) -> m a
 withManager f = runResourceT $ newManager >>= f
 
--- | Close all connections in a 'Manager'. Afterwards, the 'Manager' can be
--- reused if desired.
+-- | Close all connections in a 'Manager'. Afterwards, the
+-- 'Manager' can be reused if desired.
 closeManager :: Manager -> IO ()
 closeManager (Manager i) = do
     m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
