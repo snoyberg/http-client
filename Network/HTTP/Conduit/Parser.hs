@@ -8,14 +8,18 @@ module Network.HTTP.Conduit.Parser
     ) where
 
 import Prelude hiding (take, takeWhile)
-import Data.Attoparsec
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import Control.Applicative
 import Data.Word (Word8)
+
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
+
+import Data.Attoparsec
+
 import Data.Conduit.Attoparsec (sinkParser)
 import Data.Conduit (Sink, ResourceIO)
 import Control.Monad (when)
+
 
 type Header = (S.ByteString, S.ByteString)
 

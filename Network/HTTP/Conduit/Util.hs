@@ -6,15 +6,14 @@ module Network.HTTP.Conduit.Util
     , (<>)
     , readDec
     , hasNoBody
-    , flushStream
     ) where
 
 import Data.Monoid (Monoid, mappend)
+
+import qualified Data.ByteString.Char8 as S8
+
 import qualified Data.Text as T
 import qualified Data.Text.Read
-import qualified Data.ByteString.Char8 as S8
-import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
 
 #if 1
 -- FIXME MIN_VERSION_base(4,3,0)
@@ -28,7 +27,6 @@ import System.IO.Error          (mkIOError, illegalOperationErrorType)
 -- if there are not enough bytes immediately available to satisfy the
 -- whole request.  'hGetSome' only blocks if there is no data
 -- available, and EOF has not yet been reached.
---
 hGetSome :: Handle -> Int -> IO S.ByteString
 hGetSome hh i
     | i >  0    = let
@@ -72,10 +70,3 @@ hasNoBody "HEAD" _ = True
 hasNoBody _ 204 = True
 hasNoBody _ 304 = True
 hasNoBody _ i = 100 <= i && i < 200
-
-flushStream :: C.ResourceIO m => C.Sink a m ()
-flushStream = do
-    x <- CL.head
-    case x of
-        Nothing -> return ()
-        Just _ -> flushStream

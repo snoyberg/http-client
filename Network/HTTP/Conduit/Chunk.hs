@@ -4,19 +4,24 @@ module Network.HTTP.Conduit.Chunk
     , chunkIt
     ) where
 
-import qualified Data.Conduit as C
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
-import qualified Data.Attoparsec.ByteString as A
-import Network.HTTP.Conduit.Parser
-import Data.Monoid (mconcat)
-import qualified Blaze.ByteString.Builder as Blaze
-import Blaze.ByteString.Builder.HTTP
 import Control.Exception (assert)
-import Data.Conduit.Attoparsec (ParseError (ParseError))
-import Control.Monad.Trans.Class (lift)
-import qualified Data.ByteString.Char8 as S8
 import Numeric (showHex)
+
+import Control.Monad.Trans.Class (lift)
+
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
+
+import Blaze.ByteString.Builder.HTTP
+import qualified Blaze.ByteString.Builder as Blaze
+
+import qualified Data.Attoparsec.ByteString as A
+
+import qualified Data.Conduit as C
+import Data.Conduit.Attoparsec (ParseError (ParseError))
+
+import Network.HTTP.Conduit.Parser
+
 
 data CState = NeedHeader (S.ByteString -> A.Result Int)
             | Isolate Int
@@ -68,7 +73,7 @@ chunkedConduit sendHeaders = C.conduitState
         let end = if sendHeaders then [S8.pack "0\r\n"] else []
             lo = if S.null leftover then Nothing else Just leftover
         return (Complete, C.Finished lo $ front end)
-    close state = return []
+    close _ = return []
 
 chunkIt :: C.Resource m => C.Conduit Blaze.Builder m Blaze.Builder
 chunkIt = C.Conduit $ return $ C.PreparedConduit

@@ -6,7 +6,7 @@
 -- examples:
 --
 -- > -- Just download an HTML document and print it.
--- > import Network.HTTP.Enumerator
+-- > import Network.HTTP.Conduit
 -- > import qualified Data.ByteString.Lazy as L
 -- >
 -- > main = simpleHttp "http://www.haskell.org/" >>= L.putStr
@@ -15,16 +15,16 @@
 -- constant memory space. By using 'httpRedirect', it will automatically
 -- follow 3xx redirects.
 --
--- > import Data.Enumerator
--- > import Data.Enumerator.Binary
--- > import Network.HTTP.Enumerator
+-- > import Data.Conduit.Binary (sinkFile)
+-- > import Network.HTTP.Conduit
 -- > import System.IO
 -- >
 -- > main :: IO ()
--- > main = withFile "google.html" WriteMode $ \handle -> do
+-- > main = do
 -- >     request <- parseUrl "http://google.com/"
 -- >     withManager $ \manager -> do
--- >         run_ $ httpRedirect request (\_ _ -> iterHandle handle) manager
+-- >         let handler _ _ bsrc = bsrc C.$$ sinkFile "google.html"
+-- >         run_ $ httpRedirect request handler manager
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
@@ -41,7 +41,7 @@
 -- best approach is to simply call them at the beginning of your main function,
 -- such as:
 --
--- > import Network.HTTP.Enumerator
+-- > import Network.HTTP.Conduit
 -- > import qualified Data.ByteString.Lazy as L
 -- > import Network (withSocketsDo)
 -- >
@@ -171,7 +171,7 @@ httpLbs req = http req lbsConsumer
 -- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
-    url' <- liftBase $ parseUrl url
+    url' <- liftBase $ semiParseUrl url
     man <- newManager
     Response sc _ b <- httpLbsRedirect url'
         { decompress = browserDecompress
