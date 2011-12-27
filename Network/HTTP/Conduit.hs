@@ -171,7 +171,7 @@ httpLbs req = http req lbsConsumer
 -- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
-    url' <- liftBase $ parseUrl url
+    url' <- liftBase $ semiParseUrl url
     man <- newManager
     Response sc _ b <- httpLbsRedirect url'
         { decompress = browserDecompress
