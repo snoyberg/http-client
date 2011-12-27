@@ -80,6 +80,7 @@ module Network.HTTP.Conduit
       -- * Manager
     , Manager
     , newManager
+    , withManager
       -- * Utility functions
     , parseUrl
     , applyBasicAuth
