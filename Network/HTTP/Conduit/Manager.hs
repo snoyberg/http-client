@@ -144,14 +144,14 @@ withManagedConn
     -> UseConn m a
     -> ResourceT m a
 withManagedConn man key open f = mask $ \restore -> do
-    mci <- restore $ liftBase $ takeSocket man key
+    mci <- liftBase $ takeSocket man key
     (ci, isManaged) <-
         case mci of
             Nothing -> do
-                ci <- restore $ liftBase open
+                ci <- liftBase $ restore open
                 return (ci, False)
             Just ci -> return (ci, True)
-    ea <- restore $ try $ f ci
+    ea <- try $ restore $ f ci
     case ea of
         Left e -> do
             liftBase $ connClose ci
@@ -160,8 +160,8 @@ withManagedConn man key open f = mask $ \restore -> do
                 else throwIO (e :: SomeException)
         Right (WithConnResponse cr a) -> do
             case cr of
-                Reuse -> restore $ liftBase $ putSocket man key ci
-                DontReuse -> restore $ liftBase $ connClose ci
+                Reuse -> liftBase $ putSocket man key ci
+                DontReuse -> liftBase $ connClose ci
             return a
 
 data WithConnResponse a = WithConnResponse !ConnReuse !a
