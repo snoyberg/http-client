@@ -85,7 +85,6 @@ module Network.HTTP.Conduit
     , parseUrl
     , applyBasicAuth
     , addProxy
-    , semiParseUrl
     , lbsConsumer
       -- * Decompression predicates
     , alwaysDecompress
@@ -172,7 +171,7 @@ httpLbs req = http req lbsConsumer
 -- iteratee and use 'http' or 'httpRedirect' directly.
 simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
-    url' <- liftBase $ semiParseUrl url
+    url' <- liftBase $ parseUrl url
     man <- newManager
     Response sc _ b <- httpLbsRedirect url'
         { decompress = browserDecompress

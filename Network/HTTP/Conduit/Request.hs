@@ -10,7 +10,6 @@ module Network.HTTP.Conduit.Request
     , browserDecompress
     , HttpException (..)
     , defaultCheckCerts
-    , semiParseUrl
     , alwaysDecompress
     , addProxy
     , applyBasicAuth
@@ -27,6 +26,7 @@ import Data.Typeable (Typeable)
 import Data.Default (Default (def))
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
+import Blaze.ByteString.Builder.Char8 (fromChar)
 import qualified Blaze.ByteString.Builder as Blaze
 
 import qualified Data.Conduit as C
@@ -75,8 +75,7 @@ data Request m = Request
     , port :: Int
     , path :: W.Ascii
     -- ^ Everything from the host to the query string.
-    , queryString :: W.Query
-    -- ^ Automatically escaped for your convenience.
+    , queryString :: W.Ascii
     , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
     , proxy :: Maybe Proxy
@@ -114,12 +113,9 @@ data Proxy = Proxy
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
 
-encodeUrlCharPI :: Bool -> Char -> String
-encodeUrlCharPI _ '/' = "/"
-encodeUrlCharPI False '?' = "?"
-encodeUrlCharPI False '&' = "&"
-encodeUrlCharPI False '=' = "="
-encodeUrlCharPI _ c = encodeUrlChar c
+encodeUrlCharPI :: Char -> String
+encodeUrlCharPI '/' = "/"
+encodeUrlCharPI c = encodeUrlChar c
 
 encodeUrlChar :: Char -> String
 encodeUrlChar c
@@ -149,24 +145,14 @@ encodeUrlChar y =
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
 parseUrl :: Failure HttpException m => String -> m (Request m')
-parseUrl = parseUrlHelper True
-
--- | Same as 'parseUrl', with one distinction: this function will not attempt
--- to parse the query string, but instead leave it with the path info. This can
--- be useful if you need precise control of the rendering of the query string,
--- such as using semicolons instead of ampersands.
-semiParseUrl :: Failure HttpException m => String -> m (Request m')
-semiParseUrl = parseUrlHelper False
-
-parseUrlHelper :: Failure HttpException m => Bool -> String -> m (Request m')
-parseUrlHelper parsePath s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False parsePath rest
-parseUrlHelper parsePath s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True parsePath rest
-parseUrlHelper _ x = failure $ InvalidUrlException x "Invalid scheme"
+parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
+parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
+parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
 
 parseUrl1 :: Failure HttpException m
-          => String -> Bool -> Bool -> String -> m (Request m')
-parseUrl1 full sec parsePath s =
-    parseUrl2 full sec parsePath s'
+          => String -> Bool -> String -> m (Request m')
+parseUrl1 full sec s =
+    parseUrl2 full sec s'
   where
     s' = encodeString s
 
@@ -184,7 +170,7 @@ instance Default (Request m) where
         , checkCerts = defaultCheckCerts
         , requestHeaders = []
         , path = "/"
-        , queryString = []
+        , queryString = S8.empty
         , requestBody = RequestBodyLBS L.empty
         , method = "GET"
         , proxy = Nothing
@@ -193,8 +179,8 @@ instance Default (Request m) where
         }
 
 parseUrl2 :: Failure HttpException m
-          => String -> Bool -> Bool -> String -> m (Request m')
-parseUrl2 full sec parsePath s = do
+          => String -> Bool -> String -> m (Request m')
+parseUrl2 full sec s = do
     port' <- mport
     return def
         { host = S8.pack hostname
@@ -203,16 +189,14 @@ parseUrl2 full sec parsePath s = do
         , path = S8.pack
                     $ if null path''
                             then "/"
-                            else concatMap (encodeUrlCharPI parsePath) path''
-        , queryString = if parsePath
-                            then W.parseQuery $ S8.pack qstring
-                            else []
+                            else concatMap encodeUrlCharPI path''
+        , queryString = S8.pack qstring
         }
   where
     (beforeSlash, afterSlash) = break (== '/') s
     (hostname, portStr) = break (== ':') beforeSlash
     (path', qstring') = break (== '?') afterSlash
-    path'' = if parsePath then path' else afterSlash
+    path'' = path'
     qstring'' = case qstring' of
                 '?':x -> x
                 _ -> qstring'
@@ -334,9 +318,9 @@ requestBuilder req =
             <> (case S8.uncons $ path req of
                     Just ('/', _) -> fromByteString $ path req
                     _ -> fromByteString "/" <> fromByteString (path req))
-            <> (if null (queryString req)
+            <> (if S8.null (queryString req)
                         then mempty
-                        else W.renderQueryBuilder True (queryString req))
+                        else fromChar '?' <> fromByteString (queryString req))
             <> fromByteString " HTTP/1.1\r\n"
             <> foldr
                 (\a b -> headerPairToBuilder a <> b)
