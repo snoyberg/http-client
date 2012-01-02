@@ -18,13 +18,14 @@
 -- > import Data.Conduit.Binary (sinkFile)
 -- > import Network.HTTP.Conduit
 -- > import System.IO
--- >
+-- > import qualified Data.Conduit as C
+-- > 
 -- > main :: IO ()
 -- > main = do
 -- >     request <- parseUrl "http://google.com/"
 -- >     withManager $ \manager -> do
 -- >         let handler _ _ bsrc = bsrc C.$$ sinkFile "google.html"
--- >         run_ $ httpRedirect request handler manager
+-- >         httpRedirect request handler manager
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
