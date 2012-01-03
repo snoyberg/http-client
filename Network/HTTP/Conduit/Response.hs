@@ -67,9 +67,9 @@ getResponse req@(Request {..}) bodyStep bsrc = do
     ((_, sc, sm), hs) <- bsrc C.$$ sinkHeaders
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
-    let mcl = lookup "content-length" hs'
+    let mcl = lookup "content-length" hs' >>= readDec . S8.unpack
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
-    res <- if hasNoBody method sc
+    res <- if hasNoBody method sc || mcl == Just 0
         then do
             bsrcNull <- C.bufferSource $ CL.sourceList []
             bodyStep s hs' bsrcNull
@@ -78,7 +78,7 @@ getResponse req@(Request {..}) bodyStep bsrc = do
                 if ("transfer-encoding", "chunked") `elem` hs'
                     then C.bufferSource $ bsrc C.$= chunkedConduit rawBody
                     else
-                        case mcl >>= readDec . S8.unpack of
+                        case mcl of
                             Just len -> C.bufferSource $ bsrc C.$= CB.isolate len
                             Nothing  -> return bsrc
             bsrc'' <-
