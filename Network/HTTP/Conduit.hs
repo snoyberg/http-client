@@ -1,5 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE CPP #-}
 -- | This module contains everything you need to initiate HTTP connections.  If
 -- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
 -- want raw power, 'http' is the underlying workhorse of this package. Some
@@ -91,6 +92,10 @@ module Network.HTTP.Conduit
     , urlEncodedBody
       -- * Exceptions
     , HttpException (..)
+#if DEBUG
+      -- * Debug
+    , printOpenSockets
+#endif
     ) where
 
 import qualified Data.ByteString as S

@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.ConnInfo
     ( ConnInfo
     , connClose
@@ -11,6 +12,9 @@ module Network.HTTP.Conduit.ConnInfo
     , TLSCertificateRejectReason(..)
     , TLSCertificateUsage(..)
     , getSocket
+#if DEBUG
+    , printOpenSockets
+#endif
     ) where
 
 import Control.Exception (SomeException, throwIO, try)
@@ -35,6 +39,11 @@ import Crypto.Random.AESCtr (makeSystem)
 
 import qualified Data.Conduit as C
 
+#if DEBUG
+import qualified Data.IntMap as IntMap
+import qualified Data.IORef as I
+import System.IO.Unsafe (unsafePerformIO)
+#endif
 
 data ConnInfo = ConnInfo
     { connRead :: IO ByteString
@@ -58,15 +67,47 @@ connSource ConnInfo { connRead = read' } = C.Source $ return $ C.PreparedSource
     , C.sourceClose = return ()
     }
 
-socketConn :: Socket -> ConnInfo
-socketConn sock = ConnInfo
-    { connRead  = recv sock 4096
-    , connWrite = sendAll sock
-    , connClose = sClose sock
-    }
+#if DEBUG
+allOpenSockets :: I.IORef (Int, IntMap.IntMap String)
+allOpenSockets = unsafePerformIO $ I.newIORef (0, IntMap.empty)
 
-sslClientConn :: ([X509] -> IO TLSCertificateUsage) -> Handle -> IO ConnInfo
-sslClientConn onCerts h = do
+addSocket :: String -> IO Int
+addSocket desc = I.atomicModifyIORef allOpenSockets $ \(next, m) ->
+    ((next + 1, IntMap.insert next desc m), next)
+
+removeSocket :: Int -> IO ()
+removeSocket i = I.atomicModifyIORef allOpenSockets $ \(next, m) ->
+    ((next, IntMap.delete i m), ())
+
+printOpenSockets :: IO ()
+printOpenSockets = do
+    (_, m) <- I.readIORef allOpenSockets
+    putStrLn "\n\nOpen sockets:"
+    if IntMap.null m
+        then putStrLn "** No open sockets!"
+        else mapM_ putStrLn $ IntMap.elems m
+#endif
+
+socketConn :: String -> Socket -> IO ConnInfo
+socketConn _desc sock = do
+#if DEBUG
+    i <- addSocket _desc
+#endif
+    return ConnInfo
+        { connRead  = recv sock 4096
+        , connWrite = sendAll sock
+        , connClose = do
+#if DEBUG
+            removeSocket i
+#endif
+            sClose sock
+        }
+
+sslClientConn :: String -> ([X509] -> IO TLSCertificateUsage) -> Handle -> IO ConnInfo
+sslClientConn _desc onCerts h = do
+#if DEBUG
+    i <- addSocket _desc
+#endif
     let tcp = defaultParams
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11 ]
@@ -79,7 +120,12 @@ sslClientConn onCerts h = do
     return ConnInfo
         { connRead = recvD istate
         , connWrite = sendData istate . L.fromChunks . (:[])
-        , connClose = bye istate >> hClose h
+        , connClose = do
+#if DEBUG
+            removeSocket i
+#endif
+            bye istate
+            hClose h
         }
   where
     recvD istate = do

@@ -35,3 +35,4 @@ main = withSocketsDo $ do
             putStrLn ""
             L.putStr b
 #endif
+    printOpenSockets

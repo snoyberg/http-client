@@ -91,7 +91,12 @@ getSocketConn
     -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
 getSocketConn man host' port' =
     getManagedConn man (ConnKey (T.pack host') port' False) $
-        fmap socketConn $ getSocket host' port'
+        getSocket host' port' >>= socketConn desc
+  where
+    desc = socketDesc host' port' "unsecured"
+
+socketDesc :: String -> Int -> String -> String
+socketDesc h p t = unwords [h, show p, t]
 
 getSslConn :: ResourceIO m
             => ([X509] -> IO TLSCertificateUsage)
@@ -101,7 +106,9 @@ getSslConn :: ResourceIO m
             -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
 getSslConn checkCert man host' port' =
     getManagedConn man (ConnKey (T.pack host') port' True) $
-        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn checkCert)
+        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn desc checkCert)
+  where
+    desc = socketDesc host' port' "secured"
 
 getSslProxyConn
             :: ResourceIO m
@@ -114,8 +121,9 @@ getSslProxyConn
             -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
 getSslProxyConn checkCert thost tport man phost pport =
     getManagedConn man (ConnKey (T.pack phost) pport True) $
-        doConnect >>= sslClientConn checkCert
+        doConnect >>= sslClientConn desc checkCert
   where
+    desc = socketDesc phost pport "secured-proxy"
     doConnect = do
         h <- connectTo phost (PortNumber $ fromIntegral pport)
         L.hPutStr h $ Blaze.toLazyByteString connectRequest
