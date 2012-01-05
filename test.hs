@@ -8,6 +8,7 @@ import System.Environment.UTF8 (getArgs)
 import Data.CaseInsensitive (original)
 import Data.Conduit
 import Control.Monad.IO.Class (liftIO)
+import Control.Exception (finally)
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -19,12 +20,9 @@ main = withSocketsDo $ do
                 , ("baz%%38**.8fn", "bin")
                 ] _req2
     -}
-    runResourceT $ do
+    flip finally printOpenSockets $ runResourceT $ do
         man <- newManager
         Response sc hs b <- httpLbsRedirect _req2 man
-#if DEBUG
-        return ()
-#else
         liftIO $ do
             print sc
             mapM_ (\(x, y) -> do
@@ -34,5 +32,3 @@ main = withSocketsDo $ do
                 putStrLn "") hs
             putStrLn ""
             L.putStr b
-#endif
-    printOpenSockets

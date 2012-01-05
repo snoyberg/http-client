@@ -15,8 +15,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.Text as T
 import qualified Data.Text.Read
 
-#if 1
--- FIXME MIN_VERSION_base(4,3,0)
+#if MIN_VERSION_base(4,3,0)
 import Data.ByteString (hGetSome)
 #else
 import GHC.IO.Handle.Types
