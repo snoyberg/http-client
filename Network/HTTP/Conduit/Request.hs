@@ -211,7 +211,7 @@ parseUrl2 full sec s = do
                 (readDec rest)
             x -> error $ "parseUrl1: this should never happen: " ++ show x
 
-data HttpException = StatusCodeException Int L.ByteString
+data HttpException = StatusCodeException W.Status L.ByteString
                    | InvalidUrlException String String
                    | TooManyRedirects
                    | HttpParserException String

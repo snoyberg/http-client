@@ -4,11 +4,11 @@ module Network.HTTP.Conduit.Manager
     ( Manager
     , ConnKey (..)
     , newManager
-    , withConn
-    , WithConnResponse (..)
+    , getConn
     , ConnReuse (..)
-    , UseConn
     , withManager
+    , ConnRelease
+    , ManagedConn (..)
     ) where
 
 import Control.Applicative ((<$>))
@@ -26,8 +26,13 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Control.Monad.Base (liftBase)
-import Control.Exception.Lifted (mask, try, throwIO, SomeException)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, ResourceIO, withIO)
+import Control.Exception.Lifted (mask)
+import Control.Monad.Trans.Resource
+    ( ResourceT, runResourceT, ResourceIO, withIO
+    , register, release
+    , newRef, readRef', writeRef
+    , safeFromIOBase
+    )
 
 import Network (connectTo, PortID (PortNumber))
 import Data.Certificate.X509 (X509)
@@ -78,31 +83,27 @@ closeManager (Manager i) = do
     m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
     mapM_ connClose $ Map.elems m
 
-type UseConn m a = ConnInfo -> ResourceT m (WithConnResponse a)
-
-withSocketConn
+getSocketConn
     :: ResourceIO m
     => Manager
     -> String
     -> Int
-    -> UseConn m a
-    -> ResourceT m a
-withSocketConn man host' port' =
-    withManagedConn man (ConnKey (T.pack host') port' False) $
+    -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+getSocketConn man host' port' =
+    getManagedConn man (ConnKey (T.pack host') port' False) $
         fmap socketConn $ getSocket host' port'
 
-withSslConn :: ResourceIO m
+getSslConn :: ResourceIO m
             => ([X509] -> IO TLSCertificateUsage)
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
-            -> UseConn m a
-            -> ResourceT m a
-withSslConn checkCert man host' port' =
-    withManagedConn man (ConnKey (T.pack host') port' True) $
+            -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+getSslConn checkCert man host' port' =
+    getManagedConn man (ConnKey (T.pack host') port' True) $
         (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn checkCert)
 
-withSslProxyConn
+getSslProxyConn
             :: ResourceIO m
             => ([X509] -> IO TLSCertificateUsage)
             -> S8.ByteString -- ^ Target host
@@ -110,10 +111,9 @@ withSslProxyConn
             -> Manager
             -> String -- ^ Proxy host
             -> Int -- ^ Proxy port
-            -> UseConn m a
-            -> ResourceT m a
-withSslProxyConn checkCert thost tport man phost pport =
-    withManagedConn man (ConnKey (T.pack phost) pport True) $
+            -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+getSslProxyConn checkCert thost tport man phost pport =
+    getManagedConn man (ConnKey (T.pack phost) pport True) $
         doConnect >>= sslClientConn checkCert
   where
     doConnect = do
@@ -136,44 +136,42 @@ withSslProxyConn checkCert thost tport man phost pport =
         error $ "Proxy failed to CONNECT to '"
                 ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
 
-withManagedConn
+data ManagedConn = Fresh | Reused
+
+getManagedConn
     :: ResourceIO m
     => Manager
     -> ConnKey
     -> IO ConnInfo
-    -> UseConn m a
-    -> ResourceT m a
-withManagedConn man key open f = mask $ \restore -> do
+    -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+getManagedConn man key open = mask $ \restore -> do
     mci <- liftBase $ takeSocket man key
     (ci, isManaged) <-
         case mci of
             Nothing -> do
                 ci <- restore $ liftBase open
-                return (ci, False)
-            Just ci -> return (ci, True)
-    ea <- try $ restore $ f ci
-    case ea of
-        Left e -> do
-            liftBase $ connClose ci
-            if isManaged
-                then restore $ withManagedConn man key open f
-                else throwIO (e :: SomeException)
-        Right (WithConnResponse cr a) -> do
-            case cr of
-                Reuse -> liftBase $ putSocket man key ci
-                DontReuse -> liftBase $ connClose ci
-            return a
-
-data WithConnResponse a = WithConnResponse !ConnReuse !a
+                return (ci, Fresh)
+            Just ci -> return (ci, Reused)
+    toReuseRef <- newRef DontReuse
+    releaseKey <- register $ do
+        toReuse <- readRef' toReuseRef
+        case toReuse of
+            Reuse -> safeFromIOBase $ putSocket man key ci
+            DontReuse -> safeFromIOBase $ connClose ci
+    let connRelease x = do
+            writeRef toReuseRef x
+            release releaseKey
+    return (connRelease, ci, isManaged)
 
 data ConnReuse = Reuse | DontReuse
 
-withConn :: ResourceIO m
-         => Request m
-         -> Manager
-         -> UseConn m a
-         -> ResourceT m a
-withConn req m =
+type ConnRelease m = ConnReuse -> ResourceT m ()
+
+getConn :: ResourceIO m
+        => Request m
+        -> Manager
+        -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+getConn req m =
     go m connhost connport
   where
     h = host req
@@ -183,6 +181,6 @@ withConn req m =
             Nothing -> (False, S8.unpack h, port req)
     go =
         case (secure req, useProxy) of
-            (False, _) -> withSocketConn
-            (True, False) -> withSslConn $ checkCerts req h
-            (True, True) -> withSslProxyConn (checkCerts req h) h (port req)
+            (False, _) -> getSocketConn
+            (True, False) -> getSslConn $ checkCerts req h
+            (True, True) -> getSslProxyConn (checkCerts req h) h (port req)

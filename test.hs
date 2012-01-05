@@ -7,6 +7,7 @@ import qualified Data.ByteString.Lazy as L
 import System.Environment.UTF8 (getArgs)
 import Data.CaseInsensitive (original)
 import Data.Conduit
+import Control.Monad.IO.Class (liftIO)
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -24,7 +25,7 @@ main = withSocketsDo $ do
 #if DEBUG
         return ()
 #else
-        liftBase $ do
+        liftIO $ do
             print sc
             mapM_ (\(x, y) -> do
                 S.putStr $ original x

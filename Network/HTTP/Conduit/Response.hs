@@ -3,10 +3,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Conduit.Response
-    ( lbsConsumer
-    , Response (..)
-    , ResponseConsumer
+    ( Response (..)
     , getResponse
+    , lbsResponse
     ) where
 
 import Control.Arrow (first)
@@ -32,47 +31,42 @@ import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
 
-
--- | Convert the HTTP response into a 'Response' value.
---
--- Even though a 'Response' contains a lazy bytestring, this function does
--- /not/ utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
-lbsConsumer :: ResourceIO m => ResponseConsumer m Response
-lbsConsumer (W.Status sc _) hs bsrc = do
-    lbs <- fmap L.fromChunks $ bsrc C.$$ CL.consume
-    return $ Response sc hs lbs
-
 -- | A simple representation of the HTTP response created by 'lbsConsumer'.
-data Response = Response
-    { statusCode :: Int
+data Response body = Response
+    { statusCode :: W.Status
     , responseHeaders :: W.ResponseHeaders
-    , responseBody :: L.ByteString
+    , responseBody :: body
     }
-    deriving (Show, Read, Eq, Typeable)
+    deriving (Show, Eq, Typeable)
 
-type ResponseConsumer m a
-    = W.Status
-   -> W.ResponseHeaders
-   -> C.BufferedSource m S.ByteString
-   -> ResourceT m a
+-- | Convert a 'Response' that has a 'C.BufferedSource' body to one with a lazy
+-- 'L.ByteString' body.
+lbsResponse :: C.Resource m
+            => ResourceT m (Response (C.BufferedSource m S8.ByteString))
+            -> ResourceT m (Response L.ByteString)
+lbsResponse mres = do
+    res <- mres
+    bss <- responseBody res C.$$ CL.consume
+    return res
+        { responseBody = L.fromChunks bss
+        }
 
 getResponse :: ResourceIO m
-            => Request m
-            -> ResponseConsumer m a
+            => ConnRelease m
+            -> Request m
             -> C.BufferedSource m S8.ByteString
-            -> ResourceT m (WithConnResponse a)
-getResponse req@(Request {..}) bodyStep bsrc = do
+            -> ResourceT m (Response (C.BufferedSource m S8.ByteString))
+getResponse connRelease req@(Request {..}) bsrc = do
     ((_, sc, sm), hs) <- bsrc C.$$ sinkHeaders
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs' >>= readDec . S8.unpack
+
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
-    res <- if hasNoBody method sc || mcl == Just 0
+    body <- if hasNoBody method sc || mcl == Just 0
         then do
-            bsrcNull <- C.bufferSource $ CL.sourceList []
-            bodyStep s hs' bsrcNull
+            -- FIXME clean up socket
+            C.bufferSource $ CL.sourceList []
         else do
             bsrc' <-
                 if ("transfer-encoding", "chunked") `elem` hs'
@@ -81,14 +75,31 @@ getResponse req@(Request {..}) bodyStep bsrc = do
                         case mcl of
                             Just len -> C.bufferSource $ bsrc C.$= CB.isolate len
                             Nothing  -> return bsrc
-            bsrc'' <-
-                if needsGunzip req hs'
-                    then C.bufferSource $ bsrc' C.$= CZ.ungzip
-                    else return bsrc'
-            bodyStep s hs' bsrc''
-            -- FIXME this is causing hangs, need to look into it bsrc C.$$ CL.sinkNull
-            -- Most likely just need to flush the actual buffer
+            if needsGunzip req hs'
+                then C.bufferSource $ bsrc' C.$= CZ.ungzip
+                else return bsrc'
 
     -- should we put this connection back into the connection manager?
     let toPut = Just "close" /= lookup "connection" hs'
-    return $ WithConnResponse (if toPut then Reuse else DontReuse) res
+    let cleanup = connRelease $ if toPut then Reuse else DontReuse
+
+    return $ Response s hs' $ addCleanup cleanup body
+
+-- | Add some cleanup code to the given 'C.BufferedSource'. General purpose
+-- function, could be included in conduit itself.
+addCleanup :: C.ResourceIO m
+           => ResourceT m ()
+           -> C.BufferedSource m a
+           -> C.BufferedSource m a
+addCleanup cleanup bsrc = C.BufferedSource
+    { C.bsourcePull = do
+        res <- C.bsourcePull bsrc
+        case res of
+            C.Closed -> cleanup
+            C.Open _ -> return ()
+        return res
+    , C.bsourceUnpull = C.bsourceUnpull bsrc
+    , C.bsourceClose = do
+        C.bsourceClose bsrc
+        cleanup
+    }

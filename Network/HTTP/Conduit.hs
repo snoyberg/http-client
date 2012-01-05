@@ -55,12 +55,10 @@ module Network.HTTP.Conduit
     , httpLbsRedirect
     , http
     , httpRedirect
-    , redirectConsumer
       -- * Datatypes
     , Proxy (..)
     , RequestBody (..)
     , Response (..)
-    , ResponseConsumer
       -- ** Request
     , Request
     , def
@@ -86,7 +84,6 @@ module Network.HTTP.Conduit
     , parseUrl
     , applyBasicAuth
     , addProxy
-    , lbsConsumer
       -- * Decompression predicates
     , alwaysDecompress
     , browserDecompress
@@ -109,6 +106,7 @@ import Control.Monad.Base (liftBase)
 import qualified Data.Conduit as C
 import Data.Conduit.Blaze (builderToByteString)
 import Control.Monad.Trans.Resource (ResourceT, runResourceT, ResourceIO)
+import Control.Exception.Lifted (try, SomeException)
 
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Response
@@ -132,13 +130,22 @@ import Network.HTTP.Conduit.ConnInfo
 http
      :: ResourceIO m
      => Request m
-     -> ResponseConsumer m a
      -> Manager
-     -> ResourceT m a
-http req consumer m = withConn req m $ \ci -> do
+     -> ResourceT m (Response (C.BufferedSource m S.ByteString))
+http req m = do
+    (connRelease, ci, isManaged) <- getConn req m
     bsrc <- C.bufferSource $ connSource ci
-    requestBuilder req C.$$ builderToByteString C.=$ connSink ci
-    getResponse req consumer bsrc
+    ex <- try $ requestBuilder req C.$$ builderToByteString C.=$ connSink ci
+    case (ex :: Either SomeException (), isManaged) of
+        -- Connection was reused, and might be been closed. Try again
+        (Left _, Reused) -> do
+            connRelease DontReuse
+            http req m
+        -- Not reused, so this is a real exception
+        (Left e, Fresh) -> liftBase $ throwIO e
+        -- Everything went ok, so the connection is good. If any exceptions get
+        -- thrown in the rest of the code, just throw them as normal.
+        (Right (), _) -> getResponse connRelease req bsrc
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -156,8 +163,8 @@ http req consumer m = withConn req m $ \ci -> do
 -- /not/ utilize lazy I/O, and therefore the entire response body will live in
 -- memory. If you want constant memory usage, you'll need to write your own
 -- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m Response
-httpLbs req = http req lbsConsumer
+httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
+httpLbs r = lbsResponse . http r
 
 -- | Download the specified URL, following any redirects, and return the
 -- response body.
@@ -174,10 +181,10 @@ simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
     url' <- liftBase $ parseUrl url
     man <- newManager
-    Response sc _ b <- httpLbsRedirect url'
+    Response sc@(W.Status sci _) _ b <- httpLbsRedirect url'
         { decompress = browserDecompress
         } man
-    if 200 <= sc && sc < 300
+    if 200 <= sci && sci < 300
         then return b
         else liftBase $ throwIO $ StatusCodeException sc b
 
@@ -186,45 +193,16 @@ simpleHttp url = runResourceT $ do
 httpRedirect
     :: ResourceIO m
     => Request m
-    -> (W.Status -> W.ResponseHeaders -> C.BufferedSource m S.ByteString -> ResourceT m a)
     -> Manager
-    -> ResourceT m a
-httpRedirect req bodyStep manager =
-    http req (redirectConsumer 10 req bodyStep manager) manager
-
--- | Download the specified 'Request', returning the results as a 'Response'
--- and automatically handling redirects.
---
--- This is a simplified version of 'httpRedirect' for the common case where you
--- simply want the response data as a simple datatype. If you want more power,
--- such as interleaved actions on the response body during download, you'll
--- need to use 'httpRedirect' directly. This function is defined as:
---
--- @httpLbsRedirect = httpRedirect lbsConsumer@
---
--- Please see 'lbsConsumer' for more information on how the 'Response' value is
--- created.
---
--- Even though a 'Response' contains a lazy bytestring, this function does
--- /not/ utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
-httpLbsRedirect :: ResourceIO m => Request m -> Manager -> ResourceT m Response
-httpLbsRedirect req m = httpRedirect req lbsConsumer m
-
--- | Make a request automatically follow 3xx redirects.
---
--- Used internally by 'httpRedirect' and family.
-redirectConsumer :: ResourceIO m
-             => Int -- ^ number of redirects to attempt
-             -> Request m -- ^ Original request
-             -> ResponseConsumer m a
-             -> Manager
-             -> ResponseConsumer m a
-redirectConsumer redirects req bodyStep manager s@(W.Status code _) hs bsrc
-    | 300 <= code && code < 400 =
-        case lookup "location" hs of
-            Just l'' -> do
+    -> ResourceT m (Response (C.BufferedSource m S.ByteString))
+httpRedirect req0 manager =
+    go (10 :: Int) req0
+  where
+    go 0 _ = liftBase $ throwIO TooManyRedirects
+    go count req = do
+        res@(Response (W.Status code _) hs _) <- http req manager
+        case (300 <= code && code < 400, lookup "location" hs) of
+            (True, Just l'') -> do
                 -- Prepend scheme, host and port if missing
                 let l' =
                         case S8.uncons l'' of
@@ -246,12 +224,33 @@ redirectConsumer redirects req bodyStep manager s@(W.Status code _) hs bsrc
                         , path = path l
                         , queryString = queryString l
                         , method =
-                            if code == 303
+                            -- According to the spec, this should *only* be for
+                            -- status code 303. However, almost all clients
+                            -- mistakenly implement it for 302 as well. So we
+                            -- have to be wrong like everyone else...
+                            if code == 302 || code == 303
                                 then "GET"
                                 else method l
                         }
-                if redirects == 0
-                    then liftBase $ throwIO TooManyRedirects
-                    else (http req') (redirectConsumer (redirects - 1) req' bodyStep manager) manager
-            Nothing -> bodyStep s hs bsrc
-    | otherwise = bodyStep s hs bsrc
+                go (count - 1) req'
+            _ -> return res
+
+-- | Download the specified 'Request', returning the results as a 'Response'
+-- and automatically handling redirects.
+--
+-- This is a simplified version of 'httpRedirect' for the common case where you
+-- simply want the response data as a simple datatype. If you want more power,
+-- such as interleaved actions on the response body during download, you'll
+-- need to use 'httpRedirect' directly. This function is defined as:
+--
+-- @httpLbsRedirect = httpRedirect lbsConsumer@
+--
+-- Please see 'lbsConsumer' for more information on how the 'Response' value is
+-- created.
+--
+-- Even though a 'Response' contains a lazy bytestring, this function does
+-- /not/ utilize lazy I/O, and therefore the entire response body will live in
+-- memory. If you want constant memory usage, you'll need to write your own
+-- iteratee and use 'http' or 'httpRedirect' directly.
+httpLbsRedirect :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
+httpLbsRedirect req = lbsResponse . httpRedirect req
