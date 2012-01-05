@@ -20,7 +20,7 @@
 -- > import Network.HTTP.Conduit
 -- > import System.IO
 -- > import qualified Data.Conduit as C
--- > 
+-- >
 -- > main :: IO ()
 -- > main = do
 -- >     request <- parseUrl "http://google.com/"
@@ -120,18 +120,20 @@ import Network.HTTP.Conduit.ConnInfo
 
 -- | The most low-level function for initiating an HTTP request.
 --
--- The first argument to this function gives a full specification on the
--- request: the host to connect to, whether to use SSL, headers, etc. Please
--- see 'Request' for full details.
+-- The first argument to this function gives a full specification
+-- on the request: the host to connect to, whether to use SSL,
+-- headers, etc. Please see 'Request' for full details.  The
+-- second argument specifies which 'Manager' should be used.
 --
--- The second argument specifies how the response should be handled. It's a
--- function that takes two arguments: the first is the HTTP status code of the
--- response, and the second is a list of all response headers. This module
--- exports 'lbsConsumer', which generates a 'Response' value.
---
--- Note that this allows you to have fully interleaved IO actions during your
--- HTTP download, making it possible to download very large responses in
--- constant memory.
+-- This function then returns a 'Response' with a
+-- 'C.BufferedSource'.  The 'Response' contains the status code
+-- and headers that were sent back to us, and the
+-- 'C.BufferedSource' contains the body of the request.  Note
+-- that this 'C.BufferedSource' allows you to have fully
+-- interleaved IO actions during your HTTP download, making it
+-- possible to download very large responses in constant memory.
+-- You may also directly connect the returned 'C.BufferedSource'
+-- into a 'C.Sink', perhaps a file or another socket.
 http
      :: ResourceIO m
      => Request m
@@ -159,29 +161,29 @@ http req m = do
 -- interleaved actions on the response body during download, you'll need to use
 -- 'http' directly. This function is defined as:
 --
--- @httpLbs = http lbsConsumer@
+-- @httpLbs = 'lbsResponse' . 'http'@
 --
--- Please see 'lbsConsumer' for more information on how the 'Response' value is
--- created.
---
--- Even though a 'Response' contains a lazy bytestring, this function does
--- /not/ utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
+-- Even though the 'Response' contains a lazy bytestring, this
+-- function does /not/ utilize lazy I/O, and therefore the entire
+-- response body will live in memory. If you want constant memory
+-- usage, you'll need to use @conduit@ packages's
+-- 'C.BufferedSource' returned by 'http' or 'httpRedirect'.
 httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
 httpLbs r = lbsResponse . http r
 
--- | Download the specified URL, following any redirects, and return the
--- response body.
+-- | Download the specified URL, following any redirects, and
+-- return the response body.
 --
--- This function will 'throwIO' an 'HttpException' for any response with a
--- non-2xx status code. It uses 'parseUrl' to parse the input. This function
--- essentially wraps 'httpLbsRedirect'.
+-- This function will 'throwIO' an 'HttpException' for any
+-- response with a non-2xx status code (besides 3xx redirects up
+-- to a limit of 10 redirects). It uses 'parseUrl' to parse the
+-- input. This function essentially wraps 'httpLbsRedirect'.
 --
--- Note: Even though this function returns a lazy bytestring, it does /not/
--- utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
+-- Note: Even though this function returns a lazy bytestring, it
+-- does /not/ utilize lazy I/O, and therefore the entire response
+-- body will live in memory. If you want constant memory usage,
+-- you'll need to use the @conduit@ package and 'http' or
+-- 'httpRedirect' directly.
 simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
     url' <- liftBase $ parseUrl url
@@ -240,22 +242,21 @@ httpRedirect req0 manager =
                 go (count - 1) req'
             _ -> return res
 
--- | Download the specified 'Request', returning the results as a 'Response'
--- and automatically handling redirects.
+-- | Download the specified 'Request', returning the results as a
+-- 'Response' and automatically handling redirects.
 --
--- This is a simplified version of 'httpRedirect' for the common case where you
--- simply want the response data as a simple datatype. If you want more power,
--- such as interleaved actions on the response body during download, you'll
--- need to use 'httpRedirect' directly. This function is defined as:
+-- This is a simplified version of 'httpRedirect' for the common
+-- case where you simply want the response data as a simple
+-- datatype. If you want more power, such as interleaved actions
+-- on the response body during download, you'll need to use
+-- 'httpRedirect' directly. This function is defined as:
 --
--- @httpLbsRedirect = httpRedirect lbsConsumer@
+-- @httpLbsRedirect req = 'lbsResponse' . 'httpRedirect' req@
 --
--- Please see 'lbsConsumer' for more information on how the 'Response' value is
--- created.
---
--- Even though a 'Response' contains a lazy bytestring, this function does
--- /not/ utilize lazy I/O, and therefore the entire response body will live in
--- memory. If you want constant memory usage, you'll need to write your own
--- iteratee and use 'http' or 'httpRedirect' directly.
+-- Even though the 'Response' contains a lazy bytestring, this
+-- function does /not/ utilize lazy I/O, and therefore the entire
+-- response body will live in memory. If you want constant memory
+-- usage, you'll need to use @conduit@ packages's
+-- 'C.BufferedSource' returned by 'http' or 'httpRedirect'.
 httpLbsRedirect :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
 httpLbsRedirect req = lbsResponse . httpRedirect req
