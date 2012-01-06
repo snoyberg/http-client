@@ -73,6 +73,7 @@ module Network.HTTP.Conduit
     , rawBody
     , decompress
     , redirectCount
+    , checkStatus
       -- *** Defaults
     , defaultCheckCerts
       -- * Manager
@@ -140,8 +141,16 @@ http
     => Request m
     -> Manager
     -> ResourceT m (Response (C.BufferedSource m S.ByteString))
-http req0 manager =
-    go (redirectCount req0) req0
+http req0 manager = do
+    res@(Response status hs body) <-
+        if redirectCount req0 == 0
+            then httpRaw req0 manager
+            else go (redirectCount req0) req0
+    case checkStatus req0 status hs of
+        Nothing -> return res
+        Just exc -> do
+            C.bsourceClose body
+            liftBase $ throwIO exc
   where
     go 0 _ = liftBase $ throwIO TooManyRedirects
     go count req = do
@@ -238,9 +247,6 @@ simpleHttp :: ResourceIO m => String -> m L.ByteString
 simpleHttp url = runResourceT $ do
     url' <- liftBase $ parseUrl url
     man <- newManager
-    Response sc@(W.Status sci _) _ b <- httpLbs url'
+    fmap responseBody $ httpLbs url'
         { decompress = browserDecompress
         } man
-    if 200 <= sci && sci < 300
-        then return b
-        else liftBase $ throwIO $ StatusCodeException sc b

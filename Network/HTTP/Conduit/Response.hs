@@ -11,7 +11,6 @@ module Network.HTTP.Conduit.Response
 import Control.Arrow (first)
 import Data.Typeable (Typeable)
 
-import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 

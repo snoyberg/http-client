@@ -42,7 +42,7 @@ import Data.Certificate.X509 (X509)
 import Network.TLS (TLSCertificateUsage (CertificateUsageAccept))
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
-import Control.Exception (Exception)
+import Control.Exception (Exception, SomeException, toException)
 import Control.Failure (Failure (failure))
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
@@ -50,7 +50,6 @@ import qualified Data.ByteString.Base64 as B64
 
 import Network.HTTP.Conduit.Chunk (chunkIt)
 import Network.HTTP.Conduit.Util (readDec, (<>))
-
 
 type ContentType = S.ByteString
 
@@ -89,7 +88,10 @@ data Request m = Request
     -- 'browserDecompress').
     , redirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. 0 means follow
-    -- no redirects.
+    -- no redirects. Default value: 10.
+    , checkStatus :: W.Status -> W.ResponseHeaders -> Maybe SomeException
+    -- ^ Check the status code. Note that this will run after all redirects are
+    -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
     }
 
 -- | When using one of the
@@ -180,6 +182,10 @@ instance Default (Request m) where
         , rawBody = False
         , decompress = alwaysDecompress
         , redirectCount = 10
+        , checkStatus = \s@(W.Status sci _) hs ->
+            if 200 <= sci && sci < 300
+                then Nothing
+                else Just $ toException $ StatusCodeException s hs
         }
 
 parseUrl2 :: Failure HttpException m
@@ -215,7 +221,7 @@ parseUrl2 full sec s = do
                 (readDec rest)
             x -> error $ "parseUrl1: this should never happen: " ++ show x
 
-data HttpException = StatusCodeException W.Status L.ByteString
+data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | InvalidUrlException String String
                    | TooManyRedirects
                    | HttpParserException String
