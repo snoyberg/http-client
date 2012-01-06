@@ -85,7 +85,7 @@ data Request m = Request
     , decompress :: ContentType -> Bool
     -- ^ Predicate to specify whether gzipped data should be
     -- decompressed on the fly (see 'alwaysDecompress' and
-    -- 'browserDecompress').
+    -- 'browserDecompress'). Default: browserDecompress.
     , redirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. 0 means follow
     -- no redirects. Default value: 10.
@@ -180,7 +180,7 @@ instance Default (Request m) where
         , method = "GET"
         , proxy = Nothing
         , rawBody = False
-        , decompress = alwaysDecompress
+        , decompress = browserDecompress
         , redirectCount = 10
         , checkStatus = \s@(W.Status sci _) hs ->
             if 200 <= sci && sci < 300

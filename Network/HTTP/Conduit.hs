@@ -248,6 +248,4 @@ simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ runResourceT $ do
     url' <- liftBase $ parseUrl url
     man <- newManager
-    fmap responseBody $ httpLbs url'
-        { decompress = browserDecompress
-        } man
+    fmap responseBody $ httpLbs url' man
