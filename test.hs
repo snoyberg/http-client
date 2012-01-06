@@ -22,7 +22,7 @@ main = withSocketsDo $ do
     -}
     flip finally printOpenSockets $ runResourceT $ do
         man <- newManager
-        Response sc hs b <- httpLbsRedirect _req2 man
+        Response sc hs b <- httpLbs _req2 man
         liftIO $ do
             print sc
             mapM_ (\(x, y) -> do

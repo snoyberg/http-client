@@ -87,6 +87,9 @@ data Request m = Request
     -- ^ Predicate to specify whether gzipped data should be
     -- decompressed on the fly (see 'alwaysDecompress' and
     -- 'browserDecompress').
+    , redirectCount :: Int
+    -- ^ How many redirects to follow when getting a resource. 0 means follow
+    -- no redirects.
     }
 
 -- | When using one of the
@@ -176,6 +179,7 @@ instance Default (Request m) where
         , proxy = Nothing
         , rawBody = False
         , decompress = alwaysDecompress
+        , redirectCount = 10
         }
 
 parseUrl2 :: Failure HttpException m

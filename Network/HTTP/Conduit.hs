@@ -13,8 +13,7 @@
 -- > main = simpleHttp "http://www.haskell.org/" >>= L.putStr
 --
 -- This example uses interleaved IO to write the response body to a file in
--- constant memory space. By using 'httpRedirect', it will automatically
--- follow 3xx redirects.
+-- constant memory space.
 --
 -- > import Data.Conduit.Binary (sinkFile)
 -- > import Network.HTTP.Conduit
@@ -26,7 +25,7 @@
 -- >     request <- parseUrl "http://google.com/"
 -- >     withManager $ \manager -> do
 -- >         let handler _ _ bsrc = bsrc C.$$ sinkFile "google.html"
--- >         httpRedirect request handler manager
+-- >         http request handler manager
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
@@ -53,9 +52,7 @@ module Network.HTTP.Conduit
     ( -- * Perform a request
       simpleHttp
     , httpLbs
-    , httpLbsRedirect
     , http
-    , httpRedirect
       -- * Datatypes
     , Proxy (..)
     , RequestBody (..)
@@ -75,6 +72,7 @@ module Network.HTTP.Conduit
     , proxy
     , rawBody
     , decompress
+    , redirectCount
       -- *** Defaults
     , defaultCheckCerts
       -- * Manager
@@ -134,80 +132,20 @@ import Network.HTTP.Conduit.ConnInfo
 -- possible to download very large responses in constant memory.
 -- You may also directly connect the returned 'C.BufferedSource'
 -- into a 'C.Sink', perhaps a file or another socket.
+--
+-- Note: Unlike previous versions, this function will perform redirects, as
+-- specified by the 'redirectCount' setting.
 http
-     :: ResourceIO m
-     => Request m
-     -> Manager
-     -> ResourceT m (Response (C.BufferedSource m S.ByteString))
-http req m = do
-    (connRelease, ci, isManaged) <- getConn req m
-    bsrc <- C.bufferSource $ connSource ci
-    ex <- try $ requestBuilder req C.$$ builderToByteString C.=$ connSink ci
-    case (ex :: Either SomeException (), isManaged) of
-        -- Connection was reused, and might be been closed. Try again
-        (Left _, Reused) -> do
-            connRelease DontReuse
-            http req m
-        -- Not reused, so this is a real exception
-        (Left e, Fresh) -> liftBase $ throwIO e
-        -- Everything went ok, so the connection is good. If any exceptions get
-        -- thrown in the rest of the code, just throw them as normal.
-        (Right (), _) -> getResponse connRelease req bsrc
-
--- | Download the specified 'Request', returning the results as a 'Response'.
---
--- This is a simplified version of 'http' for the common case where you simply
--- want the response data as a simple datatype. If you want more power, such as
--- interleaved actions on the response body during download, you'll need to use
--- 'http' directly. This function is defined as:
---
--- @httpLbs = 'lbsResponse' . 'http'@
---
--- Even though the 'Response' contains a lazy bytestring, this
--- function does /not/ utilize lazy I/O, and therefore the entire
--- response body will live in memory. If you want constant memory
--- usage, you'll need to use @conduit@ packages's
--- 'C.BufferedSource' returned by 'http' or 'httpRedirect'.
-httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
-httpLbs r = lbsResponse . http r
-
--- | Download the specified URL, following any redirects, and
--- return the response body.
---
--- This function will 'throwIO' an 'HttpException' for any
--- response with a non-2xx status code (besides 3xx redirects up
--- to a limit of 10 redirects). It uses 'parseUrl' to parse the
--- input. This function essentially wraps 'httpLbsRedirect'.
---
--- Note: Even though this function returns a lazy bytestring, it
--- does /not/ utilize lazy I/O, and therefore the entire response
--- body will live in memory. If you want constant memory usage,
--- you'll need to use the @conduit@ package and 'http' or
--- 'httpRedirect' directly.
-simpleHttp :: ResourceIO m => String -> m L.ByteString
-simpleHttp url = runResourceT $ do
-    url' <- liftBase $ parseUrl url
-    man <- newManager
-    Response sc@(W.Status sci _) _ b <- httpLbsRedirect url'
-        { decompress = browserDecompress
-        } man
-    if 200 <= sci && sci < 300
-        then return b
-        else liftBase $ throwIO $ StatusCodeException sc b
-
--- | Same as 'http', but follows all 3xx redirect status codes that contain a
--- location header.
-httpRedirect
     :: ResourceIO m
     => Request m
     -> Manager
     -> ResourceT m (Response (C.BufferedSource m S.ByteString))
-httpRedirect req0 manager =
-    go (10 :: Int) req0
+http req0 manager =
+    go (redirectCount req0) req0
   where
     go 0 _ = liftBase $ throwIO TooManyRedirects
     go count req = do
-        res@(Response (W.Status code _) hs _) <- http req manager
+        res@(Response (W.Status code _) hs _) <- httpRaw req manager
         case (300 <= code && code < 400, lookup "location" hs) of
             (True, Just l'') -> do
                 -- Prepend scheme, host and port if missing
@@ -242,21 +180,67 @@ httpRedirect req0 manager =
                 go (count - 1) req'
             _ -> return res
 
--- | Download the specified 'Request', returning the results as a
--- 'Response' and automatically handling redirects.
+-- | Get a 'Response' without any redirect following.
+httpRaw
+     :: ResourceIO m
+     => Request m
+     -> Manager
+     -> ResourceT m (Response (C.BufferedSource m S.ByteString))
+httpRaw req m = do
+    (connRelease, ci, isManaged) <- getConn req m
+    bsrc <- C.bufferSource $ connSource ci
+    ex <- try $ requestBuilder req C.$$ builderToByteString C.=$ connSink ci
+    case (ex :: Either SomeException (), isManaged) of
+        -- Connection was reused, and might be been closed. Try again
+        (Left _, Reused) -> do
+            connRelease DontReuse
+            http req m
+        -- Not reused, so this is a real exception
+        (Left e, Fresh) -> liftBase $ throwIO e
+        -- Everything went ok, so the connection is good. If any exceptions get
+        -- thrown in the rest of the code, just throw them as normal.
+        (Right (), _) -> getResponse connRelease req bsrc
+
+-- | Download the specified 'Request', returning the results as a 'Response'.
 --
--- This is a simplified version of 'httpRedirect' for the common
--- case where you simply want the response data as a simple
--- datatype. If you want more power, such as interleaved actions
--- on the response body during download, you'll need to use
--- 'httpRedirect' directly. This function is defined as:
+-- This is a simplified version of 'http' for the common case where you simply
+-- want the response data as a simple datatype. If you want more power, such as
+-- interleaved actions on the response body during download, you'll need to use
+-- 'http' directly. This function is defined as:
 --
--- @httpLbsRedirect req = 'lbsResponse' . 'httpRedirect' req@
+-- @httpLbs = 'lbsResponse' . 'http'@
 --
 -- Even though the 'Response' contains a lazy bytestring, this
 -- function does /not/ utilize lazy I/O, and therefore the entire
 -- response body will live in memory. If you want constant memory
 -- usage, you'll need to use @conduit@ packages's
--- 'C.BufferedSource' returned by 'http' or 'httpRedirect'.
-httpLbsRedirect :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
-httpLbsRedirect req = lbsResponse . httpRedirect req
+-- 'C.BufferedSource' returned by 'http'.
+--
+-- Note: Unlike previous versions, this function will perform redirects, as
+-- specified by the 'redirectCount' setting.
+httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
+httpLbs r = lbsResponse . http r
+
+-- | Download the specified URL, following any redirects, and
+-- return the response body.
+--
+-- This function will 'throwIO' an 'HttpException' for any
+-- response with a non-2xx status code (besides 3xx redirects up
+-- to a limit of 10 redirects). It uses 'parseUrl' to parse the
+-- input. This function essentially wraps 'httpLbsRedirect'.
+--
+-- Note: Even though this function returns a lazy bytestring, it
+-- does /not/ utilize lazy I/O, and therefore the entire response
+-- body will live in memory. If you want constant memory usage,
+-- you'll need to use the @conduit@ package and 'http' or
+-- 'httpRedirect' directly.
+simpleHttp :: ResourceIO m => String -> m L.ByteString
+simpleHttp url = runResourceT $ do
+    url' <- liftBase $ parseUrl url
+    man <- newManager
+    Response sc@(W.Status sci _) _ b <- httpLbs url'
+        { decompress = browserDecompress
+        } man
+    if 200 <= sci && sci < 300
+        then return b
+        else liftBase $ throwIO $ StatusCodeException sc b
