@@ -106,6 +106,7 @@ import Data.Default (def)
 
 import Control.Exception.Lifted (throwIO)
 import Control.Monad.Base (liftBase)
+import Control.Monad.IO.Class (MonadIO (liftIO))
 
 import qualified Data.Conduit as C
 import Data.Conduit.Blaze (builderToByteString)
@@ -243,8 +244,8 @@ httpLbs r = lbsResponse . http r
 -- body will live in memory. If you want constant memory usage,
 -- you'll need to use the @conduit@ package and 'http' or
 -- 'httpRedirect' directly.
-simpleHttp :: ResourceIO m => String -> m L.ByteString
-simpleHttp url = runResourceT $ do
+simpleHttp :: MonadIO m => String -> m L.ByteString
+simpleHttp url = liftIO $ runResourceT $ do
     url' <- liftBase $ parseUrl url
     man <- newManager
     fmap responseBody $ httpLbs url'
