@@ -120,30 +120,3 @@ hex =
     lower = do
         d <- satisfy $ \w -> (w >= 97 && w <= 102)
         return $ d - 87
-
-{-
-sinkParserTill :: Monad m
-               => Parser a
-               -> Parser end
-               -> E.Enumeratee a S.ByteString m b
-sinkParserTill p pend =
-    E.continue $ step $ parse p
-  where
-    step parse (E.Chunks xs) = parseLoop parse xs
-    step parse E.EOF = case parse S.empty of
-        Done extra a -> E.yield a $ if S.null extra
-            then E.Chunks []
-            else E.Chunks [extra]
-        Partial _ -> err [] "sinkParser: divergent parser"
-        Fail _ ctx msg -> err ctx msg
-
-    parseLoop parse [] = E.continue (step parse)
-    parseLoop parse (x:xs) = case parse x of
-        Done extra a -> E.yield a $ if S.null extra
-            then E.Chunks xs
-            else E.Chunks (extra:xs)
-        Partial parse' -> parseLoop parse' xs
-        Fail _ ctx msg -> err ctx msg
-
-    err ctx msg = E.throwError (ParseError ctx msg)
--}
