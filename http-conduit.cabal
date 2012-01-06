@@ -1,17 +1,17 @@
 name:            http-conduit
-version:         1.1.0
+version:         1.1.0.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        HTTP client package with conduit interface and HTTPS support.
 description:
-    This package uses attoparsec for parsing the actual contents of the HTTP connection. It also provides higher-level functions which allow you to avoid direct usage of conduits.
+    This package uses attoparsec for parsing the actual contents of the HTTP connection. It also provides higher-level functions which allow you to avoid direct usage of conduits. See <http://www.yesodweb.com/book/http-conduit> for more information.
 category:        Web, Conduit
 stability:       Stable
 cabal-version:   >= 1.6
 build-type:      Simple
-homepage:        http://github.com/snoyberg/http-conduit
+homepage:        http://www.yesodweb.com/book/http-conduit
 
 flag network-bytestring
   default: False
