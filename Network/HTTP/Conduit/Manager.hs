@@ -146,26 +146,46 @@ getSslProxyConn checkCert thost tport man phost pport =
 
 data ManagedConn = Fresh | Reused
 
+-- | This function needs to acquire a @ConnInfo@- either from the @Manager@ or
+-- via I\/O, and register it with the @ResourceT@ so it is guaranteed to be
+-- either released or returned to the manager.
 getManagedConn
     :: ResourceIO m
     => Manager
     -> ConnKey
     -> IO ConnInfo
     -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+-- We want to avoid any holes caused by async exceptions, so let's mask.
 getManagedConn man key open = mask $ \restore -> do
+    -- Try to take the socket out of the manager.
     mci <- liftBase $ takeSocket man key
     (ci, isManaged) <-
         case mci of
+            -- There wasn't a matching connection in the manager, so create a
+            -- new one.
             Nothing -> do
                 ci <- restore $ liftBase open
                 return (ci, Fresh)
+            -- Return the existing one
             Just ci -> return (ci, Reused)
+
+    -- When we release this connection, we can either reuse it (put it back in
+    -- the manager) or not reuse it (close the socket). We set up a mutable
+    -- reference to track what we want to do. By default, we say not to reuse
+    -- it, that way if an exception is thrown, the connection won't be reused.
     toReuseRef <- newRef DontReuse
+
+    -- Now register our release action.
     releaseKey <- register $ do
         toReuse <- readRef' toReuseRef
+        -- Determine what action to take based on the value stored in the
+        -- toReuseRef variable.
         case toReuse of
             Reuse -> safeFromIOBase $ putSocket man key ci
             DontReuse -> safeFromIOBase $ connClose ci
+
+    -- When the connection is explicitly released, we update our toReuseRef to
+    -- indicate what action should be taken, and then call release.
     let connRelease x = do
             writeRef toReuseRef x
             release releaseKey
