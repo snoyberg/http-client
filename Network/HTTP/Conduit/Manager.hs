@@ -4,6 +4,7 @@ module Network.HTTP.Conduit.Manager
     ( Manager
     , ConnKey (..)
     , newManager
+    , newManagerCount
     , getConn
     , ConnReuse (..)
     , withManager
@@ -45,9 +46,12 @@ import Network.HTTP.Conduit.Request
 
 -- | Keeps track of open connections for keep-alive.  May be used
 -- concurrently by multiple threads.
-newtype Manager = Manager
-    { mConns :: I.IORef (Map.Map ConnKey ConnInfo)
+data Manager = Manager
+    { mConns :: !(I.IORef (Map.Map ConnKey (NonEmptyList ConnInfo)))
+    , mMaxConns :: !Int
     }
+
+data NonEmptyList a = One !a | Cons !a !Int !(NonEmptyList a)
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use keepalive.
@@ -58,19 +62,41 @@ takeSocket :: Manager -> ConnKey -> IO (Maybe ConnInfo)
 takeSocket man key =
     I.atomicModifyIORef (mConns man) go
   where
-    go m = (Map.delete key m, Map.lookup key m)
+    go m =
+        case Map.lookup key m of
+            Nothing -> (m, Nothing)
+            Just (One a) -> (Map.delete key m, Just a)
+            Just (Cons a _ rest) -> (Map.insert key rest m, Just a)
 
 putSocket :: Manager -> ConnKey -> ConnInfo -> IO ()
 putSocket man key ci = do
     msock <- I.atomicModifyIORef (mConns man) go
     maybe (return ()) connClose msock
   where
-    go m = (Map.insert key ci m, Map.lookup key m)
+    go m =
+        case Map.lookup key m of
+            Nothing -> (Map.insert key (One ci) m, Nothing)
+            Just l ->
+                let (l', mx) = addToList (mMaxConns man) ci l
+                 in (Map.insert key l' m, mx)
 
--- | Create a new 'Manager' with no open connections.
+-- | Add a new element to the list, up to the given maximum number. If we're
+-- already at the maximum, return the new value as leftover.
+addToList :: Int -> a -> NonEmptyList a -> (NonEmptyList a, Maybe a)
+addToList i x l | i <= 1 = (l, Just x)
+addToList _ x l@(One _) = (Cons x 2 l, Nothing)
+addToList maxCount x l@(Cons _ currCount _)
+    | maxCount > currCount = (Cons x (currCount + 1) l, Nothing)
+    | otherwise = (l, Just x)
+
+-- | Create a new 'Manager' with no open connections and a maximum of 10 open connections..
 newManager :: ResourceIO m => ResourceT m Manager
-newManager = snd <$> withIO
-    (Manager <$> I.newIORef Map.empty)
+newManager = newManagerCount 10
+
+-- | Create a new 'Manager' with the specified max connection count.
+newManagerCount :: ResourceIO m => Int -> ResourceT m Manager
+newManagerCount count = snd <$> withIO
+    (flip Manager count <$> I.newIORef Map.empty)
     closeManager
 
 withManager :: ResourceIO m => (Manager -> ResourceT m a) -> m a
@@ -79,9 +105,13 @@ withManager f = runResourceT $ newManager >>= f
 -- | Close all connections in a 'Manager'. Afterwards, the
 -- 'Manager' can be reused if desired.
 closeManager :: Manager -> IO ()
-closeManager (Manager i) = do
+closeManager (Manager i _) = do
     m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
-    mapM_ connClose $ Map.elems m
+    mapM_ (nonEmptyMapM_ connClose) $ Map.elems m
+
+nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
+nonEmptyMapM_ f (One x) = f x
+nonEmptyMapM_ f (Cons x _ l) = f x >> nonEmptyMapM_ f l
 
 getSocketConn
     :: ResourceIO m

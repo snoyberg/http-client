@@ -79,6 +79,7 @@ module Network.HTTP.Conduit
       -- * Manager
     , Manager
     , newManager
+    , newManagerCount
     , withManager
       -- * Utility functions
     , parseUrl
