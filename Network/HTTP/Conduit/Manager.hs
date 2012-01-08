@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.Conduit.Manager
     ( Manager
     , ConnKey (..)
@@ -12,6 +13,7 @@ module Network.HTTP.Conduit.Manager
     , ManagedConn (..)
     ) where
 
+import Prelude hiding (catch)
 import Control.Applicative ((<$>))
 import Data.Monoid (mappend)
 import System.IO (hClose, hFlush)
@@ -28,12 +30,16 @@ import qualified Data.Text as T
 
 import Control.Monad.Base (liftBase)
 import Control.Exception.Lifted (mask)
+import Control.Exception (mask_, SomeException, catch)
 import Control.Monad.Trans.Resource
     ( ResourceT, runResourceT, ResourceIO, withIO
     , register, release
     , newRef, readRef', writeRef
     , safeFromIOBase
     )
+import Control.Concurrent (forkIO, ThreadId, killThread, threadDelay)
+import Data.Time (UTCTime, getCurrentTime, addUTCTime)
+import Control.Monad (forever)
 
 import Network (connectTo, PortID (PortNumber))
 import Data.Certificate.X509 (X509)
@@ -43,15 +49,17 @@ import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
 import Network.HTTP.Conduit.Request
 
-
 -- | Keeps track of open connections for keep-alive.  May be used
 -- concurrently by multiple threads.
 data Manager = Manager
     { mConns :: !(I.IORef (Map.Map ConnKey (NonEmptyList ConnInfo)))
     , mMaxConns :: !Int
+    , mReaper :: ThreadId
     }
 
-data NonEmptyList a = One !a | Cons !a !Int !(NonEmptyList a)
+data NonEmptyList a =
+    One !a !UTCTime |
+    Cons !a !Int !UTCTime !(NonEmptyList a)
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use keepalive.
@@ -65,28 +73,29 @@ takeSocket man key =
     go m =
         case Map.lookup key m of
             Nothing -> (m, Nothing)
-            Just (One a) -> (Map.delete key m, Just a)
-            Just (Cons a _ rest) -> (Map.insert key rest m, Just a)
+            Just (One a _) -> (Map.delete key m, Just a)
+            Just (Cons a _ _ rest) -> (Map.insert key rest m, Just a)
 
 putSocket :: Manager -> ConnKey -> ConnInfo -> IO ()
 putSocket man key ci = do
-    msock <- I.atomicModifyIORef (mConns man) go
+    now <- getCurrentTime
+    msock <- I.atomicModifyIORef (mConns man) (go now)
     maybe (return ()) connClose msock
   where
-    go m =
+    go now m =
         case Map.lookup key m of
-            Nothing -> (Map.insert key (One ci) m, Nothing)
+            Nothing -> (Map.insert key (One ci now) m, Nothing)
             Just l ->
-                let (l', mx) = addToList (mMaxConns man) ci l
+                let (l', mx) = addToList now (mMaxConns man) ci l
                  in (Map.insert key l' m, mx)
 
 -- | Add a new element to the list, up to the given maximum number. If we're
 -- already at the maximum, return the new value as leftover.
-addToList :: Int -> a -> NonEmptyList a -> (NonEmptyList a, Maybe a)
-addToList i x l | i <= 1 = (l, Just x)
-addToList _ x l@(One _) = (Cons x 2 l, Nothing)
-addToList maxCount x l@(Cons _ currCount _)
-    | maxCount > currCount = (Cons x (currCount + 1) l, Nothing)
+addToList :: UTCTime -> Int -> a -> NonEmptyList a -> (NonEmptyList a, Maybe a)
+addToList _ i x l | i <= 1 = (l, Just x)
+addToList now _ x l@One{} = (Cons x 2 now l, Nothing)
+addToList now maxCount x l@(Cons _ currCount _ _)
+    | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
     | otherwise = (l, Just x)
 
 -- | Create a new 'Manager' with no open connections and a maximum of 10 open connections..
@@ -96,8 +105,53 @@ newManager = newManagerCount 10
 -- | Create a new 'Manager' with the specified max connection count.
 newManagerCount :: ResourceIO m => Int -> ResourceT m Manager
 newManagerCount count = snd <$> withIO
-    (flip Manager count <$> I.newIORef Map.empty)
+    (do
+        mapRef <- I.newIORef Map.empty
+        reaper <- forkIO $ reap mapRef
+        return $ Manager mapRef count reaper)
     closeManager
+
+-- | Collect and destroy any stale connections.
+reap :: I.IORef (Map.Map ConnKey (NonEmptyList ConnInfo)) -> IO ()
+reap mapRef = forever $ mask_ $ do
+    threadDelay (5 * 1000 * 1000)
+    now <- getCurrentTime
+    let isNotStale time = 30 `addUTCTime` time >= now
+    toDestroy <- I.atomicModifyIORef mapRef (findStale isNotStale)
+    mapM_ safeConnClose toDestroy
+  where
+    findStale isNotStale =
+        findStale' id id . Map.toList
+      where
+        findStale' destroy keep [] = (Map.fromList $ keep [], destroy [])
+        findStale' destroy keep ((connkey, nelist):rest) =
+            findStale' destroy' keep' rest
+          where
+            -- Note: By definition, the timestamps must be in descending order,
+            -- so we don't need to traverse the whole list.
+            (notStale, stale) = span (isNotStale . fst) $ neToList nelist
+            destroy' = destroy . (map snd stale++)
+            keep' =
+                case neFromList notStale of
+                    Nothing -> keep
+                    Just x -> keep . ((connkey, x):)
+
+neToList :: NonEmptyList a -> [(UTCTime, a)]
+neToList (One a t) = [(t, a)]
+neToList (Cons a _ t nelist) = (t, a) : neToList nelist
+
+neFromList :: [(UTCTime, a)] -> Maybe (NonEmptyList a)
+neFromList [] = Nothing
+neFromList [(t, a)] = Just (One a t)
+neFromList xs =
+    Just . snd . go $ xs
+  where
+    go [] = error "neFromList.go []"
+    go [(t, a)] = (2, One a t)
+    go ((t, a):rest) =
+        let (i, rest') = go rest
+            i' = i + 1
+         in i' `seq` (i', Cons a i t rest')
 
 withManager :: ResourceIO m => (Manager -> ResourceT m a) -> m a
 withManager f = runResourceT $ newManager >>= f
@@ -105,13 +159,17 @@ withManager f = runResourceT $ newManager >>= f
 -- | Close all connections in a 'Manager'. Afterwards, the
 -- 'Manager' can be reused if desired.
 closeManager :: Manager -> IO ()
-closeManager (Manager i _) = do
-    m <- I.atomicModifyIORef i $ \x -> (Map.empty, x)
-    mapM_ (nonEmptyMapM_ connClose) $ Map.elems m
+closeManager manager = do
+    killThread $ mReaper manager
+    m <- I.atomicModifyIORef (mConns manager) $ \x -> (Map.empty, x)
+    mapM_ (nonEmptyMapM_ safeConnClose) $ Map.elems m
+
+safeConnClose :: ConnInfo -> IO ()
+safeConnClose ci = connClose ci `catch` \(_::SomeException) -> return ()
 
 nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
-nonEmptyMapM_ f (One x) = f x
-nonEmptyMapM_ f (Cons x _ l) = f x >> nonEmptyMapM_ f l
+nonEmptyMapM_ f (One x _) = f x
+nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
 getSocketConn
     :: ResourceIO m
