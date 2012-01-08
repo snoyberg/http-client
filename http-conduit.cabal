@@ -9,9 +9,10 @@ description:
     This package uses attoparsec for parsing the actual contents of the HTTP connection. It also provides higher-level functions which allow you to avoid direct usage of conduits. See <http://www.yesodweb.com/book/http-conduit> for more information.
 category:        Web, Conduit
 stability:       Stable
-cabal-version:   >= 1.6
+cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/http-conduit
+extra-source-files: test/main.hs
 
 flag network-bytestring
   default: False
@@ -57,6 +58,45 @@ library
                      Network.HTTP.Conduit.Chunk
                      Network.HTTP.Conduit.Response
     ghc-options:     -Wall
+
+test-suite test
+    main-is: test/main.hs
+    type: exitcode-stdio-1.0
+
+    ghc-options:   -Wall
+    cpp-options:   -DDEBUG
+    build-depends: base >= 4 && < 5
+                 , HUnit
+                 , hspec
+                 , bytestring
+                 , transformers
+                 , failure
+                 , conduit
+                 , zlib-conduit
+                 , blaze-builder-conduit
+                 , attoparsec-conduit
+                 , attoparsec
+                 , utf8-string
+                 , blaze-builder
+                 , http-types
+                 , cprng-aes
+                 , tls
+                 , tls-extra
+                 , monad-control
+                 , containers
+                 , certificate
+                 , case-insensitive
+                 , base64-bytestring
+                 , asn1-data
+                 , data-default
+                 , text
+                 , transformers-base
+                 , lifted-base
+                 , time
+                 , network
+                 , wai
+                 , warp
+                 , http-types
 
 source-repository head
   type:     git

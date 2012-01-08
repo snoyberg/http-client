@@ -14,6 +14,8 @@ module Network.HTTP.Conduit.ConnInfo
     , getSocket
 #if DEBUG
     , printOpenSockets
+    , requireAllSocketsClosed
+    , clearSocketsList
 #endif
     ) where
 
@@ -86,6 +88,18 @@ printOpenSockets = do
     if IntMap.null m
         then putStrLn "** No open sockets!"
         else mapM_ putStrLn $ IntMap.elems m
+
+requireAllSocketsClosed :: IO ()
+requireAllSocketsClosed = do
+    (_, m) <- I.readIORef allOpenSockets
+    if IntMap.null m
+        then return ()
+        else error $ unlines
+            $ "requireAllSocketsClosed: there are open sockets"
+            : IntMap.elems m
+
+clearSocketsList :: IO ()
+clearSocketsList = I.writeIORef allOpenSockets (0, IntMap.empty)
 #endif
 
 socketConn :: String -> Socket -> IO ConnInfo
