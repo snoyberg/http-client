@@ -40,7 +40,8 @@ main = hspecX $ do
             withManager $ \manager -> do
                 let Just req1 = parseUrl "http://localhost:3002/"
                 let Just req2 = parseUrl "http://localhost:3003/"
-                _res1 <- http req1 manager
+                _res1a <- http req1 manager
+                _res1b <- http req1 manager
                 _res2 <- http req2 manager
                 return ()
             requireAllSocketsClosed
