@@ -80,6 +80,7 @@ module Network.HTTP.Conduit
     , Manager
     , newManager
     , newManagerCount
+    , newManagerIO
     , withManager
       -- * Utility functions
     , parseUrl

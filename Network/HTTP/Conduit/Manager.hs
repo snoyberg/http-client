@@ -6,6 +6,7 @@ module Network.HTTP.Conduit.Manager
     , ConnKey (..)
     , newManager
     , newManagerCount
+    , newManagerIO
     , getConn
     , ConnReuse (..)
     , withManager
@@ -104,12 +105,14 @@ newManager = newManagerCount 10
 
 -- | Create a new 'Manager' with the specified max connection count.
 newManagerCount :: ResourceIO m => Int -> ResourceT m Manager
-newManagerCount count = snd <$> withIO
-    (do
-        mapRef <- I.newIORef Map.empty
-        reaper <- forkIO $ reap mapRef
-        return $ Manager mapRef count reaper)
-    closeManager
+newManagerCount count = snd <$> withIO (newManagerIO count) closeManager
+
+-- | Create a 'Manager' which will never be destroyed.
+newManagerIO :: Int -> IO Manager
+newManagerIO count = do
+    mapRef <- I.newIORef Map.empty
+    reaper <- forkIO $ reap mapRef
+    return $ Manager mapRef count reaper
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Map.Map ConnKey (NonEmptyList ConnInfo)) -> IO ()
