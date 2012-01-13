@@ -86,6 +86,7 @@ module Network.HTTP.Conduit
     , parseUrl
     , applyBasicAuth
     , addProxy
+    , lbsResponse
       -- * Decompression predicates
     , alwaysDecompress
     , browserDecompress
