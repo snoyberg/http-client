@@ -174,7 +174,7 @@ withManager f = runResourceT $ newManager >>= f
 -- | Close all connections in a 'Manager'. Afterwards, the
 -- 'Manager' can be reused if desired.
 closeManager :: Manager -> IO ()
-closeManager manager = do
+closeManager manager = mask_ $ do
     m <- I.atomicModifyIORef (mConns manager) $ \x -> (Nothing, x)
     mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
 
