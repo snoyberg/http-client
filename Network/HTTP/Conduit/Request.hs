@@ -95,8 +95,8 @@ data Request m = Request
     }
 
 -- | When using one of the
--- 'RequestBodySource'\/'RequestBodySourceChunked' constructors
--- and any function which calls 'redirectIter', you must ensure
+-- 'RequestBodySource' \/ 'RequestBodySourceChunked' constructors,
+-- you must ensure
 -- that the 'Source' can be called multiple times.  Usually this
 -- is not a problem.
 --
