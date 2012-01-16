@@ -17,15 +17,14 @@
 --
 -- > import Data.Conduit.Binary (sinkFile)
 -- > import Network.HTTP.Conduit
--- > import System.IO
 -- > import qualified Data.Conduit as C
 -- >
 -- > main :: IO ()
 -- > main = do
--- >     request <- parseUrl "http://google.com/"
--- >     withManager $ \manager -> do
--- >         Response _ _ bsrc <- http request handler manager
--- >         bsrc C.$$ sinkFile "google.html"
+-- >      request <- parseUrl "http://google.com/"
+-- >      withManager $ \manager -> do
+-- >          Response _ _ bsrc <- http request manager
+-- >          bsrc C.$$ sinkFile "google.html"
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
