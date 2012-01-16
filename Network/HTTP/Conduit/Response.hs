@@ -38,6 +38,10 @@ data Response body = Response
     }
     deriving (Show, Eq, Typeable)
 
+-- | Since 1.1.2.
+instance Functor Response where
+    fmap f (Response status headers body) = Response status headers (f body)
+
 -- | Convert a 'Response' that has a 'C.BufferedSource' body to one with a lazy
 -- 'L.ByteString' body.
 lbsResponse :: C.Resource m
