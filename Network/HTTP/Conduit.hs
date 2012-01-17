@@ -128,13 +128,13 @@ import Network.HTTP.Conduit.ConnInfo
 -- second argument specifies which 'Manager' should be used.
 --
 -- This function then returns a 'Response' with a
--- 'C.BufferedSource'.  The 'Response' contains the status code
+-- 'C.Source'.  The 'Response' contains the status code
 -- and headers that were sent back to us, and the
--- 'C.BufferedSource' contains the body of the request.  Note
--- that this 'C.BufferedSource' allows you to have fully
+-- 'C.Source' contains the body of the request.  Note
+-- that this 'C.Source' allows you to have fully
 -- interleaved IO actions during your HTTP download, making it
 -- possible to download very large responses in constant memory.
--- You may also directly connect the returned 'C.BufferedSource'
+-- You may also directly connect the returned 'C.Source'
 -- into a 'C.Sink', perhaps a file or another socket.
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
@@ -143,7 +143,7 @@ http
     :: ResourceIO m
     => Request m
     -> Manager
-    -> ResourceT m (Response (C.BufferedSource m S.ByteString))
+    -> ResourceT m (Response (C.Source m S.ByteString))
 http req0 manager = do
     res@(Response status hs body) <-
         if redirectCount req0 == 0
@@ -152,7 +152,8 @@ http req0 manager = do
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
-            C.bsourceClose body
+            body' <- C.prepareSource body
+            C.sourceClose body'
             liftBase $ throwIO exc
   where
     go 0 _ = liftBase $ throwIO TooManyRedirects
@@ -197,7 +198,7 @@ httpRaw
      :: ResourceIO m
      => Request m
      -> Manager
-     -> ResourceT m (Response (C.BufferedSource m S.ByteString))
+     -> ResourceT m (Response (C.Source m S.ByteString))
 httpRaw req m = do
     (connRelease, ci, isManaged) <- getConn req m
     bsrc <- C.bufferSource $ connSource ci
@@ -226,7 +227,7 @@ httpRaw req m = do
 -- function does /not/ utilize lazy I/O, and therefore the entire
 -- response body will live in memory. If you want constant memory
 -- usage, you'll need to use @conduit@ packages's
--- 'C.BufferedSource' returned by 'http'.
+-- 'C.Source' returned by 'http'.
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
