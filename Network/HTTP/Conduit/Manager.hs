@@ -3,19 +3,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.Conduit.Manager
     ( Manager
+    , ManagerSettings (..)
     , ConnKey (..)
     , newManager
-    , newManagerCount
-    , newManagerIO
+    , closeManager
     , getConn
     , ConnReuse (..)
     , withManager
     , ConnRelease
     , ManagedConn (..)
+    , defaultCheckCerts
     ) where
 
 import Prelude hiding (catch)
-import Control.Applicative ((<$>))
 import Data.Monoid (mappend)
 import System.IO (hClose, hFlush)
 import qualified Data.IORef as I
@@ -44,10 +44,36 @@ import Data.Time (UTCTime, getCurrentTime, addUTCTime)
 import Network (connectTo, PortID (PortNumber))
 import Data.Certificate.X509 (X509)
 
+import qualified Network.HTTP.Types as W
+import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
+
 import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
 import Network.HTTP.Conduit.Request
+import Data.Default
+
+-- | Settings for a @Manager@. Please use the 'def' function and then modify
+-- individual settings.
+data ManagerSettings = ManagerSettings
+    { managerConnCount :: Int
+      -- ^ Number of connection to a single host to keep alive. Default: 10.
+    , managerCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+      -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
+    }
+
+instance Default ManagerSettings where
+    def = ManagerSettings
+        { managerConnCount = 10
+        , managerCheckCerts = defaultCheckCerts
+        }
+
+-- | Check certificates using the operating system's certificate checker.
+defaultCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+defaultCheckCerts host' certs =
+    case certificateVerifyDomain (S8.unpack host') certs of
+        CertificateUsageAccept -> certificateVerifyChain certs
+        rejected               -> return rejected
 
 -- | Keeps track of open connections for keep-alive.  May be used
 -- concurrently by multiple threads.
@@ -56,6 +82,7 @@ data Manager = Manager
     -- ^ @Nothing@ indicates that the manager is closed.
     , mMaxConns :: !Int
     -- ^ This is a per-@ConnKey@ value.
+    , mCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
     }
 
 data NonEmptyList a =
@@ -101,20 +128,12 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
     | otherwise = (l, Just x)
 
--- | Create a new 'Manager' with no open connections and a maximum of 10 open connections..
-newManager :: ResourceIO m => ResourceT m Manager
-newManager = newManagerCount 10
-
--- | Create a new 'Manager' with the specified max connection count.
-newManagerCount :: ResourceIO m => Int -> ResourceT m Manager
-newManagerCount count = snd <$> withIO (newManagerIO count) closeManager
-
--- | Create a 'Manager' which will never be destroyed.
-newManagerIO :: Int -> IO Manager
-newManagerIO count = do
+-- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
+newManager :: ManagerSettings -> IO Manager
+newManager ms = do
     mapRef <- I.newIORef (Just Map.empty)
     _ <- forkIO $ reap mapRef
-    return $ Manager mapRef count
+    return $ Manager mapRef (managerConnCount ms) (managerCheckCerts ms)
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo))) -> IO ()
@@ -168,8 +187,14 @@ neFromList xs =
             i' = i + 1
          in i' `seq` (i', Cons a i t rest')
 
+-- | Create a new manager, use it in the provided function, and then release it.
+--
+-- This function uses the default manager settings. For more control, use
+-- 'newManager'.
 withManager :: ResourceIO m => (Manager -> ResourceT m a) -> m a
-withManager f = runResourceT $ newManager >>= f
+withManager f = runResourceT $ do
+    (_, manager) <- withIO (newManager def) closeManager
+    f manager
 
 -- | Close all connections in a 'Manager'. Afterwards, the
 -- 'Manager' can be reused if desired.
@@ -312,5 +337,5 @@ getConn req m =
     go =
         case (secure req, useProxy) of
             (False, _) -> getSocketConn
-            (True, False) -> getSslConn $ checkCerts req h
-            (True, True) -> getSslProxyConn (checkCerts req h) h (port req)
+            (True, False) -> getSslConn $ mCheckCerts m h
+            (True, True) -> getSslProxyConn (mCheckCerts m h) h (port req)

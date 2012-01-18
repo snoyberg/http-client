@@ -61,7 +61,6 @@ module Network.HTTP.Conduit
     , def
     , method
     , secure
-    , checkCerts
     , host
     , port
     , path
@@ -73,14 +72,17 @@ module Network.HTTP.Conduit
     , decompress
     , redirectCount
     , checkStatus
-      -- *** Defaults
-    , defaultCheckCerts
       -- * Manager
     , Manager
     , newManager
-    , newManagerCount
-    , newManagerIO
+    , closeManager
     , withManager
+      -- ** Settings
+    , ManagerSettings
+    , managerConnCount
+    , managerCheckCerts
+      -- *** Defaults
+    , defaultCheckCerts
       -- * Utility functions
     , parseUrl
     , applyBasicAuth
@@ -112,7 +114,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 
 import qualified Data.Conduit as C
 import Data.Conduit.Blaze (builderToByteString)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT, ResourceIO)
+import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
 import Control.Exception.Lifted (try, SomeException)
 
 import Network.HTTP.Conduit.Request
@@ -248,7 +250,6 @@ httpLbs r = lbsResponse . http r
 -- you'll need to use the @conduit@ package and 'http' or
 -- 'httpRedirect' directly.
 simpleHttp :: MonadIO m => String -> m L.ByteString
-simpleHttp url = liftIO $ runResourceT $ do
+simpleHttp url = liftIO $ withManager $ \man -> do
     url' <- liftBase $ parseUrl url
-    man <- newManager
     fmap responseBody $ httpLbs url' man

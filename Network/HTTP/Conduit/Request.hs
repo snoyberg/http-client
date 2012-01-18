@@ -9,7 +9,6 @@ module Network.HTTP.Conduit.Request
     , parseUrl
     , browserDecompress
     , HttpException (..)
-    , defaultCheckCerts
     , alwaysDecompress
     , addProxy
     , applyBasicAuth
@@ -37,10 +36,6 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
-import Data.Certificate.X509 (X509)
-
-import Network.TLS (TLSCertificateUsage (CertificateUsageAccept))
-import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
 import Control.Exception (Exception, SomeException, toException)
 import Control.Failure (Failure (failure))
@@ -68,8 +63,6 @@ data Request m = Request
     -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool
     -- ^ Whether to use HTTPS (ie, SSL).
-    , checkCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
-    -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , host :: W.Ascii
     , port :: Int
     , path :: W.Ascii
@@ -161,18 +154,11 @@ parseUrl1 full sec s =
   where
     s' = encodeString s
 
-defaultCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
-defaultCheckCerts host' certs =
-    case certificateVerifyDomain (S8.unpack host') certs of
-        CertificateUsageAccept -> certificateVerifyChain certs
-        rejected               -> return rejected
-
 instance Default (Request m) where
     def = Request
         { host = "localhost"
         , port = 80
         , secure = False
-        , checkCerts = defaultCheckCerts
         , requestHeaders = []
         , path = "/"
         , queryString = S8.empty
