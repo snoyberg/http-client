@@ -188,7 +188,7 @@ reap mapRef certCacheRef =
         flushStaleCerts' (host', inner) =
             case mapMaybe flushStaleCerts'' $ Map.toList inner of
                 [] -> Nothing
-                pairs -> Just (host', Map.fromList pairs)
+                pairs -> Just (host', Map.fromList $ take 10 pairs)
         flushStaleCerts'' (certs, expires)
             | expires > now = Just (certs, expires)
             | otherwise     = Nothing
