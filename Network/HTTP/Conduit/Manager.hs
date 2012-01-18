@@ -1,6 +1,7 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.Manager
     ( Manager
     , ManagerSettings (..)
@@ -42,7 +43,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime, getCurrentTime, addUTCTime)
 
 import Network (connectTo, PortID (PortNumber))
-import Data.Certificate.X509 (X509)
+import Data.Certificate.X509 (X509, encodeCertificate)
 
 import qualified Network.HTTP.Types as W
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
@@ -52,15 +53,18 @@ import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
 import Network.HTTP.Conduit.Request
 import Data.Default
+import Data.Maybe (mapMaybe)
 
 -- | Settings for a @Manager@. Please use the 'def' function and then modify
 -- individual settings.
 data ManagerSettings = ManagerSettings
     { managerConnCount :: Int
-      -- ^ Number of connection to a single host to keep alive. Default: 10.
+      -- ^ Number of connections to a single host to keep alive. Default: 10.
     , managerCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
       -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     }
+
+type X509Encoded = L.ByteString
 
 instance Default ManagerSettings where
     def = ManagerSettings
@@ -83,6 +87,10 @@ data Manager = Manager
     , mMaxConns :: !Int
     -- ^ This is a per-@ConnKey@ value.
     , mCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+    -- ^ Check if a certificate is valid.
+    , mCertCache :: !(I.IORef (Map.Map W.Ascii (Map.Map X509Encoded UTCTime)))
+    -- ^ Cache of validated certificates. The @UTCTime@ gives the expiration
+    -- time for the validity of the certificate. The @Ascii@ is the hostname.
     }
 
 data NonEmptyList a =
@@ -90,7 +98,7 @@ data NonEmptyList a =
     Cons !a !Int !UTCTime !(NonEmptyList a)
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
--- specifying whether to use keepalive.
+-- specifying whether to use SSL.
 data ConnKey = ConnKey !Text !Int !Bool
     deriving (Eq, Show, Ord)
 
@@ -132,12 +140,15 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
     mapRef <- I.newIORef (Just Map.empty)
-    _ <- forkIO $ reap mapRef
-    return $ Manager mapRef (managerConnCount ms) (managerCheckCerts ms)
+    certCache <- I.newIORef Map.empty
+    _ <- forkIO $ reap mapRef certCache
+    return $ Manager mapRef (managerConnCount ms) (managerCheckCerts ms) certCache
 
 -- | Collect and destroy any stale connections.
-reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo))) -> IO ()
-reap mapRef =
+reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
+     -> I.IORef (Map.Map W.Ascii (Map.Map X509Encoded UTCTime))
+     -> IO ()
+reap mapRef certCacheRef =
     mask_ loop
   where
     loop = do
@@ -150,6 +161,7 @@ reap mapRef =
             Just toDestroy -> do
                 mapM_ safeConnClose toDestroy
                 loop
+        I.atomicModifyIORef certCacheRef $ \x -> (flushStaleCerts now x, ())
     findStaleWrap _ Nothing = (Nothing, Nothing)
     findStaleWrap isNotStale (Just m) =
         let (x, y) = findStale isNotStale m
@@ -169,6 +181,17 @@ reap mapRef =
                 case neFromList notStale of
                     Nothing -> keep
                     Just x -> keep . ((connkey, x):)
+
+    flushStaleCerts now =
+        Map.fromList . mapMaybe flushStaleCerts' . Map.toList
+      where
+        flushStaleCerts' (host', inner) =
+            case mapMaybe flushStaleCerts'' $ Map.toList inner of
+                [] -> Nothing
+                pairs -> Just (host', Map.fromList pairs)
+        flushStaleCerts'' (certs, expires)
+            | expires > now = Just (certs, expires)
+            | otherwise     = Nothing
 
 neToList :: NonEmptyList a -> [(UTCTime, a)]
 neToList (One a t) = [(t, a)]
@@ -337,5 +360,43 @@ getConn req m =
     go =
         case (secure req, useProxy) of
             (False, _) -> getSocketConn
-            (True, False) -> getSslConn $ mCheckCerts m h
-            (True, True) -> getSslProxyConn (mCheckCerts m h) h (port req)
+            (True, False) -> getSslConn $ checkCerts m h
+            (True, True) -> getSslProxyConn (checkCerts m h) h (port req)
+
+checkCerts :: Manager -> W.Ascii -> [X509] -> IO TLSCertificateUsage
+checkCerts man host' certs = do
+#if DEBUG
+    putStrLn $ "checkCerts for host: " ++ show host'
+#endif
+    cache <- I.readIORef $ mCertCache man
+    case Map.lookup host' cache >>= Map.lookup encoded of
+        Nothing -> do
+#if DEBUG
+            putStrLn $ concat ["checkCerts ", show host', " no cached certs found"]
+#endif
+            res <- mCheckCerts man host' certs
+            case res of
+                CertificateUsageAccept -> do
+#if DEBUG
+                    putStrLn $ concat ["checkCerts ", show host', " valid cert, adding to cache"]
+#endif
+                    now <- getCurrentTime
+                    -- keep it valid for 1 hour
+                    let expire = (60 * 60) `addUTCTime` now
+                    I.atomicModifyIORef (mCertCache man) $ addValidCerts expire
+                _ -> return ()
+            return res
+        Just _ -> do
+#if DEBUG
+            putStrLn $ concat ["checkCerts ", show host', " cert already cached"]
+#endif
+            return CertificateUsageAccept
+  where
+    encoded = L.concat $ map encodeCertificate certs
+    addValidCerts expire cache =
+        (Map.insert host' inner cache, ())
+      where
+        inner =
+            case Map.lookup host' cache of
+                Nothing -> Map.singleton encoded expire
+                Just m -> Map.insert encoded expire m
