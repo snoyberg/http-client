@@ -4,16 +4,22 @@ import Network.HTTP.Conduit
 import Network
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import System.Environment.UTF8 (getArgs)
+import System.Environment.UTF8 (getArgs, getEnv)
 import Data.CaseInsensitive (original)
 import Data.Conduit
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (finally)
+import Network.Socks5 (SocksConf(..), defaultSocksConf)
+
+mproxify sockshost req
+	| sockshost == "" = req
+	| otherwise       = req { socksProxy = Just $ defaultSocksConf sockshost 1080 }
 
 main :: IO ()
 main = withSocketsDo $ do
     [url] <- getArgs
-    _req2 <- parseUrl url
+    proxy <- catch (getEnv "SOCKS_PROXY") (const $ return "")
+    _req2 <- mproxify proxy `fmap` parseUrl url
     {-
     let req = urlEncodedBody
                 [ ("foo", "bar")
