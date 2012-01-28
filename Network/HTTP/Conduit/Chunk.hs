@@ -44,7 +44,7 @@ chunkedConduit sendHeaders = C.conduitState
                     let header = S8.pack $ showHex i "\r\n"
                     let addHeader = if sendHeaders then (header:) else id
                     push (front . addHeader) (Isolate i) x'
-            A.Partial f' -> return (NeedHeader f', C.Producing $ front [])
+            A.Partial f' -> return $ C.StateProducing (NeedHeader f') $ front []
             A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
     push front (Isolate i) x = do
         let (a, b) = S.splitAt i x
@@ -54,10 +54,9 @@ chunkedConduit sendHeaders = C.conduitState
                     (front . (a:))
                     (NeedNewline $ A.parse newline)
                     b
-            else assert (S.null b) $ return
-                ( Isolate i'
-                , C.Producing (front [a])
-                )
+            else assert (S.null b) $ return $ C.StateProducing
+                (Isolate i')
+                (front [a])
     push front (NeedNewline f) x =
         case f x of
             A.Done x' () -> do
@@ -67,16 +66,18 @@ chunkedConduit sendHeaders = C.conduitState
                     (front . addHeader)
                     (NeedHeader $ A.parse parseChunkHeader)
                     x'
-            A.Partial f' -> return (NeedNewline f', C.Producing $ front [])
+            A.Partial f' -> return $ C.StateProducing (NeedNewline f') $ front []
             A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
     push front Complete leftover = do
         let end = if sendHeaders then [S8.pack "0\r\n"] else []
             lo = if S.null leftover then Nothing else Just leftover
-        return (Complete, C.Finished lo $ front end)
+        return $ C.StateFinished lo $ front end
     close _ = return []
 
 chunkIt :: C.Resource m => C.Conduit Blaze.Builder m Blaze.Builder
-chunkIt = C.Conduit $ return $ C.PreparedConduit
-    { C.conduitPush = \xs -> return $ C.Producing [chunkedTransferEncoding xs]
-    , C.conduitClose = return [chunkedTransferTerminator]
-    }
+chunkIt =
+    conduit
+  where
+    conduit = C.Conduit push close
+    push xs = return $ C.Producing conduit [chunkedTransferEncoding xs]
+    close = return [chunkedTransferTerminator]

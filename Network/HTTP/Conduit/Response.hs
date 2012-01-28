@@ -98,16 +98,15 @@ addCleanup :: C.ResourceIO m
            => ResourceT m ()
            -> C.Source m a
            -> C.Source m a
-addCleanup cleanup (C.Source msrc) = C.Source $ do
-    src <- msrc
-    return C.PreparedSource
-        { C.sourcePull = do
-            res <- C.sourcePull src
-            case res of
-                C.Closed -> cleanup
-                C.Open _ -> return ()
-            return res
-        , C.sourceClose = do
-            C.sourceClose src
-            cleanup
-        }
+addCleanup cleanup src = src
+    { C.sourcePull = do
+        res <- C.sourcePull src
+        case res of
+            C.Closed -> cleanup >> return C.Closed
+            C.Open src' val -> return $ C.Open
+                (addCleanup cleanup src')
+                val
+    , C.sourceClose = do
+        C.sourceClose src
+        cleanup
+    }

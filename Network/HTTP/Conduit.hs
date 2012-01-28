@@ -154,8 +154,7 @@ http req0 manager = do
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
-            body' <- C.prepareSource body
-            C.sourceClose body'
+            C.sourceClose body
             liftBase $ throwIO exc
   where
     go 0 _ = liftBase $ throwIO TooManyRedirects

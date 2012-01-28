@@ -54,20 +54,23 @@ data ConnInfo = ConnInfo
     }
 
 connSink :: C.ResourceIO m => ConnInfo -> C.Sink ByteString m ()
-connSink ConnInfo { connWrite = write } = C.Sink $ return $ C.SinkData
-    { C.sinkPush = \bss -> liftBase (write bss) >> return C.Processing
-    , C.sinkClose = return ()
-    }
+connSink ConnInfo { connWrite = write } =
+    C.SinkData push close
+  where
+    push bss = liftBase (write bss) >> return (C.Processing push close)
+    close = return ()
 
 connSource :: C.ResourceIO m => ConnInfo -> C.Source m ByteString
-connSource ConnInfo { connRead = read' } = C.Source $ return $ C.PreparedSource
-    { C.sourcePull = do
+connSource ConnInfo { connRead = read' } =
+    src
+  where
+    src = C.Source pull close
+    pull = do
         bs <- liftBase read'
         if S.null bs
             then return C.Closed
-            else return $ C.Open bs
-    , C.sourceClose = return ()
-    }
+            else return $ C.Open src bs
+    close = return ()
 
 #if DEBUG
 allOpenSockets :: I.IORef (Int, IntMap.IntMap String)
