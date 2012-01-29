@@ -4,6 +4,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Conduit.Response
     ( Response (..)
+    , getRedirectedRequest
     , getResponse
     , lbsResponse
     ) where
@@ -16,6 +17,8 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
+
+import Data.Maybe
 
 import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
 import qualified Data.Conduit as C
@@ -42,6 +45,54 @@ data Response body = Response
 -- | Since 1.1.2.
 instance Functor Response where
     fmap f (Response status headers body) = Response status headers (f body)
+
+-- | If a request is a redirection (status code 3xx) this function will create
+-- a new request from the old request, the server headers returned with the
+-- redirection, and the redirection code itself. This function returns 'Nothing'
+-- if the code is not a 3xx, there is no 'location' header included, or if the
+-- redirected response couldn't be parsed with 'parseUrl'.
+--
+-- If a user of this library wants to know the url chain that results from a
+-- specific request, that user has to re-implement the redirect-following logic
+-- themselves. An example of that might look like this:
+--
+-- > myHttp req man = E.catch (C.runResourceT $ http req' man >> return [req'])
+-- >                    (\ (StatusCodeException status headers) -> do
+-- >                        l <- myHttp (fromJust $ nextRequest status headers) man
+-- >                        return $ req' : l)
+-- >     where req' = req { redirectCount = 0 }
+-- >           nextRequest status headers = getRedirectedRequest req' headers $ W.statusCode status
+getRedirectedRequest :: Request m -> W.ResponseHeaders -> Int -> Maybe (Request m)
+getRedirectedRequest req hs code
+    | 300 <= code && code < 400 = do
+        l' <- lookup "location" hs
+        l <- parseUrl $ case S8.uncons l' of
+                Just ('/', _) -> concat
+                    [ "http"
+                    , if secure req then "s" else ""
+                    , "://"
+                    , S8.unpack $ host req
+                    , ":"
+                    , show $ port req
+                    , S8.unpack l'
+                    ]
+                _ -> S8.unpack l'
+        return req
+          { host = host l
+          , port = port l
+          , secure = secure l
+          , path = path l
+          , queryString = queryString l
+          , method =
+              -- According to the spec, this should *only* be for
+              -- status code 303. However, almost all clients
+              -- mistakenly implement it for 302 as well. So we
+              -- have to be wrong like everyone else...
+              if code == 302 || code == 303
+                  then "GET"
+                  else method l
+          }
+    | otherwise = Nothing
 
 -- | Convert a 'Response' that has a 'C.Source' body to one with a lazy
 -- 'L.ByteString' body.

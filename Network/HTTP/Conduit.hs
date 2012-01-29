@@ -89,6 +89,7 @@ module Network.HTTP.Conduit
     , applyBasicAuth
     , addProxy
     , lbsResponse
+    , getRedirectedRequest
       -- * Decompression predicates
     , alwaysDecompress
     , browserDecompress
@@ -104,7 +105,6 @@ module Network.HTTP.Conduit
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import qualified Data.ByteString.Char8 as S8
 
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
@@ -160,40 +160,10 @@ http req0 manager = do
   where
     go 0 _ = liftBase $ throwIO TooManyRedirects
     go count req = do
-        res@(Response (W.Status code _) hs _) <- httpRaw req manager
-        case (300 <= code && code < 400, lookup "location" hs) of
-            (True, Just l'') -> do
-                -- Prepend scheme, host and port if missing
-                let l' =
-                        case S8.uncons l'' of
-                            Just ('/', _) -> concat
-                                [ "http"
-                                , if secure req then "s" else ""
-                                , "://"
-                                , S8.unpack $ host req
-                                , ":"
-                                , show $ port req
-                                , S8.unpack l''
-                                ]
-                            _ -> S8.unpack l''
-                l <- liftBase $ parseUrl l'
-                let req' = req
-                        { host = host l
-                        , port = port l
-                        , secure = secure l
-                        , path = path l
-                        , queryString = queryString l
-                        , method =
-                            -- According to the spec, this should *only* be for
-                            -- status code 303. However, almost all clients
-                            -- mistakenly implement it for 302 as well. So we
-                            -- have to be wrong like everyone else...
-                            if code == 302 || code == 303
-                                then "GET"
-                                else method l
-                        }
-                go (count - 1) req'
-            _ -> return res
+        res <- httpRaw req manager
+        case getRedirectedRequest req (responseHeaders res) (W.statusCode (statusCode res)) of
+            Just req' -> go (count - 1) req'
+            Nothing -> return res
 
 -- | Get a 'Response' without any redirect following.
 httpRaw
