@@ -18,8 +18,6 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
-import Data.Maybe
-
 import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
