@@ -43,6 +43,7 @@ library
                  , text
                  , transformers-base     >= 0.4     && < 0.5
                  , lifted-base           >= 0.1     && < 0.2
+                 , socks                 >= 0.4     && < 0.5
                  , time
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
@@ -96,6 +97,7 @@ test-suite test
                  , network
                  , wai
                  , warp
+                 , socks
                  , http-types
 
 source-repository head

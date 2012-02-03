@@ -18,7 +18,7 @@ module Network.HTTP.Conduit.Manager
 
 import Prelude hiding (catch)
 import Data.Monoid (mappend)
-import System.IO (hClose, hFlush)
+import System.IO (hClose, hFlush, IOMode(..))
 import qualified Data.IORef as I
 import qualified Data.Map as Map
 
@@ -42,7 +42,8 @@ import Control.Monad.Trans.Resource
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime, getCurrentTime, addUTCTime)
 
-import Network (connectTo, PortID (PortNumber))
+import Network (connectTo, PortID (PortNumber), HostName)
+import Network.Socket (socketToHandle)
 import Data.Certificate.X509 (X509, encodeCertificate)
 
 import qualified Network.HTTP.Types as W
@@ -52,8 +53,10 @@ import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
 import Network.HTTP.Conduit.Request
+import Network.Socks5 (SocksConf, socksConnectWith)
 import Data.Default
 import Data.Maybe (mapMaybe)
+import System.IO (Handle)
 
 -- | Settings for a @Manager@. Please use the 'def' function and then modify
 -- individual settings.
@@ -238,10 +241,11 @@ getSocketConn
     => Manager
     -> String
     -> Int
+    -> Maybe SocksConf -- ^ optional socks proxy
     -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
-getSocketConn man host' port' =
+getSocketConn man host' port' socksProxy' =
     getManagedConn man (ConnKey (T.pack host') port' False) $
-        getSocket host' port'>>= socketConn desc
+        getSocket host' port' socksProxy' >>= socketConn desc
   where
     desc = socketDesc host' port' "unsecured"
 
@@ -253,10 +257,11 @@ getSslConn :: ResourceIO m
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
+            -> Maybe SocksConf -- ^ optional socks proxy
             -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
-getSslConn checkCert man host' port' =
+getSslConn checkCert man host' port' socksProxy' =
     getManagedConn man (ConnKey (T.pack host') port' True) $
-        (connectTo host' (PortNumber $ fromIntegral port') >>= sslClientConn desc checkCert)
+        (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc checkCert)
   where
     desc = socketDesc host' port' "secured"
 
@@ -268,14 +273,15 @@ getSslProxyConn
             -> Manager
             -> String -- ^ Proxy host
             -> Int -- ^ Proxy port
+            -> Maybe SocksConf -- ^ optional SOCKS proxy
             -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
-getSslProxyConn checkCert thost tport man phost pport  =
+getSslProxyConn checkCert thost tport man phost pport socksProxy' =
     getManagedConn man (ConnKey (T.pack phost) pport True) $
         doConnect >>= sslClientConn desc checkCert
   where
     desc = socketDesc phost pport "secured-proxy"
     doConnect = do
-        h <- connectTo phost (PortNumber $ fromIntegral pport)
+        h <- connectionTo phost (PortNumber $ fromIntegral pport) socksProxy'
         L.hPutStr h $ Blaze.toLazyByteString connectRequest
         hFlush h
         r <- hGetSome h 2048
@@ -350,7 +356,7 @@ getConn :: ResourceIO m
         -> Manager
         -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
 getConn req m =
-    go m connhost connport
+    go m connhost connport (socksProxy req)
   where
     h = host req
     (useProxy, connhost, connport) =
@@ -401,3 +407,7 @@ checkCerts man host' certs = do
                 Nothing -> Map.singleton encoded expire
                 Just m -> Map.insert encoded expire m
 
+connectionTo :: HostName -> PortID -> Maybe SocksConf -> IO Handle
+connectionTo host' port' Nothing = connectTo host' port'
+connectionTo host' port' (Just socksConf) =
+	socksConnectWith socksConf host' port' >>= flip socketToHandle ReadWriteMode

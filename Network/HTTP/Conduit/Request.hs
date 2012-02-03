@@ -36,6 +36,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
+import Network.Socks5 (SocksConf)
 
 import Control.Exception (Exception, SomeException, toException)
 import Control.Failure (Failure (failure))
@@ -72,6 +73,8 @@ data Request m = Request
     , requestBody :: RequestBody m
     , proxy :: Maybe Proxy
     -- ^ Optional HTTP proxy.
+    , socksProxy :: Maybe SocksConf
+    -- ^ Optional SOCKS proxy.
     , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.
@@ -165,6 +168,7 @@ instance Default (Request m) where
         , requestBody = RequestBodyLBS L.empty
         , method = "GET"
         , proxy = Nothing
+        , socksProxy = Nothing
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10

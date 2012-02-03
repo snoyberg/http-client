@@ -28,9 +28,11 @@ import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 
+import Network (PortID(..))
 import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
 import qualified Network.Socket as NS
+import Network.Socks5 (socksConnectWith, SocksConf)
 
 import Network.TLS
 import Network.TLS.Extra (ciphersuite_all)
@@ -154,8 +156,10 @@ sslClientConn _desc onCerts h = do
             -- least on tls-0.8.4 it's guaranteed to always
             -- return a lazy bytestring with a single chunk.
 
-getSocket :: String -> Int -> IO NS.Socket
-getSocket host' port' = do
+getSocket :: String -> Int -> Maybe SocksConf -> IO NS.Socket
+getSocket host' port' (Just socksConf) = do
+    socksConnectWith socksConf host' (PortNumber $ fromIntegral port')
+getSocket host' port' Nothing = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
