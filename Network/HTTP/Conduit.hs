@@ -84,6 +84,12 @@ module Network.HTTP.Conduit
     , managerCheckCerts
       -- *** Defaults
     , defaultCheckCerts
+      -- * Cookies
+    , updateCookieJar
+    , receiveSetCookie
+    , insertCookiesIntoRequest
+    , computeCookieString
+    , evictExpiredCookies
       -- * Utility functions
     , parseUrl
     , applyBasicAuth
@@ -118,10 +124,13 @@ import Data.Conduit.Blaze (builderToByteString)
 import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
 import Control.Exception.Lifted (try, SomeException)
 
+import Data.Time.Clock
+
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Response
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.ConnInfo
+import Network.HTTP.Conduit.Cookies
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -151,18 +160,21 @@ http req0 manager = do
     res@(Response status hs body) <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
-            else go (redirectCount req0) req0
+            else go (redirectCount req0) req0 def
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
             C.sourceClose body
             liftBase $ throwIO exc
   where
-    go 0 _ = liftBase $ throwIO TooManyRedirects
-    go count req = do
-        res <- httpRaw req manager
-        case getRedirectedRequest req (responseHeaders res) (W.statusCode (statusCode res)) of
-            Just req' -> go (count - 1) req'
+    go 0 _ _ = liftBase $ throwIO TooManyRedirects
+    go count req'' cookie_jar'' = do
+        now <- liftIO $ getCurrentTime
+        let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
+        res' <- httpRaw req' manager
+        let (cookie_jar, res) = updateCookieJar res' req' now cookie_jar'
+        case getRedirectedRequest req' (responseHeaders res) (W.statusCode (statusCode res)) of
+            Just req -> go (count - 1) req cookie_jar
             Nothing -> return res
 
 -- | Get a 'Response' without any redirect following.
