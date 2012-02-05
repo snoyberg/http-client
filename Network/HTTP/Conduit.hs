@@ -85,6 +85,8 @@ module Network.HTTP.Conduit
       -- *** Defaults
     , defaultCheckCerts
       -- * Cookies
+    , Cookie(..)
+    , CookieJar
     , updateCookieJar
     , receiveSetCookie
     , insertCookiesIntoRequest

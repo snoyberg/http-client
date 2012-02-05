@@ -60,6 +60,8 @@ library
                      Network.HTTP.Conduit.Manager
                      Network.HTTP.Conduit.Chunk
                      Network.HTTP.Conduit.Response
+                     Network.HTTP.Conduit.Cookies
+                     Network.HTTP.Conduit.Cookies.Internal
     ghc-options:     -Wall
 
 test-suite test

@@ -20,17 +20,17 @@ default_request :: HC.Request m
 default_request = fromJust $ HC.parseUrl "http://www.google.com/"
 
 default_cookie :: Cookie
-default_cookie = Cookie { name = fromString "name"
-                        , value = fromString "value"
-                        , expiry_time = default_time
-                        , domain = fromString "www.google.com"
-                        , path = fromString "/"
-                        , creation_time = default_time
-                        , last_access_time = default_time
-                        , persistent = False
-                        , host_only = False
-                        , secure_only = False
-                        , http_only = False
+default_cookie = Cookie { cookie_name = fromString "name"
+                        , cookie_value = fromString "value"
+                        , cookie_expiry_time = default_time
+                        , cookie_domain = fromString "www.google.com"
+                        , cookie_path = fromString "/"
+                        , cookie_creation_time = default_time
+                        , cookie_last_access_time = default_time
+                        , cookie_persistent = False
+                        , cookie_host_only = False
+                        , cookie_secure_only = False
+                        , cookie_http_only = False
                         }
 
 default_time :: UTCTime
@@ -111,28 +111,36 @@ testCookieEqualitySuccess = TestCase $ assertEqual "The same cookies should be e
   where cookie = default_cookie
 
 testCookieEqualityResiliance = TestCase $ assertEqual "Cookies should still be equal if extra options are changed"
-  (default_cookie {persistent = True}) (default_cookie {host_only = True})
+  (default_cookie {cookie_persistent = True}) (default_cookie {cookie_host_only = True})
 
 testDomainChangesEquality = TestCase $ assertBool "Changing the domain should make cookies not equal" $
-  default_cookie /= (default_cookie {domain = fromString "/search"})
+  default_cookie /= (default_cookie {cookie_domain = fromString "/search"})
 
 testRemoveCookie = TestCase $ assertEqual "Removing a cookie works"
   (Just default_cookie, []) (removeExistingCookieFromCookieJar default_cookie [default_cookie])
 
 testRemoveNonexistantCookie = TestCase $ assertEqual "Removing a nonexistant cookie doesn't work"
-  (Nothing, [default_cookie]) (removeExistingCookieFromCookieJar (default_cookie {name = fromString "key2"}) [default_cookie])
+  (Nothing, [default_cookie]) (removeExistingCookieFromCookieJar (default_cookie {cookie_name = fromString "key2"}) [default_cookie])
 
 testRemoveCorrectCookie = TestCase $ assertEqual "Removing only the correct cookie"
   (Just search_for, [red_herring]) (removeExistingCookieFromCookieJar search_for [red_herring, search_for])
-  where search_for = default_cookie {name = fromString "name1"}
-        red_herring = default_cookie {name = fromString "name2"}
+  where search_for = default_cookie {cookie_name = fromString "name1"}
+        red_herring = default_cookie {cookie_name = fromString "name2"}
 
 testEvictExpiredCookies = TestCase $ assertEqual "Evicting expired cookies works"
   [a, c] (evictExpiredCookies [a, b, c, d] middle)
-  where a = default_cookie {name = fromString "a", expiry_time = UTCTime (ModifiedJulianDay 3) (secondsToDiffTime 0)}
-        b = default_cookie {name = fromString "b", expiry_time = UTCTime (ModifiedJulianDay 1) (secondsToDiffTime 0)}
-        c = default_cookie {name = fromString "c", expiry_time = UTCTime (ModifiedJulianDay 3) (secondsToDiffTime 0)}
-        d = default_cookie {name = fromString "d", expiry_time = UTCTime (ModifiedJulianDay 1) (secondsToDiffTime 0)}
+  where a = default_cookie { cookie_name = fromString "a"
+                           , cookie_expiry_time = UTCTime (ModifiedJulianDay 3) (secondsToDiffTime 0)
+                           }
+        b = default_cookie { cookie_name = fromString "b"
+                           , cookie_expiry_time = UTCTime (ModifiedJulianDay 1) (secondsToDiffTime 0)
+                           }
+        c = default_cookie { cookie_name = fromString "c"
+                           , cookie_expiry_time = UTCTime (ModifiedJulianDay 3) (secondsToDiffTime 0)
+                           }
+        d = default_cookie { cookie_name = fromString "d"
+                           , cookie_expiry_time = UTCTime (ModifiedJulianDay 1) (secondsToDiffTime 0)
+                           }
         middle = UTCTime (ModifiedJulianDay 2) (secondsToDiffTime 0)
 
 testEvictNoCookies = TestCase $ assertEqual "Evicting empty cookie jar"
@@ -144,89 +152,92 @@ testComputeCookieStringUpdateLastAccessTime = TestCase $ assertEqual "Updates la
   where request = default_request
         cookie_jar = [default_cookie]
         now = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
-        out_cookie_jar = [default_cookie {last_access_time = now}]
+        out_cookie_jar = [default_cookie {cookie_last_access_time = now}]
 
 testComputeCookieStringHostOnly = TestCase $ assertEqual "Host only cookies should match host exactly"
   (fromString "name=value", cookie_jar) (computeCookieString request cookie_jar default_time True)
   where request = default_request
-        cookie_jar = [default_cookie {host_only = True}]
+        cookie_jar = [default_cookie {cookie_host_only = True}]
 
 testComputeCookieStringHostOnlyFilter = TestCase $ assertEqual "Host only cookies shouldn't match subdomain"
   (fromString "", cookie_jar) (computeCookieString request cookie_jar default_time True)
   where request = default_request {HC.host = fromString "sub1.sub2.google.com"}
-        cookie_jar = [default_cookie {host_only = True, domain = fromString "sub2.google.com"}]
+        cookie_jar = [default_cookie { cookie_host_only = True
+                                     , cookie_domain = fromString "sub2.google.com"
+                                     }
+                     ]
 
 testComputeCookieStringDomainMatching = TestCase $ assertEqual "Domain matching works for new requests"
   (fromString "name=value", cookie_jar) (computeCookieString request cookie_jar default_time True)
   where request = default_request {HC.host = fromString "sub1.sub2.google.com"}
-        cookie_jar = [default_cookie {domain = fromString "sub2.google.com"}]
+        cookie_jar = [default_cookie {cookie_domain = fromString "sub2.google.com"}]
 
 testComputeCookieStringPathMatching = TestCase $ assertEqual "Path matching works for new requests"
   (fromString "name=value", cookie_jar) (computeCookieString request cookie_jar default_time True)
   where request = default_request {HC.path = fromString "/a/path/to/nowhere"}
-        cookie_jar = [default_cookie {path = fromString "/a/path"}]
+        cookie_jar = [default_cookie {cookie_path = fromString "/a/path"}]
 
 testComputeCookieStringPathMatchingFails = TestCase $ assertEqual "Path matching fails when it should"
   (fromString "", cookie_jar) (computeCookieString request cookie_jar default_time True)
   where request = default_request {HC.path = fromString "/a/different/path/to/nowhere"}
-        cookie_jar = [default_cookie {path = fromString "/a/path"}]
+        cookie_jar = [default_cookie {cookie_path = fromString "/a/path"}]
 
 testComputeCookieStringPathMatchingWithParms = TestCase $ assertEqual "Path matching succeeds when request has GET params"
   (fromString "name=value", cookie_jar) (computeCookieString request cookie_jar default_time True)
   where request = default_request {HC.path = fromString "/a/path/to/nowhere?var=val"}
-        cookie_jar = [default_cookie {path = fromString "/a/path"}]
+        cookie_jar = [default_cookie {cookie_path = fromString "/a/path"}]
 
 testComputeCookieStringSecure = TestCase $ assertEqual "Secure flag filters properly"
   (fromString "", cookie_jar) (computeCookieString default_request cookie_jar default_time True)
-  where cookie_jar = [default_cookie {secure_only = True}]
+  where cookie_jar = [default_cookie {cookie_secure_only = True}]
 
 testComputeCookieStringHttpOnly = TestCase $ assertEqual "http-only flag filters properly"
   (fromString "", cookie_jar) (computeCookieString default_request cookie_jar default_time False)
-  where cookie_jar = [default_cookie {http_only = True}]
+  where cookie_jar = [default_cookie {cookie_http_only = True}]
 
 testComputeCookieStringSort = TestCase $ assertEqual "Sorting works correctly"
   (fromString "c1=v1;c3=v3;c4=v4;c2=v2", S.fromList cookie_jar_out) format_output
   where now = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 11)
-        cookie_jar = [ default_cookie { name = fromString "c1"
-                                      , value = fromString "v1"
-                                      , path = fromString "/all/encompassing/request"
+        cookie_jar = [ default_cookie { cookie_name = fromString "c1"
+                                      , cookie_value = fromString "v1"
+                                      , cookie_path = fromString "/all/encompassing/request"
                                       }
-                     , default_cookie { name = fromString "c2"
-                                      , value = fromString "v2"
-                                      , path = fromString "/all"
+                     , default_cookie { cookie_name = fromString "c2"
+                                      , cookie_value = fromString "v2"
+                                      , cookie_path = fromString "/all"
                                       }
-                     , default_cookie { name = fromString "c3"
-                                      , value = fromString "v3"
-                                      , path = fromString "/all/encompassing"
-                                      , creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
+                     , default_cookie { cookie_name = fromString "c3"
+                                      , cookie_value = fromString "v3"
+                                      , cookie_path = fromString "/all/encompassing"
+                                      , cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
                                       }
-                     , default_cookie { name = fromString "c4"
-                                      , value = fromString "v4"
-                                      , path = fromString "/all/encompassing"
-                                      , creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 2)
+                     , default_cookie { cookie_name = fromString "c4"
+                                      , cookie_value = fromString "v4"
+                                      , cookie_path = fromString "/all/encompassing"
+                                      , cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 2)
                                       }
                      ]
-        cookie_jar_out = [ default_cookie { name = fromString "c1"
-                                          , value = fromString "v1"
-                                          , path = fromString "/all/encompassing/request"
-                                          , last_access_time = now
+        cookie_jar_out = [ default_cookie { cookie_name = fromString "c1"
+                                          , cookie_value = fromString "v1"
+                                          , cookie_path = fromString "/all/encompassing/request"
+                                          , cookie_last_access_time = now
                                           }
-                         , default_cookie { name = fromString "c2"
-                                          , value = fromString "v2"
-                                          , path = fromString "/all"
-                                          , last_access_time = now
+                         , default_cookie { cookie_name = fromString "c2"
+                                          , cookie_value = fromString "v2"
+                                          , cookie_path = fromString "/all"
+                                          , cookie_last_access_time = now
                                           }
-                         , default_cookie { name = fromString "c3"
-                                          , value = fromString "v3"
-                                          , path = fromString "/all/encompassing"
-                                          , creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
-                                          , last_access_time = now
+                         , default_cookie { cookie_name = fromString "c3"
+                                          , cookie_value = fromString "v3"
+                                          , cookie_path = fromString "/all/encompassing"
+                                          , cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
+                                          , cookie_last_access_time = now
                                           }
-                         , default_cookie { name = fromString "c4"
-                                          , value = fromString "v4"
-                                          , path = fromString "/all/encompassing"
-                                          , creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 2)
-                                          , last_access_time = now
+                         , default_cookie { cookie_name = fromString "c4"
+                                          , cookie_value = fromString "v4"
+                                          , cookie_path = fromString "/all/encompassing"
+                                          , cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 2)
+                                          , cookie_last_access_time = now
                                           }
                          ]
         request = default_request {HC.path = fromString "/all/encompassing/request/path"}
@@ -237,8 +248,8 @@ testInsertCookiesIntoRequestWorks = TestCase $ assertEqual "Inserting cookies wo
   [(CI.mk $ fromString "Cookie", fromString "key=val")] out_headers
   where out_headers = HC.requestHeaders req
         (req, _) = insertCookiesIntoRequest req' cookie_jar default_time
-        cookie_jar = [default_cookie { name = fromString "key"
-                                     , value = fromString "val"
+        cookie_jar = [default_cookie { cookie_name = fromString "key"
+                                     , cookie_value = fromString "val"
                                      }]
         req' = default_request {HC.requestHeaders = [(CI.mk $ fromString "Cookie",
                                                       fromString "otherkey=otherval")]}
@@ -269,19 +280,19 @@ testReceiveSetCookieNonMatchingDomain = TestCase $ assertEqual "Receiving cookie
   where set_cookie = default_set_cookie {setCookieDomain = Just $ fromString "www.wikipedia.org"}
 
 testReceiveSetCookieHostOnly = TestCase $ assertBool "Checking host-only flag gets set" $
-  host_only $ head $ receiveSetCookie set_cookie default_request default_time True []
+  cookie_host_only $ head $ receiveSetCookie set_cookie default_request default_time True []
   where set_cookie = default_set_cookie {setCookieDomain = Nothing}
 
 testReceiveSetCookieHostOnlyNotSet = TestCase $ assertBool "Checking host-only flag doesn't get set" $
-  not $ host_only $ head $ receiveSetCookie set_cookie default_request default_time True []
+  not $ cookie_host_only $ head $ receiveSetCookie set_cookie default_request default_time True []
   where set_cookie = default_set_cookie {setCookieDomain = Just $ fromString "google.com"}
 
 testReceiveSetCookieHttpOnly = TestCase $ assertBool "Checking http-only flag gets set" $
-  http_only $ head $ receiveSetCookie set_cookie default_request default_time True []
+  cookie_http_only $ head $ receiveSetCookie set_cookie default_request default_time True []
   where set_cookie = default_set_cookie {setCookieHttpOnly = True}
 
 testReceiveSetCookieHttpOnlyNotSet = TestCase $ assertBool "Checking http-only flag doesn't get set" $
-  not $ http_only $ head $ receiveSetCookie set_cookie default_request default_time True []
+  not $ cookie_http_only $ head $ receiveSetCookie set_cookie default_request default_time True []
   where set_cookie = default_set_cookie {setCookieHttpOnly = False}
 
 testReceiveSetCookieHttpOnlyDrop = TestCase $ assertEqual "Checking non http request gets dropped"
@@ -289,41 +300,41 @@ testReceiveSetCookieHttpOnlyDrop = TestCase $ assertEqual "Checking non http req
   where set_cookie = default_set_cookie {setCookieHttpOnly = True}
 
 testReceiveSetCookieName = TestCase $ assertEqual "Name gets set correctly"
-  (fromString "name") (name $ head $ receiveSetCookie default_set_cookie default_request default_time True [])
+  (fromString "name") (cookie_name $ head $ receiveSetCookie default_set_cookie default_request default_time True [])
 
 testReceiveSetCookieValue = TestCase $ assertEqual "Value gets set correctly"
-  (fromString "value") (value $ head $ receiveSetCookie default_set_cookie default_request default_time True [])
+  (fromString "value") (cookie_value $ head $ receiveSetCookie default_set_cookie default_request default_time True [])
 
 testReceiveSetCookieExpiry = TestCase $ assertEqual "Expiry gets set correctly"
-  default_time (expiry_time $ head $ receiveSetCookie default_set_cookie default_request default_time True [])
+  default_time (cookie_expiry_time $ head $ receiveSetCookie default_set_cookie default_request default_time True [])
 
 testReceiveSetCookiePath = TestCase $ assertEqual "Path gets set correctly"
-  (fromString "/a/path") (path $ head $ receiveSetCookie set_cookie default_request default_time True [])
+  (fromString "/a/path") (cookie_path $ head $ receiveSetCookie set_cookie default_request default_time True [])
   where set_cookie = default_set_cookie {setCookiePath = Just $ fromString "/a/path"}
 
 testReceiveSetCookieNoPath = TestCase $ assertEqual "Path gets set correctly when nonexistant"
-  (fromString "/a/path/to") (path $ head $ receiveSetCookie set_cookie request default_time True [])
+  (fromString "/a/path/to") (cookie_path $ head $ receiveSetCookie set_cookie request default_time True [])
   where set_cookie = default_set_cookie {setCookiePath = Nothing}
         request = default_request {HC.path = fromString "/a/path/to/nowhere"}
 
 testReceiveSetCookieCreationTime = TestCase $ assertEqual "Creation time gets set correctly"
-  now (creation_time $ head $ receiveSetCookie default_set_cookie default_request now True [])
+  now (cookie_creation_time $ head $ receiveSetCookie default_set_cookie default_request now True [])
   where now = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
 
 testReceiveSetCookieAccessTime = TestCase $ assertEqual "Last access time gets set correctly"
-  now (last_access_time $ head $ receiveSetCookie default_set_cookie default_request now True [])
+  now (cookie_last_access_time $ head $ receiveSetCookie default_set_cookie default_request now True [])
   where now = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)
 
 testReceiveSetCookiePersistent = TestCase $ assertBool "Persistent flag gets set correctly" $
-  persistent $ head $ receiveSetCookie set_cookie default_request default_time True []
+  cookie_persistent $ head $ receiveSetCookie set_cookie default_request default_time True []
   where set_cookie = default_set_cookie {setCookieExpires = Just default_time}
 
 testReceiveSetCookieSecure = TestCase $ assertBool "Secure flag gets set correctly" $
-  secure_only $ head $ receiveSetCookie set_cookie default_request default_time True []
+  cookie_secure_only $ head $ receiveSetCookie set_cookie default_request default_time True []
   where set_cookie = default_set_cookie {setCookieSecure = True}
 
 testReceiveSetCookieMaxAge = TestCase $ assertEqual "Max-Age gets set correctly"
-  total (expiry_time $ head $ receiveSetCookie set_cookie default_request now True [])
+  total (cookie_expiry_time $ head $ receiveSetCookie set_cookie default_request now True [])
   where set_cookie = default_set_cookie { setCookieExpires = Nothing
                                         , setCookieMaxAge = Just $ secondsToDiffTime 10
                                         }
@@ -331,7 +342,7 @@ testReceiveSetCookieMaxAge = TestCase $ assertEqual "Max-Age gets set correctly"
         total = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 22)
 
 testReceiveSetCookiePreferMaxAge = TestCase $ assertEqual "Max-Age is preferred over Expires"
-  total (expiry_time $ head $ receiveSetCookie set_cookie default_request now True [])
+  total (cookie_expiry_time $ head $ receiveSetCookie set_cookie default_request now True [])
   where set_cookie = default_set_cookie { setCookieExpires = Just exp
                                         , setCookieMaxAge = Just $ secondsToDiffTime 10
                                         }
@@ -340,19 +351,19 @@ testReceiveSetCookiePreferMaxAge = TestCase $ assertEqual "Max-Age is preferred 
         total = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 22)
 
 testReceiveSetCookieExisting = TestCase $ assertEqual "Existing cookie gets updated"
-  t (expiry_time $ head $ receiveSetCookie set_cookie default_request default_time True [default_cookie])
+  t (cookie_expiry_time $ head $ receiveSetCookie set_cookie default_request default_time True [default_cookie])
   where set_cookie = default_set_cookie { setCookieExpires = Just t
                                         , setCookieMaxAge = Nothing
                                         }
         t = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 12)
 
 testReceiveSetCookieExistingCreation = TestCase $ assertEqual "Creation time gets updated in existing cookie"
-  default_time (creation_time $ head $ receiveSetCookie default_set_cookie default_request now True [default_cookie])
+  default_time (cookie_creation_time $ head $ receiveSetCookie default_set_cookie default_request now True [default_cookie])
   where now = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 12)
 
 testReceiveSetCookieExistingHttpOnly = TestCase $ assertEqual "Existing http-only cookie gets dropped"
-  default_time (expiry_time $ head $ receiveSetCookie default_set_cookie default_request default_time False [existing_cookie])
-  where existing_cookie = default_cookie {http_only = True}
+  default_time (cookie_expiry_time $ head $ receiveSetCookie default_set_cookie default_request default_time False [existing_cookie])
+  where existing_cookie = default_cookie {cookie_http_only = True}
         set_cookie = default_set_cookie {setCookieExpires = Just t}
         t = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 12)
 

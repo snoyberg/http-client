@@ -29,7 +29,7 @@ isIpAddress a = case strs of
         helper l = length l == 4 && all helper2 l
         helper2 v = (read v :: Int) >= 0 && (read v :: Int) < 256
 
--- | This corresponds to the subcomponent algorithm entitled "Domain Matching" detailed
+-- | This corresponds to the subcomponent algorithm entitled \"Domain Matching\" detailed
 -- in section 5.1.3
 domainMatches :: W.Ascii -> W.Ascii -> Bool
 domainMatches string domainString
@@ -39,7 +39,7 @@ domainMatches string domainString
   | otherwise = False
   where difference = BS.take (BS.length string - BS.length domainString) string
 
--- | This corresponds to the subcomponent algorithm entitled "Paths" detailed
+-- | This corresponds to the subcomponent algorithm entitled \"Paths\" detailed
 -- in section 5.1.4
 defaultPath :: Req.Request m -> W.Ascii
 defaultPath req
@@ -49,7 +49,7 @@ defaultPath req
   | otherwise = BS.reverse $ BS.tail $ BS.dropWhile (/= slash) $ BS.reverse uri_path
   where uri_path = Req.path req
 
--- | This corresponds to the subcomponent algorithm entitled "Path-Match" detailed
+-- | This corresponds to the subcomponent algorithm entitled \"Path-Match\" detailed
 -- in section 5.1.4
 pathMatches :: W.Ascii -> W.Ascii -> Bool
 pathMatches requestPath cookiePath
@@ -59,32 +59,32 @@ pathMatches requestPath cookiePath
   | otherwise = False
   where remainder = BS.drop (BS.length cookiePath) requestPath
 
--- This corresponds to the description of a cookie detailed in Section 5.3 "Storage Model"
+-- This corresponds to the description of a cookie detailed in Section 5.3 \"Storage Model\"
 data Cookie = Cookie
-  { name :: W.Ascii
-  , value :: W.Ascii
-  , expiry_time :: UTCTime
-  , domain :: W.Ascii
-  , path :: W.Ascii
-  , creation_time :: UTCTime
-  , last_access_time :: UTCTime
-  , persistent :: Bool
-  , host_only :: Bool
-  , secure_only :: Bool
-  , http_only :: Bool
+  { cookie_name :: W.Ascii
+  , cookie_value :: W.Ascii
+  , cookie_expiry_time :: UTCTime
+  , cookie_domain :: W.Ascii
+  , cookie_path :: W.Ascii
+  , cookie_creation_time :: UTCTime
+  , cookie_last_access_time :: UTCTime
+  , cookie_persistent :: Bool
+  , cookie_host_only :: Bool
+  , cookie_secure_only :: Bool
+  , cookie_http_only :: Bool
   }
   deriving (Show)
--- This corresponds to step 11 of the algorithm described in Section 5.3 "Storage Model"
+-- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
 instance Eq Cookie where
   (==) a b = name_matches && domain_matches && path_matches
-    where name_matches = name a == name b
-          domain_matches = domain a == domain b
-          path_matches = path a == path b
+    where name_matches = cookie_name a == cookie_name b
+          domain_matches = cookie_domain a == cookie_domain b
+          path_matches = cookie_path a == cookie_path b
 instance Ord Cookie where
   compare c1 c2
-    | BS.length (path c1) > BS.length (path c2) = LT
-    | BS.length (path c1) < BS.length (path c2) = GT
-    | creation_time c1 > creation_time c2 = GT
+    | BS.length (cookie_path c1) > BS.length (cookie_path c2) = LT
+    | BS.length (cookie_path c1) < BS.length (cookie_path c2) = GT
+    | cookie_creation_time c1 > cookie_creation_time c2 = GT
     | otherwise = LT
 
 type CookieJar = [Cookie]
@@ -99,16 +99,16 @@ removeExistingCookieFromCookieJar c (c' : cs)
   | otherwise = (cookie', c' : cookie_jar')
   where (cookie', cookie_jar') = removeExistingCookieFromCookieJar c cs
 
--- | Are we configured to reject cookies for domains such as "com"?
+-- | Are we configured to reject cookies for domains such as \"com\"?
 rejectPublicSuffixes :: Bool
 rejectPublicSuffixes = True
 
 isPublicSuffix :: W.Ascii -> Bool
 isPublicSuffix _ = False
 
--- | This corresponds to the eviction algorithm described in Section 5.3 "Storage Model"
+-- | This corresponds to the eviction algorithm described in Section 5.3 \"Storage Model\"
 evictExpiredCookies :: CookieJar -> UTCTime -> CookieJar
-evictExpiredCookies cookie_jar now = filter (\ cookie -> expiry_time cookie >= now) cookie_jar
+evictExpiredCookies cookie_jar now = filter (\ cookie -> cookie_expiry_time cookie >= now) cookie_jar
 
 -- | This applies the computeCookieString to a given Request
 insertCookiesIntoRequest :: Req.Request m -> CookieJar -> UTCTime -> (Req.Request m, CookieJar)
@@ -117,25 +117,25 @@ insertCookiesIntoRequest request cookie_jar now = (request {Req.requestHeaders =
         (cookie_string, cookie_jar') = computeCookieString request cookie_jar now True
         cookie_header = (CI.mk $ U.fromString "Cookie", cookie_string)
 
--- | This corresponds to the algorithm described in Section 5.4 "The Cookie Header"
+-- | This corresponds to the algorithm described in Section 5.4 \"The Cookie Header\"
 computeCookieString :: Req.Request m -> CookieJar -> UTCTime -> Bool -> (W.Ascii, CookieJar)
 computeCookieString request cookie_jar now is_http_api = (output_line, cookie_jar')
   where matching_cookie cookie = condition1 && condition2 && condition3 && condition4
           where condition1
-                  | host_only cookie = Req.host request == domain cookie
-                  | otherwise = domainMatches (Req.host request) (domain cookie)
-                condition2 = pathMatches (Req.path request) (path cookie)
+                  | cookie_host_only cookie = Req.host request == cookie_domain cookie
+                  | otherwise = domainMatches (Req.host request) (cookie_domain cookie)
+                condition2 = pathMatches (Req.path request) (cookie_path cookie)
                 condition3
-                  | not (secure_only cookie) = True
+                  | not (cookie_secure_only cookie) = True
                   | otherwise = Req.secure request
                 condition4
-                  | not (http_only cookie) = True
+                  | not (cookie_http_only cookie) = True
                   | otherwise = is_http_api
         matching_cookies = filter matching_cookie cookie_jar
-        output_cookies =  map (\ c -> (name c, value c)) $ L.sort matching_cookies
+        output_cookies =  map (\ c -> (cookie_name c, cookie_value c)) $ L.sort matching_cookies
         output_line = toByteString $ renderCookies $ output_cookies
         folding_function cookie_jar'' cookie = case removeExistingCookieFromCookieJar cookie cookie_jar'' of
-          (Just c, cookie_jar''') -> insertIntoCookieJar (c {last_access_time = now}) cookie_jar'''
+          (Just c, cookie_jar''') -> insertIntoCookieJar (c {cookie_last_access_time = now}) cookie_jar'''
           (Nothing, cookie_jar''') -> cookie_jar'''
         cookie_jar' = foldl folding_function cookie_jar matching_cookies
 
@@ -147,7 +147,7 @@ updateCookieJar response request now cookie_jar = (cookie_jar', response {Res.re
         set_cookies = map parseSetCookie set_cookie_data
         cookie_jar' = foldl (\ cj sc -> receiveSetCookie sc request now True cj) cookie_jar set_cookies
 
--- | This corresponds to the algorithm described in Section 5.3 "Storage Model"
+-- | This corresponds to the algorithm described in Section 5.3 \"Storage Model\"
 receiveSetCookie :: SetCookie -> Req.Request m -> UTCTime -> Bool -> CookieJar -> CookieJar
 receiveSetCookie set_cookie request now is_http_api cookie_jar = case result of
   Nothing -> cookie_jar
@@ -163,17 +163,17 @@ receiveSetCookie set_cookie request now is_http_api cookie_jar = case result of
           domain_intermediate <- step5 domain_sanitized
           (domain_final, host_only') <- step6 domain_intermediate
           http_only' <- step10
-          return $ Cookie { name = setCookieName set_cookie
-                          , value = setCookieValue set_cookie
-                          , expiry_time = getExpiryTime (setCookieExpires set_cookie) (setCookieMaxAge set_cookie)
-                          , domain = domain_final
-                          , path = getPath $ setCookiePath set_cookie
-                          , creation_time = now
-                          , last_access_time = now
-                          , persistent = getPersistent
-                          , host_only = host_only'
-                          , secure_only = setCookieSecure set_cookie
-                          , http_only = http_only'
+          return $ Cookie { cookie_name = setCookieName set_cookie
+                          , cookie_value = setCookieValue set_cookie
+                          , cookie_expiry_time = getExpiryTime (setCookieExpires set_cookie) (setCookieMaxAge set_cookie)
+                          , cookie_domain = domain_final
+                          , cookie_path = getPath $ setCookiePath set_cookie
+                          , cookie_creation_time = now
+                          , cookie_last_access_time = now
+                          , cookie_persistent = getPersistent
+                          , cookie_host_only = host_only'
+                          , cookie_secure_only = setCookieSecure set_cookie
+                          , cookie_http_only = http_only'
                           }
         sanitizeDomain domain'
           | has_a_character && BS.singleton (BS.last domain') == U.fromString "." = Nothing
@@ -204,6 +204,6 @@ receiveSetCookie set_cookie request now is_http_api cookie_jar = case result of
         getPersistent = isJust (setCookieExpires set_cookie) || isJust (setCookieMaxAge set_cookie)
         existanceTest cookie cookie_jar' = existanceTestHelper cookie $ removeExistingCookieFromCookieJar cookie cookie_jar'
         existanceTestHelper new_cookie (Just old_cookie, cookie_jar')
-          | not is_http_api && http_only old_cookie = Nothing
-          | otherwise = return (cookie_jar', new_cookie {creation_time = creation_time old_cookie})
+          | not is_http_api && cookie_http_only old_cookie = Nothing
+          | otherwise = return (cookie_jar', new_cookie {cookie_creation_time = cookie_creation_time old_cookie})
         existanceTestHelper new_cookie (Nothing, cookie_jar') = return (cookie_jar', new_cookie)
