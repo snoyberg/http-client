@@ -47,6 +47,8 @@
 -- >
 -- > main = withSocketsDo
 -- >      $ simpleHttp "http://www.haskell.org/" >>= L.putStr
+-- >
+-- > Cookies are implemented according to RFC 6265.
 module Network.HTTP.Conduit
     ( -- * Perform a request
       simpleHttp

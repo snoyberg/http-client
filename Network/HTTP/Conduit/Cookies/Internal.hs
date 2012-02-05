@@ -107,18 +107,27 @@ isPublicSuffix :: W.Ascii -> Bool
 isPublicSuffix _ = False
 
 -- | This corresponds to the eviction algorithm described in Section 5.3 \"Storage Model\"
-evictExpiredCookies :: CookieJar -> UTCTime -> CookieJar
+evictExpiredCookies :: CookieJar  -- ^ Input cookie jar
+                    -> UTCTime    -- ^ Value that should be used as \"now\"
+                    -> CookieJar  -- ^ Filtered cookie jar
 evictExpiredCookies cookie_jar now = filter (\ cookie -> cookie_expiry_time cookie >= now) cookie_jar
 
--- | This applies the computeCookieString to a given Request
-insertCookiesIntoRequest :: Req.Request m -> CookieJar -> UTCTime -> (Req.Request m, CookieJar)
+-- | This applies the 'computeCookieString' to a given Request
+insertCookiesIntoRequest :: Req.Request m               -- ^ The request to insert into
+                         -> CookieJar                   -- ^ Current cookie jar
+                         -> UTCTime                     -- ^ Value that should be used as \"now\"
+                         -> (Req.Request m, CookieJar)  -- ^ (Ouptut request, Updated cookie jar (last-access-time is updated))
 insertCookiesIntoRequest request cookie_jar now = (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
   where purgedHeaders = L.deleteBy (\ (a, _) (b, _) -> a == b) (CI.mk $ U.fromString "Cookie", BS.empty) $ Req.requestHeaders request
         (cookie_string, cookie_jar') = computeCookieString request cookie_jar now True
         cookie_header = (CI.mk $ U.fromString "Cookie", cookie_string)
 
 -- | This corresponds to the algorithm described in Section 5.4 \"The Cookie Header\"
-computeCookieString :: Req.Request m -> CookieJar -> UTCTime -> Bool -> (W.Ascii, CookieJar)
+computeCookieString :: Req.Request m         -- ^ Input request
+                    -> CookieJar             -- ^ Current cookie jar
+                    -> UTCTime               -- ^ Value that should be used as \"now\"
+                    -> Bool                  -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
+                    -> (W.Ascii, CookieJar)  -- ^ (Contents of a \"Cookie\" header, Updated cookie jar (last-access-time is updated))
 computeCookieString request cookie_jar now is_http_api = (output_line, cookie_jar')
   where matching_cookie cookie = condition1 && condition2 && condition3 && condition4
           where condition1
@@ -139,8 +148,12 @@ computeCookieString request cookie_jar now is_http_api = (output_line, cookie_ja
           (Nothing, cookie_jar''') -> cookie_jar'''
         cookie_jar' = foldl folding_function cookie_jar matching_cookies
 
--- | This applies the receiveSetCookie to a given Response
-updateCookieJar :: Res.Response a -> Req.Request m -> UTCTime -> CookieJar -> (CookieJar, Res.Response a)
+-- | This applies 'receiveSetCookie' to a given Response
+updateCookieJar :: Res.Response a               -- ^ Response received from server
+                -> Req.Request m                -- ^ Request which generated the response
+                -> UTCTime                      -- ^ Value that should be used as \"now\"
+                -> CookieJar                    -- ^ Current cookie jar
+                -> (CookieJar, Res.Response a)  -- ^ (Updated cookie jar with cookies from the Response, The response stripped of any \"Set-Cookie\" header)
 updateCookieJar response request now cookie_jar = (cookie_jar', response {Res.responseHeaders = other_headers})
   where (set_cookie_headers, other_headers) = L.partition ((== (CI.mk $ U.fromString "Set-Cookie")) . fst) $ Res.responseHeaders response
         set_cookie_data = map snd set_cookie_headers
@@ -148,7 +161,12 @@ updateCookieJar response request now cookie_jar = (cookie_jar', response {Res.re
         cookie_jar' = foldl (\ cj sc -> receiveSetCookie sc request now True cj) cookie_jar set_cookies
 
 -- | This corresponds to the algorithm described in Section 5.3 \"Storage Model\"
-receiveSetCookie :: SetCookie -> Req.Request m -> UTCTime -> Bool -> CookieJar -> CookieJar
+receiveSetCookie :: SetCookie      -- ^ The 'SetCookie' the cookie jar is receiving
+                 -> Req.Request m  -- ^ The request that originated the response that yielded the 'SetCookie'
+                 -> UTCTime        -- ^ Value that should be used as \"now\"
+                 -> Bool           -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
+                 -> CookieJar      -- ^ Input cookie jar to modify
+                 -> CookieJar      -- ^ Updated cookie jar
 receiveSetCookie set_cookie request now is_http_api cookie_jar = case result of
   Nothing -> cookie_jar
   Just cookie_jar' -> cookie_jar'
