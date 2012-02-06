@@ -45,7 +45,7 @@ library
                  , lifted-base           >= 0.1     && < 0.2
                  , socks                 >= 0.4     && < 0.5
                  , time
-                 , cookie                >= 0.3.0.3
+                 , cookie                >= 0.4     && < 0.5
                  , regex-compat
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
@@ -67,6 +67,7 @@ library
 test-suite test
     main-is: test/main.hs
     type: exitcode-stdio-1.0
+    hs-source-dirs: ., test
 
     ghc-options:   -Wall
     cpp-options:   -DDEBUG
@@ -103,6 +104,8 @@ test-suite test
                  , warp
                  , socks
                  , http-types
+                 , cookie
+                 , regex-compat
 
 source-repository head
   type:     git

@@ -1,4 +1,4 @@
-module Main where
+module CookieTest (cookieTest) where
 {-
 import Test.Framework.Providers.HUnit (hUnitTestToTests)
 import qualified Test.Framework.Providers.API as TF
@@ -40,7 +40,7 @@ default_diff_time :: DiffTime
 default_diff_time = secondsToDiffTime 0
 
 default_set_cookie :: SetCookie
-default_set_cookie = SetCookie { setCookieName = fromString "name"
+default_set_cookie = def       { setCookieName = fromString "name"
                                , setCookieValue = fromString "value"
                                , setCookiePath = Just $ fromString "/"
                                , setCookieExpires = Just default_time
@@ -463,7 +463,7 @@ tests :: [TF.Test]
 tests = hUnitTestToTests allTests
 -}
 
-main :: IO ()
-main = do
+cookieTest :: IO ()
+cookieTest = do
   counts <- runTestTT allTests
   if errors counts > 0 || failures counts > 0 then exitFailure else exitSuccess

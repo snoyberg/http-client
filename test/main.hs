@@ -10,6 +10,7 @@ import Control.Concurrent (forkIO, killThread)
 import Network.HTTP.Types
 import Control.Exception (try, SomeException)
 import Network.HTTP.Conduit.ConnInfo
+import CookieTest (cookieTest)
 
 app :: Application
 app req =
@@ -18,7 +19,9 @@ app req =
         _ -> return $ responseLBS status404 [] "not found"
 
 main :: IO ()
-main = hspecX $ do
+main = do
+  cookieTest
+  hspecX $ do
     describe "simpleHttp" $ do
         it "gets homepage" $ do
             tid <- forkIO $ run 3000 app
