@@ -19,9 +19,8 @@ app req =
         _ -> return $ responseLBS status404 [] "not found"
 
 main :: IO ()
-main = do
-  cookieTest
-  hspecX $ do
+main = hspecX $ do
+    cookieTest
     describe "simpleHttp" $ do
         it "gets homepage" $ do
             tid <- forkIO $ run 3000 app

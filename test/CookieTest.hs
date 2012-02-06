@@ -1,8 +1,7 @@
 module CookieTest (cookieTest) where
-{-
-import Test.Framework.Providers.HUnit (hUnitTestToTests)
-import qualified Test.Framework.Providers.API as TF
--}
+
+import Test.Hspec.Monadic
+import Test.Hspec.HUnit ()
 import System.Exit (exitFailure, exitSuccess)
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
@@ -367,103 +366,93 @@ testReceiveSetCookieExistingHttpOnly = TestCase $ assertEqual "Existing http-onl
         set_cookie = default_set_cookie {setCookieExpires = Just t}
         t = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 12)
 
-ipParseTests = TestList [ TestLabel "Valid IP" testValidIp
-                        , TestLabel "Digit Too High" testIpNumTooHigh
-                        , TestLabel "Too Many Segments" testTooManySegmentsInIp
-                        , TestLabel "Chars in IP" testCharsInIp
-                        ]
+ipParseTests = do
+    it "Valid IP" testValidIp
+    it "Digit Too High" testIpNumTooHigh
+    it "Too Many Segments" testTooManySegmentsInIp
+    it "Chars in IP" testCharsInIp
 
-domainMatchingTests = TestList [ TestLabel "Should Match" testDomainMatchesSuccess
-                               , TestLabel "Same Domain" testSameDomain
-                               , TestLabel "Sibling Domain" testSiblingDomain
-                               , TestLabel "Parent Domain" testParentDomain
-                               , TestLabel "Checking for Naive suffix-check" testNaiveSuffixDomain
-                               ]
+domainMatchingTests = do
+    it "Should Match" testDomainMatchesSuccess
+    it "Same Domain" testSameDomain
+    it "Sibling Domain" testSiblingDomain
+    it "Parent Domain" testParentDomain
+    it "Checking for Naive suffix-check" testNaiveSuffixDomain
 
-defaultPathTests = TestList [TestLabel "Basic default path test" testDefaultPath
-                            , TestLabel "Basic populated default path" testPopulatedDefaultPath
-                            , TestLabel "Default path from request with GET params works" testParamsDefaultPath
-                            , TestLabel "Getting a default path that ends in a slash" testDefaultPathEndingInSlash
-                            , TestLabel "Getting a short default path" testShortDefaultPath
-                            ]
+defaultPathTests = do
+    it "Basic default path test" testDefaultPath
+    it "Basic populated default path" testPopulatedDefaultPath
+    it "Default path from request with GET params works" testParamsDefaultPath
+    it "Getting a default path that ends in a slash" testDefaultPathEndingInSlash
+    it "Getting a short default path" testShortDefaultPath
 
-pathMatchingTests = TestList [ TestLabel "Same paths match" testSamePathsMatch
-                             , TestLabel "Putting slash at end" testPathSlashAtEnd
-                             , TestLabel "Not putting slash at end" testPathNoSlashAtEnd
-                             , TestLabel "Diverging paths don't match" testDivergingPaths
-                             ]
+pathMatchingTests = do
+    it "Same paths match" testSamePathsMatch
+    it "Putting slash at end" testPathSlashAtEnd
+    it "Not putting slash at end" testPathNoSlashAtEnd
+    it "Diverging paths don't match" testDivergingPaths
 
-equalityTests = TestList [ TestLabel "The same cookie should be equal to itself" testCookieEqualitySuccess
-                         , TestLabel "Changing extra options shouldn't change equality" testCookieEqualityResiliance
-                         , TestLabel "Changing a cookie's domain should change its equality" testDomainChangesEquality
-                         ]
+equalityTests = do
+    it "The same cookie should be equal to itself" testCookieEqualitySuccess
+    it "Changing extra options shouldn't change equality" testCookieEqualityResiliance
+    it "Changing a cookie's domain should change its equality" testDomainChangesEquality
 
-removeTests = TestList [ TestLabel "Removing a cookie works" testRemoveCookie
-                       , TestLabel "Removing a nonexistant cookie doesn't work" testRemoveNonexistantCookie
-                       , TestLabel "Removing the correct cookie" testRemoveCorrectCookie
-                       ]
+removeTests = do
+    it "Removing a cookie works" testRemoveCookie
+    it "Removing a nonexistant cookie doesn't work" testRemoveNonexistantCookie
+    it "Removing the correct cookie" testRemoveCorrectCookie
 
-evictionTests = TestList [ TestLabel "Testing eviction" testEvictExpiredCookies
-                         , TestLabel "Evicting from empty cookie jar" testEvictNoCookies
-                         ]
+evictionTests = do
+    it "Testing eviction" testEvictExpiredCookies
+    it "Evicting from empty cookie jar" testEvictNoCookies
 
-sendingTests = TestList [ TestLabel "Updates last access time upon using cookies" testComputeCookieStringUpdateLastAccessTime
-                        , TestLabel "Host-only flag matches exact host" testComputeCookieStringHostOnly
-                        , TestLabel "Host-only flag doesn't match subdomain" testComputeCookieStringHostOnlyFilter
-                        , TestLabel "Domain matching works properly" testComputeCookieStringDomainMatching
-                        , TestLabel "Path matching works" testComputeCookieStringPathMatching
-                        , TestLabel "Path matching fails when it should" testComputeCookieStringPathMatchingFails
-                        , TestLabel "Path matching succeeds when request has GET params" testComputeCookieStringPathMatchingWithParms
-                        , TestLabel "Secure flag filters correctly" testComputeCookieStringSecure
-                        , TestLabel "Http-only flag filters correctly" testComputeCookieStringHttpOnly
-                        , TestLabel "Sorting works correctly" testComputeCookieStringSort
-                        , TestLabel "Inserting cookie header works" testInsertCookiesIntoRequestWorks
-                        ]
+sendingTests = do
+    it "Updates last access time upon using cookies" testComputeCookieStringUpdateLastAccessTime
+    it "Host-only flag matches exact host" testComputeCookieStringHostOnly
+    it "Host-only flag doesn't match subdomain" testComputeCookieStringHostOnlyFilter
+    it "Domain matching works properly" testComputeCookieStringDomainMatching
+    it "Path matching works" testComputeCookieStringPathMatching
+    it "Path matching fails when it should" testComputeCookieStringPathMatchingFails
+    it "Path matching succeeds when request has GET params" testComputeCookieStringPathMatchingWithParms
+    it "Secure flag filters correctly" testComputeCookieStringSecure
+    it "Http-only flag filters correctly" testComputeCookieStringHttpOnly
+    it "Sorting works correctly" testComputeCookieStringSort
+    it "Inserting cookie header works" testInsertCookiesIntoRequestWorks
 
-receivingTests = TestList [ TestLabel "Can receive set-cookie" testReceiveSetCookie
-                          , TestLabel "Receiving a Set-Cookie with a trailing dot on the domain" testReceiveSetCookieTrailingDot
-                          , TestLabel "Receiving a Set-Cookie with a leading dot on the domain" testReceiveSetCookieLeadingDot
-                          , TestLabel "Set-Cookie with no domain" testReceiveSetCookieNoDomain
-                          , TestLabel "Set-Cookie with empty domain" testReceiveSetCookieEmptyDomain
-                          , TestLabel "Set-Cookie with non-matching domain" testReceiveSetCookieNonMatchingDomain
-                          , TestLabel "Host-only flag gets set" testReceiveSetCookieHostOnly
-                          , TestLabel "Host-only flag doesn't get set" testReceiveSetCookieHostOnlyNotSet
-                          , TestLabel "Http-only flag gets set" testReceiveSetCookieHttpOnly
-                          , TestLabel "Http-only flag doesn't get set" testReceiveSetCookieHttpOnlyNotSet
-                          , TestLabel "Checking non http request gets dropped" testReceiveSetCookieHttpOnlyDrop
-                          , TestLabel "Name gets set correctly" testReceiveSetCookieName
-                          , TestLabel "Value gets set correctly" testReceiveSetCookieValue
-                          , TestLabel "Expiry gets set correctly" testReceiveSetCookieExpiry
-                          , TestLabel "Path gets set correctly when nonexistant" testReceiveSetCookieNoPath
-                          , TestLabel "Path gets set correctly" testReceiveSetCookiePath
-                          , TestLabel "Creation time gets set correctly" testReceiveSetCookieCreationTime
-                          , TestLabel "Last access time gets set correctly" testReceiveSetCookieAccessTime
-                          , TestLabel "Persistent flag gets set correctly" testReceiveSetCookiePersistent
-                          , TestLabel "Existing cookie gets updated" testReceiveSetCookieExisting
-                          , TestLabel "Creation time gets updated in existing cookie" testReceiveSetCookieExistingCreation
-                          , TestLabel "Existing http-only cookie gets dropped" testReceiveSetCookieExistingHttpOnly
-                          , TestLabel "Secure flag gets set correctly" testReceiveSetCookieSecure
-                          , TestLabel "Max-Age flag gets set correctly" testReceiveSetCookieMaxAge
-                          , TestLabel "Max-Age is preferred over Expires" testReceiveSetCookiePreferMaxAge
-                          ]
+receivingTests = do
+    it "Can receive set-cookie" testReceiveSetCookie
+    it "Receiving a Set-Cookie with a trailing dot on the domain" testReceiveSetCookieTrailingDot
+    it "Receiving a Set-Cookie with a leading dot on the domain" testReceiveSetCookieLeadingDot
+    it "Set-Cookie with no domain" testReceiveSetCookieNoDomain
+    it "Set-Cookie with empty domain" testReceiveSetCookieEmptyDomain
+    it "Set-Cookie with non-matching domain" testReceiveSetCookieNonMatchingDomain
+    it "Host-only flag gets set" testReceiveSetCookieHostOnly
+    it "Host-only flag doesn't get set" testReceiveSetCookieHostOnlyNotSet
+    it "Http-only flag gets set" testReceiveSetCookieHttpOnly
+    it "Http-only flag doesn't get set" testReceiveSetCookieHttpOnlyNotSet
+    it "Checking non http request gets dropped" testReceiveSetCookieHttpOnlyDrop
+    it "Name gets set correctly" testReceiveSetCookieName
+    it "Value gets set correctly" testReceiveSetCookieValue
+    it "Expiry gets set correctly" testReceiveSetCookieExpiry
+    it "Path gets set correctly when nonexistant" testReceiveSetCookieNoPath
+    it "Path gets set correctly" testReceiveSetCookiePath
+    it "Creation time gets set correctly" testReceiveSetCookieCreationTime
+    it "Last access time gets set correctly" testReceiveSetCookieAccessTime
+    it "Persistent flag gets set correctly" testReceiveSetCookiePersistent
+    it "Existing cookie gets updated" testReceiveSetCookieExisting
+    it "Creation time gets updated in existing cookie" testReceiveSetCookieExistingCreation
+    it "Existing http-only cookie gets dropped" testReceiveSetCookieExistingHttpOnly
+    it "Secure flag gets set correctly" testReceiveSetCookieSecure
+    it "Max-Age flag gets set correctly" testReceiveSetCookieMaxAge
+    it "Max-Age is preferred over Expires" testReceiveSetCookiePreferMaxAge
 
-allTests = TestList [ ipParseTests
-                    , domainMatchingTests
-                    , defaultPathTests
-                    , pathMatchingTests
-                    , equalityTests
-                    , removeTests
-                    , evictionTests
-                    , sendingTests
-                    , receivingTests
-                    ]
-
-{-
-tests :: [TF.Test]
-tests = hUnitTestToTests allTests
--}
-
-cookieTest :: IO ()
 cookieTest = do
-  counts <- runTestTT allTests
-  if errors counts > 0 || failures counts > 0 then exitFailure else exitSuccess
+    describe "ipParseTests" ipParseTests
+    describe "domainMatchingTests" domainMatchingTests
+    describe "defaultPathTests" defaultPathTests
+    describe "pathMatchingTests" pathMatchingTests
+    describe "equalityTests" equalityTests
+    describe "removeTests" removeTests
+    describe "evictionTests" evictionTests
+    describe "sendingTests" sendingTests
+    describe "receivingTests" receivingTests
