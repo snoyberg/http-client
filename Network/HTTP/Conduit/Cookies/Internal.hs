@@ -12,6 +12,7 @@ import Data.Time.Calendar
 import Web.Cookie
 import qualified Data.CaseInsensitive as CI
 import Blaze.ByteString.Builder
+import Data.Default
 
 import qualified Network.HTTP.Conduit.Request as Req
 import qualified Network.HTTP.Conduit.Response as Res
@@ -87,17 +88,36 @@ instance Ord Cookie where
     | cookie_creation_time c1 > cookie_creation_time c2 = GT
     | otherwise = LT
 
-type CookieJar = [Cookie]
+newtype CookieJar = CJ { expose :: [Cookie] }
+
+-- | empty cookie jar
+instance Default CookieJar where
+  def = CJ []
+
+instance Eq CookieJar where
+  (==) cj1 cj2 = (L.sort $ expose cj1) == (L.sort $ expose cj2)
+
+instance Show CookieJar where
+  show = show . expose
+
+createCookieJar :: [Cookie] -> CookieJar
+createCookieJar = CJ
+
+destroyCookieJar :: CookieJar -> [Cookie]
+destroyCookieJar = expose
 
 insertIntoCookieJar :: Cookie -> CookieJar -> CookieJar
-insertIntoCookieJar = (:)
+insertIntoCookieJar cookie cookie_jar' = CJ $ cookie : cookie_jar
+  where cookie_jar = expose cookie_jar'
 
 removeExistingCookieFromCookieJar :: Cookie -> CookieJar -> (Maybe Cookie, CookieJar)
-removeExistingCookieFromCookieJar _ [] = (Nothing, [])
-removeExistingCookieFromCookieJar c (c' : cs)
-  | c == c' = (Just c', cs)
-  | otherwise = (cookie', c' : cookie_jar')
-  where (cookie', cookie_jar') = removeExistingCookieFromCookieJar c cs
+removeExistingCookieFromCookieJar cookie cookie_jar' = (mc, CJ lc)
+  where (mc, lc) = removeExistingCookieFromCookieJarHelper cookie (expose cookie_jar')
+        removeExistingCookieFromCookieJarHelper _ [] = (Nothing, [])
+        removeExistingCookieFromCookieJarHelper c (c' : cs)
+          | c == c' = (Just c', cs)
+          | otherwise = (cookie', c' : cookie_jar'')
+          where (cookie', cookie_jar'') = removeExistingCookieFromCookieJarHelper c cs
 
 -- | Are we configured to reject cookies for domains such as \"com\"?
 rejectPublicSuffixes :: Bool
@@ -110,7 +130,7 @@ isPublicSuffix _ = False
 evictExpiredCookies :: CookieJar  -- ^ Input cookie jar
                     -> UTCTime    -- ^ Value that should be used as \"now\"
                     -> CookieJar  -- ^ Filtered cookie jar
-evictExpiredCookies cookie_jar now = filter (\ cookie -> cookie_expiry_time cookie >= now) cookie_jar
+evictExpiredCookies cookie_jar' now = CJ $ filter (\ cookie -> cookie_expiry_time cookie >= now) $ expose cookie_jar'
 
 -- | This applies the 'computeCookieString' to a given Request
 insertCookiesIntoRequest :: Req.Request m               -- ^ The request to insert into
@@ -140,7 +160,7 @@ computeCookieString request cookie_jar now is_http_api = (output_line, cookie_ja
                 condition4
                   | not (cookie_http_only cookie) = True
                   | otherwise = is_http_api
-        matching_cookies = filter matching_cookie cookie_jar
+        matching_cookies = filter matching_cookie $ expose cookie_jar
         output_cookies =  map (\ c -> (cookie_name c, cookie_value c)) $ L.sort matching_cookies
         output_line = toByteString $ renderCookies $ output_cookies
         folding_function cookie_jar'' cookie = case removeExistingCookieFromCookieJar cookie cookie_jar'' of
