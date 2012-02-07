@@ -89,6 +89,8 @@ module Network.HTTP.Conduit
       -- * Cookies
     , Cookie(..)
     , CookieJar
+    , createCookieJar
+    , destroyCookieJar
     , updateCookieJar
     , receiveSetCookie
     , insertCookiesIntoRequest
