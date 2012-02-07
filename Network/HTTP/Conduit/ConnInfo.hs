@@ -21,6 +21,7 @@ module Network.HTTP.Conduit.ConnInfo
 
 import Control.Exception (SomeException, throwIO, try)
 import System.IO (Handle, hClose)
+import Control.Monad (unless)
 
 import Control.Monad.Base (MonadBase, liftBase)
 
@@ -33,6 +34,8 @@ import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
 import qualified Network.Socket as NS
 import Network.Socks5 (socksConnectWith, SocksConf)
+
+import Network.HTTP.Conduit.Request (HttpException (HandshakeFailed))
 
 import Network.TLS
 import Network.TLS.Extra (ciphersuite_all)
@@ -129,13 +132,14 @@ sslClientConn _desc onCerts h = do
 #endif
     let tcp = defaultParams
             { pConnectVersion = TLS10
-            , pAllowedVersions = [ TLS10, TLS11 ]
+            , pAllowedVersions = [ TLS10, TLS11, TLS12 ]
             , pCiphers = ciphersuite_all
             , onCertificatesRecv = onCerts
             }
     gen <- makeSystem
     istate <- client tcp gen h
-    _ <- handshake istate
+    handshakeRes <- handshake istate
+    unless handshakeRes $ throwIO HandshakeFailed
     return ConnInfo
         { connRead = recvD istate
         , connWrite = sendData istate . L.fromChunks . (:[])

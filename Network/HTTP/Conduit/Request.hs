@@ -215,6 +215,7 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | InvalidUrlException String String
                    | TooManyRedirects
                    | HttpParserException String
+                   | HandshakeFailed
     deriving (Show, Typeable)
 instance Exception HttpException
 
