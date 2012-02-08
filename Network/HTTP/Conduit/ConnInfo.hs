@@ -21,7 +21,6 @@ module Network.HTTP.Conduit.ConnInfo
 
 import Control.Exception (SomeException, throwIO, try)
 import System.IO (Handle, hClose)
-import Control.Monad (unless)
 
 import Control.Monad.Base (MonadBase, liftBase)
 
@@ -34,8 +33,6 @@ import Network.Socket (Socket, sClose)
 import Network.Socket.ByteString (recv, sendAll)
 import qualified Network.Socket as NS
 import Network.Socks5 (socksConnectWith, SocksConf)
-
-import Network.HTTP.Conduit.Request (HttpException (HandshakeFailed))
 
 import Network.TLS
 import Network.TLS.Extra (ciphersuite_all)
@@ -138,8 +135,7 @@ sslClientConn _desc onCerts h = do
             }
     gen <- makeSystem
     istate <- client tcp gen h
-    handshakeRes <- handshake istate
-    unless handshakeRes $ throwIO HandshakeFailed
+    handshake istate
     return ConnInfo
         { connRead = recvD istate
         , connWrite = sendData istate . L.fromChunks . (:[])
@@ -153,12 +149,9 @@ sslClientConn _desc onCerts h = do
   where
     recvD istate = do
         x <- recvData istate
-        if L.null x
+        if S.null x
             then recvD istate
-            else return $ S.concat $ L.toChunks x
-            -- Although a 'concat' seems like a bad idea, at
-            -- least on tls-0.8.4 it's guaranteed to always
-            -- return a lazy bytestring with a single chunk.
+            else return x
 
 getSocket :: String -> Int -> Maybe SocksConf -> IO NS.Socket
 getSocket host' port' (Just socksConf) = do
