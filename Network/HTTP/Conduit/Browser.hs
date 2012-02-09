@@ -66,7 +66,7 @@ defaultState m = BrowserState { maxRedirects = 10
                               , cookieFilter = \ _ _ -> return True
                               , cookieJar = def
                               , currentProxy = Nothing
-                              , userAgent = fromString "Data.Conduit.HTTP"
+                              , userAgent = fromString "http-conduit"
                               , manager = m
                               }
 
