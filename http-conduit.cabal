@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         1.2.5
+version:         1.2.6
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -47,12 +47,14 @@ library
                  , time
                  , cookie                >= 0.4     && < 0.5
                  , regex-compat
+                 , mtl
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
                      , network-bytestring    >= 0.1.3   && < 0.1.4
     else
         build-depends: network               >= 2.3     && < 2.4
     exposed-modules: Network.HTTP.Conduit
+                     Network.HTTP.Conduit.Browser
     other-modules:   Network.HTTP.Conduit.Parser
                      Network.HTTP.Conduit.ConnInfo
                      Network.HTTP.Conduit.Request
@@ -61,7 +63,6 @@ library
                      Network.HTTP.Conduit.Chunk
                      Network.HTTP.Conduit.Response
                      Network.HTTP.Conduit.Cookies
-                     Network.HTTP.Conduit.Cookies.Internal
     ghc-options:     -Wall
 
 test-suite test

@@ -93,6 +93,8 @@ module Network.HTTP.Conduit
     , destroyCookieJar
     , updateCookieJar
     , receiveSetCookie
+    , generateCookie
+    , insertCheckedCookie
     , insertCookiesIntoRequest
     , computeCookieString
     , evictExpiredCookies
