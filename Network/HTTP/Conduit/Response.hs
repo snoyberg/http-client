@@ -117,13 +117,13 @@ getResponse connRelease req@(Request {..}) bsrc = do
 
     -- should we put this connection back into the connection manager?
     let toPut = Just "close" /= lookup "connection" hs'
-    let cleanup = connRelease $ if toPut then Reuse else DontReuse
+    let cleanup bodyConsumed = connRelease $ if toPut && bodyConsumed then Reuse else DontReuse
 
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
     body <-
         if hasNoBody method sc || mcl == Just 0
             then do
-                cleanup
+                cleanup True
                 return mempty
             else do
                 let bsrc' =
@@ -144,18 +144,18 @@ getResponse connRelease req@(Request {..}) bsrc = do
 -- | Add some cleanup code to the given 'C.Source'. General purpose
 -- function, could be included in conduit itself.
 addCleanup :: C.ResourceIO m
-           => ResourceT m ()
+           => (Bool -> ResourceT m ())
            -> C.Source m a
            -> C.Source m a
 addCleanup cleanup src = src
     { C.sourcePull = do
         res <- C.sourcePull src
         case res of
-            C.Closed -> cleanup >> return C.Closed
+            C.Closed -> cleanup True >> return C.Closed
             C.Open src' val -> return $ C.Open
                 (addCleanup cleanup src')
                 val
     , C.sourceClose = do
         C.sourceClose src
-        cleanup
+        cleanup False
     }
