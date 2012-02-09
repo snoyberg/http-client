@@ -218,6 +218,7 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | TooManyRetries
                    | HttpParserException String
                    | HandshakeFailed
+                   | OverlongHeaders
     deriving (Show, Typeable)
 instance Exception HttpException
 

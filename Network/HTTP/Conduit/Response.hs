@@ -13,6 +13,9 @@ import Control.Arrow (first)
 import Data.Typeable (Typeable)
 import Data.Monoid (mempty)
 
+import Control.Exception (throwIO)
+import Control.Monad.IO.Class (liftIO)
+
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
@@ -104,13 +107,29 @@ lbsResponse mres = do
         { responseBody = L.fromChunks bss
         }
 
+checkHeaderLength :: ResourceIO m => Int -> C.Sink S8.ByteString m a -> C.Sink S8.ByteString m a
+checkHeaderLength len0 (C.SinkData pushI0 closeI0) =
+    C.SinkData (push len0 pushI0) closeI0
+  where
+    push len pushI bs
+        | len' <= 0 = liftIO $ throwIO OverlongHeaders
+        | otherwise = do
+            res <- pushI bs
+            return $ case res of
+                C.Processing pushI' close -> C.Processing
+                    (push len' pushI') close
+                C.Done a b -> C.Done a b
+      where
+        len' = len - S8.length bs
+checkHeaderLength _ _ = error "checkHeaderLength"
+
 getResponse :: ResourceIO m
             => ConnRelease m
             -> Request m
             -> C.BufferedSource m S8.ByteString
             -> ResourceT m (Response (C.Source m S8.ByteString))
 getResponse connRelease req@(Request {..}) bsrc = do
-    ((_, sc, sm), hs) <- bsrc C.$$ sinkHeaders
+    ((_, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs' >>= readDec . S8.unpack

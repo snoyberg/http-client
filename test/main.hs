@@ -8,9 +8,14 @@ import Network.Wai.Handler.Warp (run)
 import Network.HTTP.Conduit
 import Control.Concurrent (forkIO, killThread)
 import Network.HTTP.Types
-import Control.Exception (try, SomeException)
+import Control.Exception.Lifted (try, SomeException)
 import Network.HTTP.Conduit.ConnInfo
 import CookieTest (cookieTest)
+import Data.Conduit.Network (runTCPServer, ServerSettings (..))
+import Data.Conduit (($$))
+import Control.Monad.Trans.Resource (register)
+import Control.Monad.IO.Class (liftIO)
+import Data.Conduit.List (sourceList)
 
 app :: Application
 app req =
@@ -49,3 +54,19 @@ main = hspecX $ do
             requireAllSocketsClosed
             killThread tid2
             killThread tid1
+    describe "DOS protection" $ do
+        it "overlong headers" $ do
+            tid1 <- forkIO overLongHeaders
+            withManager $ \manager -> do
+                _ <- register $ killThread tid1
+                let Just req1 = parseUrl "http://localhost:3004/"
+                res1 <- try $ http req1 manager
+                case res1 of
+                    Left e -> liftIO $ show (e :: SomeException) @?= show OverlongHeaders
+                    _ -> error "Shouldn't have worked"
+
+overLongHeaders :: IO ()
+overLongHeaders = runTCPServer (ServerSettings 3004 Nothing) $ \_ sink ->
+    src $$ sink
+  where
+    src = sourceList $ "HTTP/1.0 200 OK\r\nfoo: " : repeat "bar"

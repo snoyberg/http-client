@@ -107,6 +107,7 @@ test-suite test
                  , http-types
                  , cookie
                  , regex-compat
+                 , network-conduit
 
 source-repository head
   type:     git
