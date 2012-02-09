@@ -214,6 +214,8 @@ parseUrl2 full sec s = do
 data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | InvalidUrlException String String
                    | TooManyRedirects
+                   | UnparseableRedirect
+                   | TooManyRetries
                    | HttpParserException String
                    | HandshakeFailed
     deriving (Show, Typeable)

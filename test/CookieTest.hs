@@ -5,7 +5,7 @@ import Test.Hspec.HUnit ()
 import System.Exit (exitFailure, exitSuccess)
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
-import Network.HTTP.Conduit.Cookies.Internal
+import Network.HTTP.Conduit.Cookies
 import qualified Network.HTTP.Conduit as HC
 import Data.ByteString.UTF8
 import Data.Maybe
