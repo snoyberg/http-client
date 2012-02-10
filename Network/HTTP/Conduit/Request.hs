@@ -314,11 +314,6 @@ requestBuilder req =
     builder =
             fromByteString (method req)
             <> fromByteString " "
-            <> (case proxy req of
-                    Just{} ->
-                        fromByteString (if secure req then "https://" else "http://")
-                        <> fromByteString hh
-                    Nothing -> mempty)
             <> (case S8.uncons $ path req of
                     Just ('/', _) -> fromByteString $ path req
                     _ -> fromByteString "/" <> fromByteString (path req))
