@@ -111,14 +111,14 @@ checkHeaderLength :: ResourceIO m => Int -> C.Sink S8.ByteString m a -> C.Sink S
 checkHeaderLength len0 (C.SinkData pushI0 closeI0) =
     C.SinkData (push len0 pushI0) closeI0
   where
-    push len pushI bs
-        | len' <= 0 = liftIO $ throwIO OverlongHeaders
-        | otherwise = do
-            res <- pushI bs
-            return $ case res of
-                C.Processing pushI' close -> C.Processing
+    push len pushI bs = do
+        res <- pushI bs
+        case res of
+            C.Processing pushI' close
+                | len' <= 0 -> liftIO $ throwIO OverlongHeaders
+                | otherwise -> return $ C.Processing
                     (push len' pushI') close
-                C.Done a b -> C.Done a b
+            C.Done a b -> return $ C.Done a b
       where
         len' = len - S8.length bs
 checkHeaderLength _ _ = error "checkHeaderLength"
