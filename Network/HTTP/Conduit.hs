@@ -179,8 +179,8 @@ http req0 manager = do
     go count req'' cookie_jar'' = do
         now <- liftIO $ getCurrentTime
         let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
-        res' <- httpRaw req' manager
-        let (cookie_jar, res) = updateCookieJar res' req' now cookie_jar'
+        res <- httpRaw req' manager
+        let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
         case getRedirectedRequest req' (responseHeaders res) (W.statusCode (statusCode res)) of
             Just req -> go (count - 1) req cookie_jar
             Nothing -> return res
