@@ -33,10 +33,10 @@ default_cookie = Cookie { cookie_name = fromString "name"
                         }
 
 default_time :: UTCTime
-default_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
+default_time = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
 
 default_diff_time :: DiffTime
-default_diff_time = secondsToDiffTime 0
+default_diff_time = secondsToDiffTime 1209600
 
 default_set_cookie :: SetCookie
 default_set_cookie = def       { setCookieName = fromString "name"
@@ -305,7 +305,21 @@ testReceiveSetCookieValue = TestCase $ assertEqual "Value gets set correctly"
   (fromString "value") (cookie_value $ head $ destroyCookieJar $ receiveSetCookie default_set_cookie default_request default_time True $ createCookieJar [])
 
 testReceiveSetCookieExpiry = TestCase $ assertEqual "Expiry gets set correctly"
-  default_time (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie default_set_cookie default_request default_time True $ createCookieJar [])
+  now_plus_diff_time (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie default_set_cookie default_request default_time True $ createCookieJar [])
+  where now_plus_diff_time = ((fromRational $ toRational default_diff_time) `addUTCTime` default_time)
+
+testReceiveSetCookieNoMaxAge = TestCase $ assertEqual "Expiry is based on the given value"
+  default_time (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie cookie_without_max_age default_request default_time True $ createCookieJar [])
+  where cookie_without_max_age = default_set_cookie {setCookieMaxAge = Nothing}
+
+testReceiveSetCookieNoExpiry = TestCase $ assertEqual "Expiry is based on max age"
+  now_plus_diff_time (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie cookie_without_expiry default_request default_time True $ createCookieJar [])
+  where now_plus_diff_time = ((fromRational $ toRational default_diff_time) `addUTCTime` default_time)
+        cookie_without_expiry = default_set_cookie {setCookieExpires = Nothing}
+
+testReceiveSetCookieNoExpiryNoMaxAge = TestCase $ assertBool "Expiry is set to a future date" $
+  default_time < (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie basic_cookie default_request default_time True $ createCookieJar [])
+  where basic_cookie = default_set_cookie { setCookieExpires = Nothing, setCookieMaxAge = Nothing }
 
 testReceiveSetCookiePath = TestCase $ assertEqual "Path gets set correctly"
   (fromString "/a/path") (cookie_path $ head $ destroyCookieJar $ receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
@@ -434,6 +448,9 @@ receivingTests = do
     it "Name gets set correctly" testReceiveSetCookieName
     it "Value gets set correctly" testReceiveSetCookieValue
     it "Expiry gets set correctly" testReceiveSetCookieExpiry
+    it "Expiry gets set based on max age if no expiry is given" testReceiveSetCookieNoExpiry
+    it "Expiry gets set based on given value if no max age is given" testReceiveSetCookieNoMaxAge
+    it "Expiry gets set to a future date if no expiry and no max age are given" testReceiveSetCookieNoExpiryNoMaxAge
     it "Path gets set correctly when nonexistant" testReceiveSetCookieNoPath
     it "Path gets set correctly" testReceiveSetCookiePath
     it "Creation time gets set correctly" testReceiveSetCookieCreationTime
