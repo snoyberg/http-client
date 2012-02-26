@@ -258,7 +258,7 @@ generateCookie set_cookie request now is_http_api = do
         getExpiryTime :: Maybe UTCTime -> Maybe DiffTime -> UTCTime
         getExpiryTime _ (Just t) = (fromRational $ toRational t) `addUTCTime` now
         getExpiryTime (Just t) Nothing = t
-        getExpiryTime Nothing Nothing= UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 0)
+        getExpiryTime Nothing Nothing = UTCTime (365000 `addDays` utctDay now) (secondsToDiffTime 0)
         getPath (Just p) = p
         getPath Nothing = defaultPath request
         getPersistent = isJust (setCookieExpires set_cookie) || isJust (setCookieMaxAge set_cookie)

@@ -15,13 +15,19 @@ import Data.Conduit.Network (runTCPServer, ServerSettings (..))
 import Data.Conduit (($$))
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
+import Data.ByteString.UTF8 (fromString)
 import Data.Conduit.List (sourceList)
+import Data.CaseInsensitive (mk)
+import Data.List (partition)
 
 app :: Application
 app req =
     case pathInfo req of
         [] -> return $ responseLBS status200 [] "homepage"
+        ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
         _ -> return $ responseLBS status404 [] "not found"
+
+    where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
 
 main :: IO ()
 main = hspecX $ do
@@ -39,6 +45,16 @@ main = hspecX $ do
             case elbs of
                 Left (_ :: SomeException) -> return ()
                 Right _ -> error "Expected an exception"
+    describe "httpLbs" $ do
+        it "preserves 'set-cookie' headers" $ do
+            tid <- forkIO $ run 3010 app
+            request <- parseUrl "http://localhost:3010/cookies"
+            withManager $ \manager -> do
+                Response _ headers _ <- httpLbs request manager
+                let setCookie = mk (fromString "Set-Cookie")
+                    (setCookieHeaders, _) = partition ((== setCookie) . fst) headers
+                liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
+            killThread tid
     describe "manager" $ do
         it "closes all connections" $ do
             clearSocketsList
