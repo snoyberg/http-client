@@ -21,7 +21,7 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
-import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
+import Control.Monad.Trans.Resource (MonadResource)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
@@ -97,9 +97,9 @@ getRedirectedRequest req hs code
 
 -- | Convert a 'Response' that has a 'C.Source' body to one with a lazy
 -- 'L.ByteString' body.
-lbsResponse :: C.Resource m
-            => ResourceT m (Response (C.Source m S8.ByteString))
-            -> ResourceT m (Response L.ByteString)
+lbsResponse :: Monad m
+            => m (Response (C.Source m S8.ByteString))
+            -> m (Response L.ByteString)
 lbsResponse mres = do
     res <- mres
     bss <- responseBody res C.$$ CL.consume
@@ -107,7 +107,7 @@ lbsResponse mres = do
         { responseBody = L.fromChunks bss
         }
 
-checkHeaderLength :: ResourceIO m => Int -> C.Sink S8.ByteString m a -> C.Sink S8.ByteString m a
+checkHeaderLength :: MonadResource m => Int -> C.Sink S8.ByteString m a -> C.Sink S8.ByteString m a
 checkHeaderLength len0 (C.SinkData pushI0 closeI0) =
     C.SinkData (push len0 pushI0) closeI0
   where
@@ -123,11 +123,11 @@ checkHeaderLength len0 (C.SinkData pushI0 closeI0) =
         len' = len - S8.length bs
 checkHeaderLength _ _ = error "checkHeaderLength"
 
-getResponse :: ResourceIO m
+getResponse :: MonadResource m
             => ConnRelease m
             -> Request m
             -> C.BufferedSource m S8.ByteString
-            -> ResourceT m (Response (C.Source m S8.ByteString))
+            -> m (Response (C.Source m S8.ByteString))
 getResponse connRelease req@(Request {..}) bsrc = do
     ((_, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
     let s = W.Status sc sm
@@ -162,8 +162,8 @@ getResponse connRelease req@(Request {..}) bsrc = do
 
 -- | Add some cleanup code to the given 'C.Source'. General purpose
 -- function, could be included in conduit itself.
-addCleanup :: C.ResourceIO m
-           => (Bool -> ResourceT m ())
+addCleanup :: Monad m
+           => (Bool -> m ())
            -> C.Source m a
            -> C.Source m a
 addCleanup cleanup src = src

@@ -30,7 +30,6 @@ import qualified Data.ByteString as BS
 import Control.Monad.State
 import Control.Exception
 import qualified Control.Exception.Lifted as LE
-import Control.Monad.Trans.Resource
 import Data.Conduit
 import Prelude hiding (catch)
 import qualified Network.HTTP.Types as HT
@@ -51,8 +50,8 @@ import qualified Network.HTTP.Conduit as HC
 data BrowserState = BrowserState
   { maxRedirects        :: Int
   , maxRetryCount       :: Int
-  , authorities         :: Request IO -> Maybe (BS.ByteString, BS.ByteString)
-  , cookieFilter        :: Request IO -> Cookie -> IO Bool
+  , authorities         :: Request (ResourceT IO) -> Maybe (BS.ByteString, BS.ByteString)
+  , cookieFilter        :: Request (ResourceT IO) -> Cookie -> IO Bool
   , cookieJar           :: CookieJar
   , currentProxy        :: Maybe Proxy
   , userAgent           :: BS.ByteString
@@ -77,7 +76,7 @@ browse :: Manager -> BrowserAction a -> ResourceT IO a
 browse m act = evalStateT act (defaultState m)
 
 -- | Make a request, using all the state in the current BrowserState
-makeRequest :: Request IO -> BrowserAction (Response (Source IO BS.ByteString))
+makeRequest :: Request (ResourceT IO) -> BrowserAction (Response (Source (ResourceT IO) BS.ByteString))
 makeRequest request = do
   BrowserState
     { maxRetryCount = max_retry_count
@@ -129,7 +128,7 @@ makeRequest request = do
           where hs = filter ((/= k) . fst) $ requestHeaders request'
                 k = mk $ fromString "User-Agent"
 
-updateCookieJar :: Response a -> Request IO -> UTCTime -> CookieJar -> (Request IO -> Cookie -> IO Bool) -> IO (CookieJar, Response a)
+updateCookieJar :: Response a -> Request (ResourceT IO) -> UTCTime -> CookieJar -> (Request (ResourceT IO) -> Cookie -> IO Bool) -> IO (CookieJar, Response a)
 updateCookieJar response request' now cookie_jar cookie_filter = do
   filtered_cookies <- filterM (cookie_filter request') $ catMaybes $ map (\ sc -> generateCookie sc request' now True) set_cookies
   return (cookieJar' filtered_cookies, response {HC.responseHeaders = other_headers})
@@ -164,15 +163,15 @@ setMaxRetryCount b = get >>= \ a -> put a {maxRetryCount = b}
 -- | A user-provided function that provides optional authorities.
 -- This function gets run on all requests before they get sent out.
 -- The output of this function is applied to the request.
-getAuthorities     :: BrowserAction (Request IO -> Maybe (BS.ByteString, BS.ByteString))
+getAuthorities     :: BrowserAction (Request (ResourceT IO) -> Maybe (BS.ByteString, BS.ByteString))
 getAuthorities     = get >>= \ a -> return $ authorities a
-setAuthorities     :: (Request IO -> Maybe (BS.ByteString, BS.ByteString)) -> BrowserAction ()
+setAuthorities     :: (Request (ResourceT IO) -> Maybe (BS.ByteString, BS.ByteString)) -> BrowserAction ()
 setAuthorities   b = get >>= \ a -> put a {authorities = b}
 -- | Each new Set-Cookie the browser encounters will pass through this filter.
 -- Only cookies that pass the filter (and are already valid) will be allowed into the cookie jar
-getCookieFilter    :: BrowserAction (Request IO -> Cookie -> IO Bool)
+getCookieFilter    :: BrowserAction (Request (ResourceT IO) -> Cookie -> IO Bool)
 getCookieFilter    = get >>= \ a -> return $ cookieFilter a
-setCookieFilter    :: (Request IO -> Cookie -> IO Bool) -> BrowserAction ()
+setCookieFilter    :: (Request (ResourceT IO) -> Cookie -> IO Bool) -> BrowserAction ()
 setCookieFilter  b = get >>= \ a -> put a {cookieFilter = b}
 -- | All the cookies!
 getCookieJar       :: BrowserAction CookieJar

@@ -30,14 +30,12 @@ import qualified Blaze.ByteString.Builder as Blaze
 import Data.Text (Text)
 import qualified Data.Text as T
 
-import Control.Monad.Base (liftBase)
-import Control.Exception.Lifted (mask)
+import Control.Monad.Trans.Control (MonadBaseControl)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (mask_, SomeException, catch)
 import Control.Monad.Trans.Resource
-    ( ResourceT, runResourceT, ResourceIO, withIO
-    , register, release
-    , newRef, readRef', writeRef
-    , safeFromIOBase
+    ( ResourceT, runResourceT, MonadResource (..)
+    , MonadThrow, MonadUnsafeIO
     )
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime, getCurrentTime, addUTCTime)
@@ -217,9 +215,13 @@ neFromList xs =
 --
 -- This function uses the default manager settings. For more control, use
 -- 'newManager'.
-withManager :: ResourceIO m => (Manager -> ResourceT m a) -> m a
+withManager :: ( MonadIO m
+               , MonadBaseControl IO m
+               , MonadThrow m
+               , MonadUnsafeIO m
+               ) => (Manager -> ResourceT m a) -> m a
 withManager f = runResourceT $ do
-    (_, manager) <- withIO (newManager def) closeManager
+    (_, manager) <- allocate (newManager def) closeManager
     f manager
 
 -- | Close all connections in a 'Manager'. Afterwards, the
@@ -237,12 +239,12 @@ nonEmptyMapM_ f (One x _) = f x
 nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
 getSocketConn
-    :: ResourceIO m
+    :: MonadResource m
     => Manager
     -> String
     -> Int
     -> Maybe SocksConf -- ^ optional socks proxy
-    -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+    -> m (ConnRelease m, ConnInfo, ManagedConn)
 getSocketConn man host' port' socksProxy' =
     getManagedConn man (ConnKey (T.pack host') port' False) $
         getSocket host' port' socksProxy' >>= socketConn desc
@@ -252,13 +254,13 @@ getSocketConn man host' port' socksProxy' =
 socketDesc :: String -> Int -> String -> String
 socketDesc h p t = unwords [h, show p, t]
 
-getSslConn :: ResourceIO m
+getSslConn :: MonadResource m
             => ([X509] -> IO TLSCertificateUsage)
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
             -> Maybe SocksConf -- ^ optional socks proxy
-            -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+            -> m (ConnRelease m, ConnInfo, ManagedConn)
 getSslConn checkCert man host' port' socksProxy' =
     getManagedConn man (ConnKey (T.pack host') port' True) $
         (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc checkCert)
@@ -266,7 +268,7 @@ getSslConn checkCert man host' port' socksProxy' =
     desc = socketDesc host' port' "secured"
 
 getSslProxyConn
-            :: ResourceIO m
+            :: MonadResource m
             => ([X509] -> IO TLSCertificateUsage)
             -> S8.ByteString -- ^ Target host
             -> Int -- ^ Target port
@@ -274,7 +276,7 @@ getSslProxyConn
             -> String -- ^ Proxy host
             -> Int -- ^ Proxy port
             -> Maybe SocksConf -- ^ optional SOCKS proxy
-            -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+            -> m (ConnRelease m, ConnInfo, ManagedConn)
 getSslProxyConn checkCert thost tport man phost pport socksProxy' =
     getManagedConn man (ConnKey (T.pack phost) pport True) $
         doConnect >>= sslClientConn desc checkCert
@@ -306,21 +308,21 @@ data ManagedConn = Fresh | Reused
 -- via I\/O, and register it with the @ResourceT@ so it is guaranteed to be
 -- either released or returned to the manager.
 getManagedConn
-    :: ResourceIO m
+    :: MonadResource m
     => Manager
     -> ConnKey
     -> IO ConnInfo
-    -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+    -> m (ConnRelease m, ConnInfo, ManagedConn)
 -- We want to avoid any holes caused by async exceptions, so let's mask.
-getManagedConn man key open = mask $ \restore -> do
+getManagedConn man key open = resourceMask $ \restore -> do
     -- Try to take the socket out of the manager.
-    mci <- liftBase $ takeSocket man key
+    mci <- liftIO $ takeSocket man key
     (ci, isManaged) <-
         case mci of
             -- There wasn't a matching connection in the manager, so create a
             -- new one.
             Nothing -> do
-                ci <- restore $ liftBase open
+                ci <- restore $ liftIO open
                 return (ci, Fresh)
             -- Return the existing one
             Just ci -> return (ci, Reused)
@@ -329,32 +331,32 @@ getManagedConn man key open = mask $ \restore -> do
     -- the manager) or not reuse it (close the socket). We set up a mutable
     -- reference to track what we want to do. By default, we say not to reuse
     -- it, that way if an exception is thrown, the connection won't be reused.
-    toReuseRef <- newRef DontReuse
+    toReuseRef <- liftIO $ I.newIORef DontReuse
 
     -- Now register our release action.
     releaseKey <- register $ do
-        toReuse <- readRef' toReuseRef
+        toReuse <- I.readIORef toReuseRef
         -- Determine what action to take based on the value stored in the
         -- toReuseRef variable.
         case toReuse of
-            Reuse -> safeFromIOBase $ putSocket man key ci
-            DontReuse -> safeFromIOBase $ connClose ci
+            Reuse -> putSocket man key ci
+            DontReuse -> connClose ci
 
     -- When the connection is explicitly released, we update our toReuseRef to
     -- indicate what action should be taken, and then call release.
     let connRelease x = do
-            writeRef toReuseRef x
+            liftIO $ I.writeIORef toReuseRef x
             release releaseKey
     return (connRelease, ci, isManaged)
 
 data ConnReuse = Reuse | DontReuse
 
-type ConnRelease m = ConnReuse -> ResourceT m ()
+type ConnRelease m = ConnReuse -> m ()
 
-getConn :: ResourceIO m
+getConn :: MonadResource m
         => Request m
         -> Manager
-        -> ResourceT m (ConnRelease m, ConnInfo, ManagedConn)
+        -> m (ConnRelease m, ConnInfo, ManagedConn)
 getConn req m =
     go m connhost connport (socksProxy req)
   where
