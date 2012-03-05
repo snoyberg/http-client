@@ -12,6 +12,7 @@ module Network.HTTP.Conduit.Response
 import Control.Arrow (first)
 import Data.Typeable (Typeable)
 import Data.Monoid (mempty)
+import Control.Monad (liftM)
 
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
@@ -107,21 +108,18 @@ lbsResponse mres = do
         { responseBody = L.fromChunks bss
         }
 
-checkHeaderLength :: MonadResource m => Int -> C.Sink S8.ByteString m a -> C.Sink S8.ByteString m a
-checkHeaderLength len0 (C.SinkData pushI0 closeI0) =
-    C.SinkData (push len0 pushI0) closeI0
-  where
-    push len pushI bs = do
-        res <- pushI bs
-        case res of
-            C.Processing pushI' close
-                | len' <= 0 -> liftIO $ throwIO OverlongHeaders
-                | otherwise -> return $ C.Processing
-                    (push len' pushI') close
-            C.Done a b -> return $ C.Done a b
-      where
-        len' = len - S8.length bs
-checkHeaderLength _ _ = error "checkHeaderLength"
+checkHeaderLength :: MonadResource m
+                  => Int
+                  -> C.Sink S8.ByteString m a
+                  -> C.Sink S8.ByteString m a
+checkHeaderLength len _
+    | len <= 0 = C.SinkM $ liftIO $ throwIO OverlongHeaders
+checkHeaderLength len (C.Processing pushI closeI) = C.Processing
+    (\bs -> checkHeaderLength
+        (len - S8.length bs)
+        (pushI bs)) closeI
+checkHeaderLength len (C.SinkM msink) = C.SinkM $ liftM (checkHeaderLength len) msink
+checkHeaderLength _ s@C.Done{} = s
 
 getResponse :: MonadResource m
             => ConnRelease m
@@ -166,15 +164,13 @@ addCleanup :: Monad m
            => (Bool -> m ())
            -> C.Source m a
            -> C.Source m a
-addCleanup cleanup src = src
-    { C.sourcePull = do
-        res <- C.sourcePull src
-        case res of
-            C.Closed -> cleanup True >> return C.Closed
-            C.Open src' val -> return $ C.Open
-                (addCleanup cleanup src')
-                val
-    , C.sourceClose = do
-        C.sourceClose src
-        cleanup False
-    }
+addCleanup cleanup C.Closed = C.SourceM
+    (cleanup True >> return C.Closed)
+    (cleanup True)
+addCleanup cleanup (C.Open src close x) = C.Open
+    (addCleanup cleanup src)
+    (cleanup False >> close)
+    x
+addCleanup cleanup (C.SourceM msrc close) = C.SourceM
+    (liftM (addCleanup cleanup) msrc)
+    (cleanup False >> close)
