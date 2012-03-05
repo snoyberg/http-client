@@ -96,9 +96,9 @@ makeRequest request = do
               BrowserState {maxRedirects = max_redirects} <- get
               resp <- LE.catch (runRedirectionChain request' max_redirects)
                 (\ e' -> retryHelper request' (retry_count - 1) (Just (e' :: HttpException)))
-              let code = HT.statusCode $ HC.statusCode resp
+              let code = HT.statusCode $ HC.responseStatus resp
               if code < 200 || code >= 300
-                then retryHelper request' (retry_count - 1) (Just $ HC.StatusCodeException (HC.statusCode resp) (HC.responseHeaders resp))
+                then retryHelper request' (retry_count - 1) (Just $ HC.StatusCodeException (HC.responseStatus resp) (HC.responseHeaders resp))
                 else return resp
         runRedirectionChain request' redirect_count
           | redirect_count == 0 = throw TooManyRedirects
@@ -115,7 +115,7 @@ makeRequest request = do
               res <- lift $ HC.http request'' manager'
               (cookie_jar'', response) <- liftIO $ updateCookieJar res request'' now cookie_jar' cookie_filter
               put $ s {cookieJar = cookie_jar''}
-              let code = HT.statusCode (HC.statusCode response)
+              let code = HT.statusCode (HC.responseStatus response)
               if code >= 300 && code < 400
                 then runRedirectionChain (case HC.getRedirectedRequest request'' (responseHeaders response) code of
                   Just a -> a

@@ -38,7 +38,8 @@ import Network.HTTP.Conduit.Chunk
 
 -- | A simple representation of the HTTP response created by 'lbsConsumer'.
 data Response body = Response
-    { statusCode :: W.Status
+    { responseStatus :: W.Status
+    , responseVersion :: W.HttpVersion
     , responseHeaders :: W.ResponseHeaders
     , responseBody :: body
     }
@@ -46,7 +47,7 @@ data Response body = Response
 
 -- | Since 1.1.2.
 instance Functor Response where
-    fmap f (Response status headers body) = Response status headers (f body)
+    fmap f (Response status v headers body) = Response status v headers (f body)
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -127,7 +128,8 @@ getResponse :: MonadResource m
             -> C.BufferedSource m S8.ByteString
             -> m (Response (C.Source m S8.ByteString))
 getResponse connRelease req@(Request {..}) bsrc = do
-    ((_, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
+    ((vbs, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
+    let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs' >>= readDec . S8.unpack
@@ -156,7 +158,7 @@ getResponse connRelease req@(Request {..}) bsrc = do
                             else bsrc'
                 return $ addCleanup cleanup bsrc''
 
-    return $ Response s hs' body
+    return $ Response s version hs' body
 
 -- | Add some cleanup code to the given 'C.Source'. General purpose
 -- function, could be included in conduit itself.

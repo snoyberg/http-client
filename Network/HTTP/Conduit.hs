@@ -165,7 +165,7 @@ http
     -> Manager
     -> m (Response (C.Source m S.ByteString))
 http req0 manager = do
-    res@(Response status hs body) <-
+    res@(Response status _version hs body) <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
             else go (redirectCount req0) req0 def
@@ -181,7 +181,7 @@ http req0 manager = do
         let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
         res' <- httpRaw req' manager
         let (cookie_jar, res) = updateCookieJar res' req' now cookie_jar'
-        case getRedirectedRequest req' (responseHeaders res) (W.statusCode (statusCode res)) of
+        case getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res)) of
             Just req -> go (count - 1) req cookie_jar
             Nothing -> return res
 
