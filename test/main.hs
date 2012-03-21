@@ -11,7 +11,7 @@ import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException)
 import Network.HTTP.Conduit.ConnInfo
 import CookieTest (cookieTest)
-import Data.Conduit.Network (runTCPServer, ServerSettings (..))
+import Data.Conduit.Network (runTCPServer, ServerSettings (..), HostPreference (HostAny))
 import Data.Conduit (($$))
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
@@ -50,7 +50,7 @@ main = hspecX $ do
             tid <- forkIO $ run 3010 app
             request <- parseUrl "http://localhost:3010/cookies"
             withManager $ \manager -> do
-                Response _ headers _ <- httpLbs request manager
+                Response _ _ headers _ <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
                     (setCookieHeaders, _) = partition ((== setCookie) . fst) headers
                 liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
@@ -82,7 +82,7 @@ main = hspecX $ do
                     _ -> error "Shouldn't have worked"
 
 overLongHeaders :: IO ()
-overLongHeaders = runTCPServer (ServerSettings 3004 Nothing) $ \_ sink ->
+overLongHeaders = runTCPServer (ServerSettings 3004 HostAny) $ \_ sink ->
     src $$ sink
   where
     src = sourceList $ "HTTP/1.0 200 OK\r\nfoo: " : repeat "bar"

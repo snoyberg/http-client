@@ -76,6 +76,6 @@ chunkIt :: Monad m => C.Conduit Blaze.Builder m Blaze.Builder
 chunkIt =
     conduit
   where
-    conduit = C.Running push close
-    push xs = C.HaveMore conduit (return ()) (chunkedTransferEncoding xs)
+    conduit = C.NeedInput push close
+    push xs = C.HaveOutput conduit (return ()) (chunkedTransferEncoding xs)
     close = C.Open C.Closed (return ()) chunkedTransferTerminator
