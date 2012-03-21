@@ -12,6 +12,7 @@ module Network.HTTP.Conduit.Response
 import Control.Arrow (first)
 import Data.Typeable (Typeable)
 import Data.Monoid (mempty)
+import Control.Monad (liftM)
 
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
@@ -21,7 +22,7 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
-import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
+import Control.Monad.Trans.Resource (MonadResource)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
@@ -37,7 +38,8 @@ import Network.HTTP.Conduit.Chunk
 
 -- | A simple representation of the HTTP response created by 'lbsConsumer'.
 data Response body = Response
-    { statusCode :: W.Status
+    { responseStatus :: W.Status
+    , responseVersion :: W.HttpVersion
     , responseHeaders :: W.ResponseHeaders
     , responseBody :: body
     }
@@ -45,7 +47,7 @@ data Response body = Response
 
 -- | Since 1.1.2.
 instance Functor Response where
-    fmap f (Response status headers body) = Response status headers (f body)
+    fmap f (Response status v headers body) = Response status v headers (f body)
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -97,9 +99,9 @@ getRedirectedRequest req hs code
 
 -- | Convert a 'Response' that has a 'C.Source' body to one with a lazy
 -- 'L.ByteString' body.
-lbsResponse :: C.Resource m
-            => ResourceT m (Response (C.Source m S8.ByteString))
-            -> ResourceT m (Response L.ByteString)
+lbsResponse :: Monad m
+            => m (Response (C.Source m S8.ByteString))
+            -> m (Response L.ByteString)
 lbsResponse mres = do
     res <- mres
     bss <- responseBody res C.$$ CL.consume
@@ -107,29 +109,27 @@ lbsResponse mres = do
         { responseBody = L.fromChunks bss
         }
 
-checkHeaderLength :: ResourceIO m => Int -> C.Sink S8.ByteString m a -> C.Sink S8.ByteString m a
-checkHeaderLength len0 (C.SinkData pushI0 closeI0) =
-    C.SinkData (push len0 pushI0) closeI0
-  where
-    push len pushI bs = do
-        res <- pushI bs
-        case res of
-            C.Processing pushI' close
-                | len' <= 0 -> liftIO $ throwIO OverlongHeaders
-                | otherwise -> return $ C.Processing
-                    (push len' pushI') close
-            C.Done a b -> return $ C.Done a b
-      where
-        len' = len - S8.length bs
-checkHeaderLength _ _ = error "checkHeaderLength"
+checkHeaderLength :: MonadResource m
+                  => Int
+                  -> C.Sink S8.ByteString m a
+                  -> C.Sink S8.ByteString m a
+checkHeaderLength len _
+    | len <= 0 = C.SinkM $ liftIO $ throwIO OverlongHeaders
+checkHeaderLength len (C.Processing pushI closeI) = C.Processing
+    (\bs -> checkHeaderLength
+        (len - S8.length bs)
+        (pushI bs)) closeI
+checkHeaderLength len (C.SinkM msink) = C.SinkM $ liftM (checkHeaderLength len) msink
+checkHeaderLength _ s@C.Done{} = s
 
-getResponse :: ResourceIO m
+getResponse :: MonadResource m
             => ConnRelease m
             -> Request m
             -> C.BufferedSource m S8.ByteString
-            -> ResourceT m (Response (C.Source m S8.ByteString))
+            -> m (Response (C.Source m S8.ByteString))
 getResponse connRelease req@(Request {..}) bsrc = do
-    ((_, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
+    ((vbs, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
+    let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs' >>= readDec . S8.unpack
@@ -158,23 +158,21 @@ getResponse connRelease req@(Request {..}) bsrc = do
                             else bsrc'
                 return $ addCleanup cleanup bsrc''
 
-    return $ Response s hs' body
+    return $ Response s version hs' body
 
 -- | Add some cleanup code to the given 'C.Source'. General purpose
 -- function, could be included in conduit itself.
-addCleanup :: C.ResourceIO m
-           => (Bool -> ResourceT m ())
+addCleanup :: Monad m
+           => (Bool -> m ())
            -> C.Source m a
            -> C.Source m a
-addCleanup cleanup src = src
-    { C.sourcePull = do
-        res <- C.sourcePull src
-        case res of
-            C.Closed -> cleanup True >> return C.Closed
-            C.Open src' val -> return $ C.Open
-                (addCleanup cleanup src')
-                val
-    , C.sourceClose = do
-        C.sourceClose src
-        cleanup False
-    }
+addCleanup cleanup C.Closed = C.SourceM
+    (cleanup True >> return C.Closed)
+    (cleanup True)
+addCleanup cleanup (C.Open src close x) = C.Open
+    (addCleanup cleanup src)
+    (cleanup False >> close)
+    x
+addCleanup cleanup (C.SourceM msrc close) = C.SourceM
+    (liftM (addCleanup cleanup) msrc)
+    (cleanup False >> close)

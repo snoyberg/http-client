@@ -22,7 +22,7 @@ module Network.HTTP.Conduit.ConnInfo
 import Control.Exception (SomeException, throwIO, try)
 import System.IO (Handle, hClose)
 
-import Control.Monad.Base (MonadBase, liftBase)
+import Control.Monad.IO.Class (liftIO)
 
 import Data.ByteString (ByteString)
 import qualified Data.ByteString as S
@@ -55,23 +55,23 @@ data ConnInfo = ConnInfo
     , connClose :: IO ()
     }
 
-connSink :: C.ResourceIO m => ConnInfo -> C.Sink ByteString m ()
+connSink :: C.MonadResource m => ConnInfo -> C.Sink ByteString m ()
 connSink ConnInfo { connWrite = write } =
-    C.SinkData push close
+    C.Processing push close
   where
-    push bss = liftBase (write bss) >> return (C.Processing push close)
+    push bss = C.SinkM $ liftIO (write bss) >> return (C.Processing push close)
     close = return ()
 
-connSource :: C.ResourceIO m => ConnInfo -> C.Source m ByteString
+connSource :: C.MonadResource m => ConnInfo -> C.Source m ByteString
 connSource ConnInfo { connRead = read' } =
     src
   where
-    src = C.Source pull close
+    src = C.SourceM pull close
     pull = do
-        bs <- liftBase read'
+        bs <- liftIO read'
         if S.null bs
             then return C.Closed
-            else return $ C.Open src bs
+            else return $ C.Open src close bs
     close = return ()
 
 #if DEBUG

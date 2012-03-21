@@ -124,12 +124,12 @@ import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
 import Control.Exception.Lifted (throwIO)
-import Control.Monad.Base (liftBase)
 import Control.Monad.IO.Class (MonadIO (liftIO))
+import Control.Monad.Trans.Control (MonadBaseControl)
 
 import qualified Data.Conduit as C
 import Data.Conduit.Blaze (builderToByteString)
-import Control.Monad.Trans.Resource (ResourceT, ResourceIO)
+import Data.Conduit (MonadResource)
 import Control.Exception.Lifted (try, SomeException)
 
 import Data.Time.Clock
@@ -160,12 +160,12 @@ import Network.HTTP.Conduit.Cookies
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 http
-    :: ResourceIO m
+    :: (MonadResource m, MonadBaseControl IO m)
     => Request m
     -> Manager
-    -> ResourceT m (Response (C.Source m S.ByteString))
+    -> m (Response (C.Source m S.ByteString))
 http req0 manager = do
-    res@(Response status hs body) <-
+    res@(Response status _version hs body) <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
             else go (redirectCount req0) req0 def
@@ -173,24 +173,24 @@ http req0 manager = do
         Nothing -> return res
         Just exc -> do
             C.sourceClose body
-            liftBase $ throwIO exc
+            liftIO $ throwIO exc
   where
-    go 0 _ _ = liftBase $ throwIO TooManyRedirects
+    go 0 _ _ = liftIO $ throwIO TooManyRedirects
     go count req'' cookie_jar'' = do
-        now <- liftIO $ getCurrentTime
+        now <- liftIO getCurrentTime
         let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
         res <- httpRaw req' manager
         let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
-        case getRedirectedRequest req' (responseHeaders res) (W.statusCode (statusCode res)) of
+        case getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res)) of
             Just req -> go (count - 1) req cookie_jar
             Nothing -> return res
 
 -- | Get a 'Response' without any redirect following.
 httpRaw
-     :: ResourceIO m
+     :: (MonadBaseControl IO m, MonadResource m)
      => Request m
      -> Manager
-     -> ResourceT m (Response (C.Source m S.ByteString))
+     -> m (Response (C.Source m S.ByteString))
 httpRaw req m = do
     (connRelease, ci, isManaged) <- getConn req m
     bsrc <- C.bufferSource $ connSource ci
@@ -201,7 +201,7 @@ httpRaw req m = do
             connRelease DontReuse
             http req m
         -- Not reused, so this is a real exception
-        (Left e, Fresh) -> liftBase $ throwIO e
+        (Left e, Fresh) -> liftIO $ throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the rest of the code, just throw them as normal.
         (Right (), _) -> getResponse connRelease req bsrc
@@ -223,7 +223,7 @@ httpRaw req m = do
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
-httpLbs :: ResourceIO m => Request m -> Manager -> ResourceT m (Response L.ByteString)
+httpLbs :: (MonadBaseControl IO m, MonadResource m) => Request m -> Manager -> m (Response L.ByteString)
 httpLbs r = lbsResponse . http r
 
 -- | Download the specified URL, following any redirects, and
@@ -241,5 +241,5 @@ httpLbs r = lbsResponse . http r
 -- 'httpRedirect' directly.
 simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ withManager $ \man -> do
-    url' <- liftBase $ parseUrl url
+    url' <- liftIO $ parseUrl url
     fmap responseBody $ httpLbs url' man

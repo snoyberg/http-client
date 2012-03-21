@@ -17,7 +17,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Attoparsec
 
 import Data.Conduit.Attoparsec (sinkParser)
-import Data.Conduit (Sink, ResourceIO)
+import Data.Conduit (Sink, MonadResource, MonadThrow)
 import Control.Monad (when)
 
 
@@ -60,7 +60,7 @@ parseHeaders = do
     h <- manyTill parseHeader newline <?> "Response headers"
     return (s, h)
 
-sinkHeaders :: ResourceIO m => Sink S.ByteString m (Status, [Header])
+sinkHeaders :: (MonadThrow m, MonadResource m) => Sink S.ByteString m (Status, [Header])
 sinkHeaders = sinkParser parseHeaders
 
 

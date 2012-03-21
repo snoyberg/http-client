@@ -7,8 +7,6 @@ module Network.HTTP.Conduit.Chunk
 import Control.Exception (assert)
 import Numeric (showHex)
 
-import Control.Monad.Trans.Class (lift)
-
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 
@@ -28,7 +26,7 @@ data CState = NeedHeader (S.ByteString -> A.Result Int)
             | NeedNewline (S.ByteString -> A.Result ())
             | Complete
 
-chunkedConduit :: C.ResourceThrow m
+chunkedConduit :: C.MonadThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy
                -> C.Conduit S.ByteString m S.ByteString
 chunkedConduit sendHeaders = C.conduitState
@@ -45,7 +43,7 @@ chunkedConduit sendHeaders = C.conduitState
                     let addHeader = if sendHeaders then (header:) else id
                     push (front . addHeader) (Isolate i) x'
             A.Partial f' -> return $ C.StateProducing (NeedHeader f') $ front []
-            A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
+            A.Fail _ contexts msg -> C.monadThrow $ ParseError contexts msg
     push front (Isolate i) x = do
         let (a, b) = S.splitAt i x
             i' = i - S.length a
@@ -67,17 +65,17 @@ chunkedConduit sendHeaders = C.conduitState
                     (NeedHeader $ A.parse parseChunkHeader)
                     x'
             A.Partial f' -> return $ C.StateProducing (NeedNewline f') $ front []
-            A.Fail _ contexts msg -> lift $ C.resourceThrow $ ParseError contexts msg
+            A.Fail _ contexts msg -> C.monadThrow $ ParseError contexts msg
     push front Complete leftover = do
         let end = if sendHeaders then [S8.pack "0\r\n"] else []
             lo = if S.null leftover then Nothing else Just leftover
         return $ C.StateFinished lo $ front end
     close _ = return []
 
-chunkIt :: C.Resource m => C.Conduit Blaze.Builder m Blaze.Builder
+chunkIt :: Monad m => C.Conduit Blaze.Builder m Blaze.Builder
 chunkIt =
     conduit
   where
-    conduit = C.Conduit push close
-    push xs = return $ C.Producing conduit [chunkedTransferEncoding xs]
-    close = return [chunkedTransferTerminator]
+    conduit = C.Running push close
+    push xs = C.HaveMore conduit (return ()) (chunkedTransferEncoding xs)
+    close = C.Open C.Closed (return ()) chunkedTransferTerminator

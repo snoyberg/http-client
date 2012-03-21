@@ -276,7 +276,7 @@ needsGunzip req hs' =
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
 
 requestBuilder
-    :: C.Resource m
+    :: Monad m
     => Request m
     -> C.Source m Builder
 requestBuilder req =
