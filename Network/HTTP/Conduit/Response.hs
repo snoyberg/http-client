@@ -113,7 +113,7 @@ checkHeaderLength :: MonadResource m
                   => Int
                   -> C.Sink S8.ByteString m a
                   -> C.Sink S8.ByteString m a
-checkHeaderLength len _
+checkHeaderLength len C.Processing{}
     | len <= 0 = C.SinkM $ liftIO $ throwIO OverlongHeaders
 checkHeaderLength len (C.Processing pushI closeI) = C.Processing
     (\bs -> checkHeaderLength
