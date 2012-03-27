@@ -57,21 +57,23 @@ data ConnInfo = ConnInfo
 
 connSink :: C.MonadResource m => ConnInfo -> C.Sink ByteString m ()
 connSink ConnInfo { connWrite = write } =
-    C.Processing push close
+    C.NeedInput push close
   where
-    push bss = C.SinkM $ liftIO (write bss) >> return (C.Processing push close)
+    push bss = C.PipeM
+        (liftIO (write bss) >> return (C.NeedInput push close))
+        (return ())
     close = return ()
 
 connSource :: C.MonadResource m => ConnInfo -> C.Source m ByteString
 connSource ConnInfo { connRead = read' } =
     src
   where
-    src = C.SourceM pull close
+    src = C.PipeM pull close
     pull = do
         bs <- liftIO read'
         if S.null bs
-            then return C.Closed
-            else return $ C.Open src close bs
+            then return (return ())
+            else return $ C.HaveOutput src close bs
     close = return ()
 
 #if DEBUG

@@ -23,8 +23,8 @@
 -- > main = do
 -- >      request <- parseUrl "http://google.com/"
 -- >      withManager $ \manager -> do
--- >          Response _ _ bsrc <- http request manager
--- >          bsrc C.$$ sinkFile "google.html"
+-- >          Response _ _ src <- http request manager
+-- >          src C.$$ sinkFile "google.html"
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
@@ -128,6 +128,7 @@ import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
 
 import qualified Data.Conduit as C
+import qualified Data.Conduit.Internal as CI
 import Data.Conduit.Blaze (builderToByteString)
 import Data.Conduit (MonadResource)
 import Control.Exception.Lifted (try, SomeException)
@@ -172,7 +173,7 @@ http req0 manager = do
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
-            C.sourceClose body
+            CI.pipeClose body
             liftIO $ throwIO exc
   where
     go 0 _ _ = liftIO $ throwIO TooManyRedirects
@@ -193,7 +194,7 @@ httpRaw
      -> m (Response (C.Source m S.ByteString))
 httpRaw req m = do
     (connRelease, ci, isManaged) <- getConn req m
-    bsrc <- C.bufferSource $ connSource ci
+    let src = connSource ci
     ex <- try $ requestBuilder req C.$$ builderToByteString C.=$ connSink ci
     case (ex :: Either SomeException (), isManaged) of
         -- Connection was reused, and might be been closed. Try again
@@ -204,7 +205,7 @@ httpRaw req m = do
         (Left e, Fresh) -> liftIO $ throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the rest of the code, just throw them as normal.
-        (Right (), _) -> getResponse connRelease req bsrc
+        (Right (), _) -> getResponse connRelease req src
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --

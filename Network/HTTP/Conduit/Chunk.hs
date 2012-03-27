@@ -78,4 +78,4 @@ chunkIt =
   where
     conduit = C.NeedInput push close
     push xs = C.HaveOutput conduit (return ()) (chunkedTransferEncoding xs)
-    close = C.Open C.Closed (return ()) chunkedTransferTerminator
+    close = C.HaveOutput (return ()) (return ()) chunkedTransferTerminator

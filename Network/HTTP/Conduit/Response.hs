@@ -36,6 +36,8 @@ import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
 
+import Data.Void (absurd)
+
 -- | A simple representation of the HTTP response created by 'lbsConsumer'.
 data Response body = Response
     { responseStatus :: W.Status
@@ -113,22 +115,25 @@ checkHeaderLength :: MonadResource m
                   => Int
                   -> C.Sink S8.ByteString m a
                   -> C.Sink S8.ByteString m a
-checkHeaderLength len C.Processing{}
-    | len <= 0 = C.SinkM $ liftIO $ throwIO OverlongHeaders
-checkHeaderLength len (C.Processing pushI closeI) = C.Processing
+checkHeaderLength len C.NeedInput{}
+    | len <= 0 =
+        let x = liftIO $ throwIO OverlongHeaders
+         in C.PipeM x x
+checkHeaderLength len (C.NeedInput pushI closeI) = C.NeedInput
     (\bs -> checkHeaderLength
         (len - S8.length bs)
         (pushI bs)) closeI
-checkHeaderLength len (C.SinkM msink) = C.SinkM $ liftM (checkHeaderLength len) msink
+checkHeaderLength len (C.PipeM msink close) = C.PipeM (liftM (checkHeaderLength len) msink) close
 checkHeaderLength _ s@C.Done{} = s
+checkHeaderLength _ (C.HaveOutput _ _ o) = absurd o
 
 getResponse :: MonadResource m
             => ConnRelease m
             -> Request m
-            -> C.BufferedSource m S8.ByteString
+            -> C.Source m S8.ByteString
             -> m (Response (C.Source m S8.ByteString))
-getResponse connRelease req@(Request {..}) bsrc = do
-    ((vbs, sc, sm), hs) <- bsrc C.$$ checkHeaderLength 4096 sinkHeaders
+getResponse connRelease req@(Request {..}) src1 = do
+    (src2, ((vbs, sc, sm), hs)) <- src1 C.$$& checkHeaderLength 4096 sinkHeaders
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
@@ -145,18 +150,18 @@ getResponse connRelease req@(Request {..}) bsrc = do
                 cleanup True
                 return mempty
             else do
-                let bsrc' =
+                let src3 =
                         if ("transfer-encoding", "chunked") `elem` hs'
-                            then bsrc C.$= chunkedConduit rawBody
+                            then src2 C.$= chunkedConduit rawBody
                             else
                                 case mcl of
-                                    Just len -> bsrc C.$= CB.isolate len
-                                    Nothing  -> C.unbufferSource bsrc
-                let bsrc'' =
+                                    Just len -> src2 C.$= CB.isolate len
+                                    Nothing  -> src2
+                let src4 =
                         if needsGunzip req hs'
-                            then bsrc' C.$= CZ.ungzip
-                            else bsrc'
-                return $ addCleanup cleanup bsrc''
+                            then src3 C.$= CZ.ungzip
+                            else src3
+                return $ addCleanup cleanup src4
 
     return $ Response s version hs' body
 
@@ -166,13 +171,16 @@ addCleanup :: Monad m
            => (Bool -> m ())
            -> C.Source m a
            -> C.Source m a
-addCleanup cleanup C.Closed = C.SourceM
-    (cleanup True >> return C.Closed)
+addCleanup cleanup (C.Done leftover ()) = C.PipeM
+    (cleanup True >> return (C.Done leftover ()))
     (cleanup True)
-addCleanup cleanup (C.Open src close x) = C.Open
+addCleanup cleanup (C.HaveOutput src close x) = C.HaveOutput
     (addCleanup cleanup src)
     (cleanup False >> close)
     x
-addCleanup cleanup (C.SourceM msrc close) = C.SourceM
+addCleanup cleanup (C.PipeM msrc close) = C.PipeM
     (liftM (addCleanup cleanup) msrc)
     (cleanup False >> close)
+addCleanup cleanup (C.NeedInput p c) = C.NeedInput
+    (addCleanup cleanup . p)
+    (addCleanup cleanup c)
