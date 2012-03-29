@@ -133,7 +133,7 @@ getResponse :: MonadResource m
             -> C.Source m S8.ByteString
             -> m (Response (C.Source m S8.ByteString))
 getResponse connRelease req@(Request {..}) src1 = do
-    (src2, ((vbs, sc, sm), hs)) <- src1 C.$$& checkHeaderLength 4096 sinkHeaders
+    (src2, ((vbs, sc, sm), hs)) <- src1 C.$$+ checkHeaderLength 4096 sinkHeaders
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
