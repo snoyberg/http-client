@@ -17,11 +17,10 @@ import Data.Conduit (($$))
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
-import Data.Conduit.List (sourceList, sinkNull)
+import Data.Conduit.List (sourceList)
 import Data.CaseInsensitive (mk)
 import Data.List (partition)
 import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Binary as CB
 
 app :: Application
 app req =
