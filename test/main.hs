@@ -37,12 +37,12 @@ main = hspecX $ do
     describe "simpleHttp" $ do
         it "gets homepage" $ do
             tid <- forkIO $ run 3000 app
-            lbs <- simpleHttp "http://localhost:3000/"
+            lbs <- simpleHttp "http://127.0.0.1:3000/"
             killThread tid
             lbs @?= "homepage"
         it "throws exception on 404" $ do
             tid <- forkIO $ run 3001 app
-            elbs <- try $ simpleHttp "http://localhost:3001/404"
+            elbs <- try $ simpleHttp "http://127.0.0.1:3001/404"
             killThread tid
             case elbs of
                 Left (_ :: SomeException) -> return ()
@@ -50,7 +50,7 @@ main = hspecX $ do
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ do
             tid <- forkIO $ run 3010 app
-            request <- parseUrl "http://localhost:3010/cookies"
+            request <- parseUrl "http://127.0.0.1:3010/cookies"
             withManager $ \manager -> do
                 Response _ _ headers _ <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
@@ -64,8 +64,8 @@ main = hspecX $ do
             tid2 <- forkIO $ run 3003 app
             threadDelay 1000
             withManager $ \manager -> do
-                let Just req1 = parseUrl "http://localhost:3002/"
-                let Just req2 = parseUrl "http://localhost:3003/"
+                let Just req1 = parseUrl "http://127.0.0.1:3002/"
+                let Just req2 = parseUrl "http://127.0.0.1:3003/"
                 _res1a <- http req1 manager
                 _res1b <- http req1 manager
                 _res2 <- http req2 manager
@@ -79,7 +79,7 @@ main = hspecX $ do
             threadDelay 1000
             withManager $ \manager -> do
                 _ <- register $ killThread tid1
-                let Just req1 = parseUrl "http://localhost:3004/"
+                let Just req1 = parseUrl "http://127.0.0.1:3004/"
                 res1 <- try $ http req1 manager
                 case res1 of
                     Left e -> liftIO $ show (e :: SomeException) @?= show OverlongHeaders
@@ -89,7 +89,7 @@ main = hspecX $ do
             threadDelay 1000
             withManager $ \manager -> do
                 _ <- register $ killThread tid1
-                let Just req1 = parseUrl "http://localhost:3005/"
+                let Just req1 = parseUrl "http://127.0.0.1:3005/"
                 _ <- httpLbs req1 manager
                 return ()
 
