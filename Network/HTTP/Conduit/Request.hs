@@ -59,6 +59,16 @@ type ContentType = S.ByteString
 -- construct from a URL, and then use the records below to make modifications.
 -- This approach allows http-conduit to add configuration options without
 -- breaking backwards compatibility.
+--
+-- For example, to construct a POST request, you could do something like:
+--
+-- > initReq <- parseUrl "http://www.example.com/path"
+-- > let req = req
+-- >             { method = "POST"
+-- >             }
+--
+-- For more information, please see
+-- <http://www.yesodweb.com/book/settings-types>.
 data Request m = Request
     { method :: W.Method
     -- ^ HTTP request method, eg GET, POST.
