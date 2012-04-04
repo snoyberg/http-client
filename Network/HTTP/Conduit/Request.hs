@@ -63,7 +63,7 @@ type ContentType = S.ByteString
 -- For example, to construct a POST request, you could do something like:
 --
 -- > initReq <- parseUrl "http://www.example.com/path"
--- > let req = req
+-- > let req = initReq
 -- >             { method = "POST"
 -- >             }
 --
