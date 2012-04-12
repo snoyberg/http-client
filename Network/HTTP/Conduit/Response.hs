@@ -23,10 +23,12 @@ import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 
 import Control.Monad.Trans.Resource (MonadResource)
+import Control.Monad.Trans.Class (lift)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
+import qualified Data.Conduit.Internal
 
 import qualified Network.HTTP.Types as W
 
@@ -118,7 +120,7 @@ checkHeaderLength :: MonadResource m
 checkHeaderLength len C.NeedInput{}
     | len <= 0 =
         let x = liftIO $ throwIO OverlongHeaders
-         in C.PipeM x x
+         in C.PipeM x (lift x)
 checkHeaderLength len (C.NeedInput pushI closeI) = C.NeedInput
     (\bs -> checkHeaderLength
         (len - S8.length bs)
@@ -161,26 +163,6 @@ getResponse connRelease req@(Request {..}) src1 = do
                         if needsGunzip req hs'
                             then src3 C.$= CZ.ungzip
                             else src3
-                return $ addCleanup cleanup src4
+                return $ Data.Conduit.Internal.addCleanup cleanup src4
 
     return $ Response s version hs' body
-
--- | Add some cleanup code to the given 'C.Source'. General purpose
--- function, could be included in conduit itself.
-addCleanup :: Monad m
-           => (Bool -> m ())
-           -> C.Source m a
-           -> C.Source m a
-addCleanup cleanup (C.Done leftover ()) = C.PipeM
-    (cleanup True >> return (C.Done leftover ()))
-    (cleanup True)
-addCleanup cleanup (C.HaveOutput src close x) = C.HaveOutput
-    (addCleanup cleanup src)
-    (cleanup False >> close)
-    x
-addCleanup cleanup (C.PipeM msrc close) = C.PipeM
-    (liftM (addCleanup cleanup) msrc)
-    (cleanup False >> close)
-addCleanup cleanup (C.NeedInput p c) = C.NeedInput
-    (addCleanup cleanup . p)
-    (addCleanup cleanup c)

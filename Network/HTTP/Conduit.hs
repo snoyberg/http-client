@@ -173,7 +173,7 @@ http req0 manager = do
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
-            CI.pipeClose body
+            CI.runFinalize $ CI.pipeClose body
             liftIO $ throwIO exc
   where
     go 0 _ _ = liftIO $ throwIO TooManyRedirects
