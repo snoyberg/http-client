@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         1.4.1.1
+version:         1.4.1.2
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>

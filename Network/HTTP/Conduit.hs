@@ -195,8 +195,16 @@ httpRaw
 httpRaw req m = do
     (connRelease, ci, isManaged) <- getConn req m
     let src = connSource ci
-    ex <- try $ requestBuilder req C.$$ builderToByteString C.=$ connSink ci
-    case (ex :: Either SomeException (), isManaged) of
+
+    -- Originally, we would only test for exceptions when sending the request,
+    -- not on calling @getResponse@. However, some servers seem to close
+    -- connections after accepting the request headers, so we need to check for
+    -- exceptions in both.
+    ex <- try' $ do
+        requestBuilder req C.$$ builderToByteString C.=$ connSink ci
+        getResponse connRelease req src
+
+    case (ex, isManaged) of
         -- Connection was reused, and might be been closed. Try again
         (Left _, Reused) -> do
             connRelease DontReuse
@@ -204,8 +212,11 @@ httpRaw req m = do
         -- Not reused, so this is a real exception
         (Left e, Fresh) -> liftIO $ throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
-        -- thrown in the rest of the code, just throw them as normal.
-        (Right (), _) -> getResponse connRelease req src
+        -- thrown in the response body, just throw them as normal.
+        (Right x, _) -> return x
+  where
+    try' :: MonadBaseControl IO m => m a -> m (Either SomeException a)
+    try' = try
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
