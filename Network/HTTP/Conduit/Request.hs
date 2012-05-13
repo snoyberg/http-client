@@ -126,6 +126,7 @@ data Proxy = Proxy
 
 encodeUrlCharPI :: Char -> String
 encodeUrlCharPI '/' = "/"
+encodeUrlCharPI '%' = "%"
 encodeUrlCharPI c = encodeUrlChar c
 
 encodeUrlChar :: Char -> String

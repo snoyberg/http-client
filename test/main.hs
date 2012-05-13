@@ -2,6 +2,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 import Test.Hspec.Monadic
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import Test.Hspec.HUnit ()
 import Test.HUnit
 import Network.Wai
@@ -21,6 +22,8 @@ import Data.Conduit.List (sourceList)
 import Data.CaseInsensitive (mk)
 import Data.List (partition)
 import qualified Data.Conduit.List as CL
+import qualified Data.Text.Encoding as TE
+import qualified Data.ByteString.Lazy as L
 
 app :: Application
 app req =
@@ -92,6 +95,24 @@ main = hspecX $ do
                 let Just req1 = parseUrl "http://127.0.0.1:3005/"
                 _ <- httpLbs req1 manager
                 return ()
+    describe "redirects" $ do
+        it "doesn't double escape" $ do
+            tid <- forkIO redir
+            threadDelay 1000000
+            withManager $ \manager -> do
+                _ <- register $ killThread tid
+                let go (encoded, final) = do
+                        let Just req1 = parseUrl $ "http://127.0.0.1:3006/redir/" ++ encoded
+                        res <- httpLbs req1 manager
+                        liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                        liftIO $ responseBody res @?= L.fromChunks [TE.encodeUtf8 final]
+                mapM_ go
+                    [ ("hello world%2F", "hello world/")
+                    , ("%D7%A9%D7%9C%D7%95%D7%9D", "שלום")
+                    , ("simple", "simple")
+                    , ("hello%20world", "hello world")
+                    , ("hello%20world%3f%23", "hello world?#")
+                    ]
 
 overLongHeaders :: IO ()
 overLongHeaders = runTCPServer (ServerSettings 3004 HostAny) $ \_ sink ->
@@ -105,3 +126,37 @@ notOverLongHeaders = runTCPServer (ServerSettings 3005 HostAny) $ \src' sink -> 
     src $$ sink
   where
     src = sourceList $ [S.concat $ "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16384\r\n\r\n" : ( take 16384 $ repeat "x")]
+
+redir :: IO ()
+redir =
+    run 3006 redirApp
+  where
+    redirApp req =
+        case pathInfo req of
+            ["redir", foo] -> return $ responseLBS status301
+                [ ("Location", "http://127.0.0.1:3006/content/" `S.append` escape foo)
+                ]
+                ""
+            ["content", foo] -> return $ responseLBS status200 [] $ L.fromChunks [TE.encodeUtf8 foo]
+            _ -> return $ responseLBS status404 [] ""
+    escape = S8.concatMap (S8.pack . encodeUrlChar) . TE.encodeUtf8
+
+    encodeUrlChar :: Char -> String
+    encodeUrlChar c
+        -- List of unreserved characters per RFC 3986
+        -- Gleaned from http://en.wikipedia.org/wiki/Percent-encoding
+        | 'A' <= c && c <= 'Z' = [c]
+        | 'a' <= c && c <= 'z' = [c]
+        | '0' <= c && c <= '9' = [c]
+    encodeUrlChar c@'-' = [c]
+    encodeUrlChar c@'_' = [c]
+    encodeUrlChar c@'.' = [c]
+    encodeUrlChar c@'~' = [c]
+    encodeUrlChar y =
+        let (a, c) = fromEnum y `divMod` 16
+            b = a `mod` 16
+            showHex' x
+                | x < 10 = toEnum $ x + (fromEnum '0')
+                | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
+                | otherwise = error $ "Invalid argument to showHex: " ++ show x
+         in ['%', showHex' b, showHex' c]
