@@ -5,7 +5,8 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import Test.Hspec.HUnit ()
 import Test.HUnit
-import Network.Wai
+import Network.Wai hiding (requestBody)
+import qualified Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Network.HTTP.Conduit
 import Control.Concurrent (forkIO, killThread, threadDelay)
@@ -24,6 +25,7 @@ import Data.List (partition)
 import qualified Data.Conduit.List as CL
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
+import Blaze.ByteString.Builder (fromByteString)
 
 app :: Application
 app req =
@@ -114,6 +116,28 @@ main = hspecX $ do
                     , ("hello%20world%3f%23", "hello world?#")
                     ]
 
+    describe "chunked request body" $ do
+        it "works" $ do
+            tid <- forkIO echo
+            threadDelay 1000000
+            withManager $ \manager -> do
+                _ <- register $ killThread tid
+                let go bss = do
+                        let Just req1 = parseUrl "http://127.0.0.1:3007"
+                            src = sourceList $ map fromByteString bss
+                            lbs = L.fromChunks bss
+                        res <- httpLbs req1
+                            { method = "POST"
+                            , requestBody = RequestBodySourceChunked src
+                            } manager
+                        liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                        let ts = S.concat . L.toChunks
+                        liftIO $ ts (responseBody res) @?= ts lbs
+                mapM_ go
+                    [ ["hello", "world"]
+                    , replicate 500 "foo\003\n\r"
+                    ]
+
 overLongHeaders :: IO ()
 overLongHeaders = runTCPServer (ServerSettings 3004 HostAny) $ \_ sink ->
     src $$ sink
@@ -160,3 +184,8 @@ redir =
                 | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
                 | otherwise = error $ "Invalid argument to showHex: " ++ show x
          in ['%', showHex' b, showHex' c]
+
+echo :: IO ()
+echo = run 3007 $ \req -> do
+    bss <- Network.Wai.requestBody req $$ CL.consume
+    return $ responseLBS status200 [] $ L.fromChunks bss

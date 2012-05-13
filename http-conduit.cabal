@@ -105,7 +105,7 @@ test-suite test
                  , time
                  , network
                  , wai
-                 , warp
+                 , warp >= 1.2.1
                  , socks
                  , http-types
                  , cookie
