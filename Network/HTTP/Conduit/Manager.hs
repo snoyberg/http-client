@@ -2,6 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE BangPatterns #-}
 module Network.HTTP.Conduit.Manager
     ( Manager
     , ManagerSettings (..)
@@ -38,7 +39,8 @@ import Control.Monad.Trans.Resource
     , MonadThrow, MonadUnsafeIO
     )
 import Control.Concurrent (forkIO, threadDelay)
-import Data.Time (UTCTime, getCurrentTime, addUTCTime)
+import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
+import Control.DeepSeq (deepseq)
 
 import Network (connectTo, PortID (PortNumber), HostName)
 import Network.Socket (socketToHandle)
@@ -161,7 +163,7 @@ reap mapRef certCacheRef =
             Nothing -> return () -- manager is closed
             Just toDestroy -> do
                 mapM_ safeConnClose toDestroy
-                I.atomicModifyIORef certCacheRef $ \x -> (flushStaleCerts now x, ())
+                !() <- I.atomicModifyIORef certCacheRef $ \x -> let y = flushStaleCerts now x in y `seq` (y, ())
                 loop
     findStaleWrap _ Nothing = (Nothing, Nothing)
     findStaleWrap isNotStale (Just m) =
@@ -189,10 +191,31 @@ reap mapRef certCacheRef =
         flushStaleCerts' (host', inner) =
             case mapMaybe flushStaleCerts'' $ Map.toList inner of
                 [] -> Nothing
-                pairs -> Just (host', Map.fromList $ take 10 pairs)
+                pairs ->
+                    let x = take 10 pairs
+                     in x `seqPairs` Just (host', Map.fromList x)
         flushStaleCerts'' (certs, expires)
             | expires > now = Just (certs, expires)
             | otherwise     = Nothing
+
+        seqPairs :: [(L.ByteString, UTCTime)] -> b -> b
+        seqPairs [] b = b
+        seqPairs (p:ps) b = p `seqPair` ps `seqPairs` b
+
+        seqPair :: (L.ByteString, UTCTime) -> b -> b
+        seqPair (lbs, utc) b = lbs `seqLBS` utc `seqUTC` b
+
+        seqLBS :: L.ByteString -> b -> b
+        seqLBS lbs b = L.length lbs `seq` b
+
+        seqUTC :: UTCTime -> b -> b
+        seqUTC (UTCTime day dt) b = day `seqDay` dt `seqDT` b
+
+        seqDay :: Day -> b -> b
+        seqDay (ModifiedJulianDay i) b = i `deepseq` b
+
+        seqDT :: DiffTime -> b -> b
+        seqDT = seq
 
 neToList :: NonEmptyList a -> [(UTCTime, a)]
 neToList (One a t) = [(t, a)]
