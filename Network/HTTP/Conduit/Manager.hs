@@ -161,8 +161,8 @@ reap mapRef certCacheRef =
             Nothing -> return () -- manager is closed
             Just toDestroy -> do
                 mapM_ safeConnClose toDestroy
+                I.atomicModifyIORef certCacheRef $ \x -> (flushStaleCerts now x, ())
                 loop
-        I.atomicModifyIORef certCacheRef $ \x -> (flushStaleCerts now x, ())
     findStaleWrap _ Nothing = (Nothing, Nothing)
     findStaleWrap isNotStale (Just m) =
         let (x, y) = findStale isNotStale m
