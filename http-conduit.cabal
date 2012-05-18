@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         1.4.1.4
+version:         1.4.1.5
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -50,6 +50,7 @@ library
                  , void                  >= 0.5.5   && < 0.6
                  , regex-compat
                  , mtl
+                 , deepseq               >= 1.1     && < 1.2
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
                      , network-bytestring    >= 0.1.3   && < 0.1.4
@@ -113,6 +114,7 @@ test-suite test
                  , network-conduit
                  , resourcet
                  , void
+                 , deepseq
 
 source-repository head
   type:     git
