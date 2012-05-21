@@ -137,7 +137,9 @@ insertCookiesIntoRequest :: Req.Request m               -- ^ The request to inse
                          -> CookieJar                   -- ^ Current cookie jar
                          -> UTCTime                     -- ^ Value that should be used as \"now\"
                          -> (Req.Request m, CookieJar)  -- ^ (Ouptut request, Updated cookie jar (last-access-time is updated))
-insertCookiesIntoRequest request cookie_jar now = (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
+insertCookiesIntoRequest request cookie_jar now
+  | BS.null cookie_string = (request {Req.requestHeaders = purgedHeaders}, cookie_jar')
+  | otherwise = (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
   where purgedHeaders = L.deleteBy (\ (a, _) (b, _) -> a == b) (CI.mk $ U.fromString "Cookie", BS.empty) $ Req.requestHeaders request
         (cookie_string, cookie_jar') = computeCookieString request cookie_jar now True
         cookie_header = (CI.mk $ U.fromString "Cookie", cookie_string)
