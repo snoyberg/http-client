@@ -23,7 +23,7 @@
 -- > main = do
 -- >      request <- parseUrl "http://google.com/"
 -- >      withManager $ \manager -> do
--- >          Response _ _ src <- http request manager
+-- >          Response _ _ _ src <- http request manager
 -- >          src C.$$ sinkFile "google.html"
 --
 -- The following headers are automatically set by this module, and should not
