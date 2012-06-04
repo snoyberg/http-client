@@ -31,6 +31,7 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Conduit.Internal
 
 import qualified Network.HTTP.Types as W
+import Network.URI (parseURIReference)
 
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.Request
@@ -73,31 +74,16 @@ getRedirectedRequest :: Request m -> W.ResponseHeaders -> Int -> Maybe (Request 
 getRedirectedRequest req hs code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
-        l <- parseUrl $ case S8.uncons l' of
-                Just ('/', _) -> concat
-                    [ "http"
-                    , if secure req then "s" else ""
-                    , "://"
-                    , S8.unpack $ host req
-                    , ":"
-                    , show $ port req
-                    , S8.unpack l'
-                    ]
-                _ -> S8.unpack l'
-        return req
-          { host = host l
-          , port = port l
-          , secure = secure l
-          , path = path l
-          , queryString = queryString l
-          , method =
+        req' <- setUriRelative req =<< parseURIReference (S8.unpack l')
+        return req'
+          { method =
               -- According to the spec, this should *only* be for
               -- status code 303. However, almost all clients
               -- mistakenly implement it for 302 as well. So we
               -- have to be wrong like everyone else...
               if code == 302 || code == 303
                   then "GET"
-                  else method l
+                  else method req'
           }
     | otherwise = Nothing
 

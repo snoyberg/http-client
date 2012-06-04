@@ -7,6 +7,7 @@ module Network.HTTP.Conduit.Request
     , ContentType
     , Proxy (..)
     , parseUrl
+    , setUriRelative
     , browserDecompress
     , HttpException (..)
     , alwaysDecompress
@@ -37,6 +38,7 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
 import Network.Socks5 (SocksConf)
+import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
 import Control.Exception (Exception, SomeException, toException)
 import Control.Failure (Failure (failure))
@@ -124,31 +126,6 @@ data Proxy = Proxy
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
 
-encodeUrlCharPI :: Char -> String
-encodeUrlCharPI '/' = "/"
-encodeUrlCharPI '%' = "%"
-encodeUrlCharPI c = encodeUrlChar c
-
-encodeUrlChar :: Char -> String
-encodeUrlChar c
-    -- List of unreserved characters per RFC 3986
-    -- Gleaned from http://en.wikipedia.org/wiki/Percent-encoding
-    | 'A' <= c && c <= 'Z' = [c]
-    | 'a' <= c && c <= 'z' = [c]
-    | '0' <= c && c <= '9' = [c]
-encodeUrlChar c@'-' = [c]
-encodeUrlChar c@'_' = [c]
-encodeUrlChar c@'.' = [c]
-encodeUrlChar c@'~' = [c]
-encodeUrlChar y =
-    let (a, c) = fromEnum y `divMod` 16
-        b = a `mod` 16
-        showHex' x
-            | x < 10 = toEnum $ x + (fromEnum '0')
-            | x < 16 = toEnum $ x - 10 + (fromEnum 'A')
-            | otherwise = error $ "Invalid argument to showHex: " ++ show x
-     in ['%', showHex' b, showHex' c]
-
 -- | Convert a URL into a 'Request'.
 --
 -- This defaults some of the values in 'Request', such as setting 'method' to
@@ -157,16 +134,76 @@ encodeUrlChar y =
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
 parseUrl :: Failure HttpException m => String -> m (Request m')
-parseUrl s@('h':'t':'t':'p':':':'/':'/':rest) = parseUrl1 s False rest
-parseUrl s@('h':'t':'t':'p':'s':':':'/':'/':rest) = parseUrl1 s True rest
-parseUrl x = failure $ InvalidUrlException x "Invalid scheme"
-
-parseUrl1 :: Failure HttpException m
-          => String -> Bool -> String -> m (Request m')
-parseUrl1 full sec s =
-    parseUrl2 full sec s'
+parseUrl s =
+    case parseURI (encode s) of
+        Just uri -> setUri def uri
+        Nothing  -> failure $ InvalidUrlException s "Invalid URL"
   where
-    s' = encodeString s
+    encode = escapeURIString isAllowedInURI . encodeString
+
+-- | Add a 'URI' to the request. If it is absolute (includes a host name), add
+-- it as per 'setUri'; if it is relative, merge it with the existing request.
+setUriRelative :: Failure HttpException m => Request m' -> URI -> m (Request m')
+setUriRelative req uri =
+    case uri `relativeTo` getUri req of
+        Just uri' -> setUri req uri'
+        Nothing   -> failure $ InvalidUrlException (show uri) "Invalid URL"
+
+-- | Extract a 'URI' from the request.
+getUri :: Request m' -> URI
+getUri req = URI
+    { uriScheme = if secure req
+                    then "https:"
+                    else "http:"
+    , uriAuthority = Just URIAuth
+        { uriUserInfo = ""
+        , uriRegName = S8.unpack $ host req
+        , uriPort = ':' : show (port req)
+        }
+    , uriPath = S8.unpack $ path req
+    , uriQuery = S8.unpack $ queryString req
+    , uriFragment = ""
+    }
+
+-- | Validate a 'URI', then add it to the request.
+setUri :: Failure HttpException m => Request m' -> URI -> m (Request m')
+setUri req uri = do
+    sec <- parseScheme uri
+    auth <- maybe (failUri "URL must be absolute") return $ uriAuthority uri
+    if not . null $ uriUserInfo auth
+        then failUri "URL auth not supported; use applyBasicAuth instead"
+        else return ()
+    port' <- parsePort sec auth
+    return req
+        { host = S8.pack $ uriRegName auth
+        , port = port'
+        , secure = sec
+        , path = S8.pack $
+                    if null $ uriPath uri
+                        then "/"
+                        else uriPath uri
+        , queryString = S8.pack $ uriQuery uri
+        }
+  where
+    failUri = failure . InvalidUrlException (show uri)
+
+    parseScheme URI{uriScheme = scheme} =
+        case scheme of
+            "http:"  -> return False
+            "https:" -> return True
+            _        -> failUri "Invalid scheme"
+
+    parsePort sec URIAuth{uriPort = portStr} =
+        case portStr of
+            -- If the user specifies a port, then use it
+            ':':rest -> maybe
+                (failUri "Invalid port")
+                return
+                (readDec rest)
+            -- Otherwise, use the default port
+            _ -> case sec of
+                    False {- HTTP -} -> return 80
+                    True {- HTTPS -} -> return 443
 
 instance Default (Request m) where
     def = Request
@@ -188,39 +225,6 @@ instance Default (Request m) where
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs
         }
-
-parseUrl2 :: Failure HttpException m
-          => String -> Bool -> String -> m (Request m')
-parseUrl2 full sec s = do
-    port' <- mport
-    return def
-        { host = S8.pack hostname
-        , port = port'
-        , secure = sec
-        , path = S8.pack
-                    $ if null path''
-                            then "/"
-                            else concatMap encodeUrlCharPI path''
-        , queryString = S8.pack qstring
-        }
-  where
-    (beforeSlash, afterSlash) = break (== '/') s
-    (hostname, portStr) = break (== ':') beforeSlash
-    (path', qstring') = break (== '?') afterSlash
-    path'' = path'
-    qstring'' = case qstring' of
-                '?':x -> x
-                _ -> qstring'
-    qstring = takeWhile (/= '#') qstring''
-    mport =
-        case (portStr, sec) of
-            ("", False) -> return 80
-            ("", True) -> return 443
-            (':':rest, _) -> maybe
-                (failure $ InvalidUrlException full "Invalid port")
-                return
-                (readDec rest)
-            x -> error $ "parseUrl1: this should never happen: " ++ show x
 
 data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | InvalidUrlException String String
