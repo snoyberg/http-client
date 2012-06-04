@@ -115,6 +115,7 @@ test-suite test
                  , resourcet
                  , void
                  , deepseq
+                 , mtl
 
 source-repository head
   type:     git
