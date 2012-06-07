@@ -76,7 +76,7 @@ browse :: Manager -> BrowserAction a -> ResourceT IO a
 browse m act = evalStateT act (defaultState m)
 
 -- | Make a request, using all the state in the current BrowserState
-makeRequest :: Request (ResourceT IO) -> BrowserAction (Response (Source (ResourceT IO) BS.ByteString))
+makeRequest :: Request (ResourceT IO) -> BrowserAction (Response (ResumableSource (ResourceT IO) BS.ByteString))
 makeRequest request = do
   BrowserState
     { maxRetryCount = max_retry_count

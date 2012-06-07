@@ -41,7 +41,7 @@ import Data.Certificate.X509 (X509)
 
 import Crypto.Random.AESCtr (makeSystem)
 
-import qualified Data.Conduit as C
+import Data.Conduit hiding (Source, Sink, Conduit)
 
 #if DEBUG
 import qualified Data.IntMap as IntMap
@@ -55,26 +55,21 @@ data ConnInfo = ConnInfo
     , connClose :: IO ()
     }
 
-connSink :: C.MonadResource m => ConnInfo -> C.Sink ByteString m ()
+connSink :: MonadResource m => ConnInfo -> Pipe l ByteString o r m r
 connSink ConnInfo { connWrite = write } =
-    C.NeedInput push close
+    self
   where
-    push bss = C.PipeM
-        (liftIO (write bss) >> return (C.NeedInput push close))
-        (return ())
-    close = return ()
+    self = awaitE >>= either return (\x -> liftIO (write x) >> self)
 
-connSource :: C.MonadResource m => ConnInfo -> C.Source m ByteString
+connSource :: MonadResource m => ConnInfo -> Pipe l i ByteString u m ()
 connSource ConnInfo { connRead = read' } =
-    src
+    self
   where
-    src = C.PipeM pull close
-    pull = do
+    self = do
         bs <- liftIO read'
         if S.null bs
-            then return (return ())
-            else return $ C.HaveOutput src close bs
-    close = return ()
+            then return ()
+            else yield bs >> self
 
 #if DEBUG
 allOpenSockets :: I.IORef (Int, IntMap.IntMap String)

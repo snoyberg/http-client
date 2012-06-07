@@ -164,7 +164,7 @@ http
     :: (MonadResource m, MonadBaseControl IO m)
     => Request m
     -> Manager
-    -> m (Response (C.Source m S.ByteString))
+    -> m (Response (C.ResumableSource m S.ByteString))
 http req0 manager = do
     res@(Response status _version hs body) <-
         if redirectCount req0 == 0
@@ -173,7 +173,8 @@ http req0 manager = do
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
-            CI.runFinalize $ CI.pipeClose body
+            let CI.ResumableSource _ final = body
+            final
             liftIO $ throwIO exc
   where
     go 0 _ _ = liftIO $ throwIO TooManyRedirects
@@ -191,7 +192,7 @@ httpRaw
      :: (MonadBaseControl IO m, MonadResource m)
      => Request m
      -> Manager
-     -> m (Response (C.Source m S.ByteString))
+     -> m (Response (C.ResumableSource m S.ByteString))
 httpRaw req m = do
     (connRelease, ci, isManaged) <- getConn req m
     let src = connSource ci
