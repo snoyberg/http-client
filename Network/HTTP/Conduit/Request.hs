@@ -331,10 +331,11 @@ requestBuilder req =
             <> fromByteString " "
             <> (case S8.uncons $ path req of
                     Just ('/', _) -> fromByteString $ path req
-                    _ -> fromByteString "/" <> fromByteString (path req))
-            <> (if S8.null (queryString req)
-                        then mempty
-                        else fromChar '?' <> fromByteString (queryString req))
+                    _ -> fromChar '/' <> fromByteString (path req))
+            <> (case S8.uncons $ queryString req of
+                    Nothing -> mempty
+                    Just ('?', _) -> fromByteString $ queryString req
+                    _ -> fromChar '?' <> fromByteString (queryString req))
             <> fromByteString " HTTP/1.1\r\n"
             <> foldr
                 (\a b -> headerPairToBuilder a <> b)
