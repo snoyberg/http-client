@@ -72,16 +72,16 @@ getRedirectedRequest req hs code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
         req' <- setUriRelative req =<< parseURIReference (S8.unpack l')
-        return req'
-          { method =
-              -- According to the spec, this should *only* be for
-              -- status code 303. However, almost all clients
-              -- mistakenly implement it for 302 as well. So we
-              -- have to be wrong like everyone else...
-              if code == 302 || code == 303
-                  then "GET"
-                  else method req'
-          }
+        return $
+            if code == 302 || code == 303
+                -- According to the spec, this should *only* be for status code
+                -- 303. However, almost all clients mistakenly implement it for
+                -- 302 as well. So we have to be wrong like everyone else...
+                then req'
+                    { method = "GET"
+                    , requestBody = RequestBodyBS ""
+                    }
+                else req'
     | otherwise = Nothing
 
 -- | Convert a 'Response' that has a 'Source' body to one with a lazy
