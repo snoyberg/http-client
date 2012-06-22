@@ -16,7 +16,7 @@ import qualified Data.Attoparsec.ByteString as A
 
 import Data.Conduit hiding (Source, Sink, Conduit)
 import qualified Data.Conduit.Binary as CB
-import Data.Conduit.Attoparsec (ParseError (ParseError))
+import Data.Conduit.Attoparsec (ParseError (ParseError), Position (..))
 
 import Network.HTTP.Conduit.Parser
 import Control.Monad (when, unless)
@@ -38,7 +38,7 @@ chunkedConduit sendHeaders =
                     unless (S.null x') $ leftover x'
                     CB.isolate i
             A.Partial f' -> await >>= maybe (return ()) (needHeader f')
-            A.Fail _ contexts msg -> lift $ monadThrow $ ParseError contexts msg
+            A.Fail _ contexts msg -> lift $ monadThrow $ ParseError contexts msg $ Position 0 0
     complete = when sendHeaders $ yield $ S8.pack "0\r\n"
 
 chunkIt :: Monad m => Pipe l Blaze.Builder Blaze.Builder r m r
