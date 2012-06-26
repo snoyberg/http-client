@@ -40,7 +40,7 @@ library
                  , case-insensitive      >= 0.2
                  , base64-bytestring     >= 0.1     && < 0.2
                  , asn1-data             >= 0.5.1   && < 0.7
-                 , data-default          >= 0.3     && < 0.5
+                 , data-default
                  , text
                  , transformers-base     >= 0.4     && < 0.5
                  , lifted-base           >= 0.1     && < 0.2
