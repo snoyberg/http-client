@@ -4,7 +4,6 @@ module Network.HTTP.Conduit.Chunk
     , chunkIt
     ) where
 
-import Control.Exception (assert)
 import Numeric (showHex)
 
 import qualified Data.ByteString as S
@@ -15,67 +14,35 @@ import qualified Blaze.ByteString.Builder as Blaze
 
 import qualified Data.Attoparsec.ByteString as A
 
-import qualified Data.Conduit as C
-import Data.Conduit.Attoparsec (ParseError (ParseError))
+import Data.Conduit hiding (Source, Sink, Conduit)
+import qualified Data.Conduit.Binary as CB
+import Data.Conduit.Attoparsec (ParseError (ParseError), Position (..))
 
 import Network.HTTP.Conduit.Parser
+import Control.Monad (when, unless)
+import Control.Monad.Trans.Class (lift)
 
-
-data CState = NeedHeader (S.ByteString -> A.Result Int)
-            | Isolate Int
-            | NeedNewline (S.ByteString -> A.Result ())
-            | Complete
-
-chunkedConduit :: C.MonadThrow m
+chunkedConduit :: MonadThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy
-               -> C.Conduit S.ByteString m S.ByteString
-chunkedConduit sendHeaders = C.conduitState
-    (NeedHeader $ A.parse parseChunkHeader)
-    (push id)
-    close
+               -> Pipe S.ByteString S.ByteString S.ByteString u m ()
+chunkedConduit sendHeaders =
+    await >>= maybe (return ()) (needHeader $ A.parse parseChunkHeader)
   where
-    push front (NeedHeader f) x =
+    needHeader f x =
         case f x of
             A.Done x' i
-                | i == 0 -> push front Complete x'
+                | i == 0 -> unless (S.null x') (leftover x') >> complete
                 | otherwise -> do
                     let header = S8.pack $ showHex i "\r\n"
-                    let addHeader = if sendHeaders then (header:) else id
-                    push (front . addHeader) (Isolate i) x'
-            A.Partial f' -> return $ C.StateProducing (NeedHeader f') $ front []
-            A.Fail _ contexts msg -> C.monadThrow $ ParseError contexts msg
-    push front (Isolate i) x = do
-        let (a, b) = S.splitAt i x
-            i' = i - S.length a
-        if i' == 0
-            then push
-                    (front . (a:))
-                    (NeedNewline $ A.parse newline)
-                    b
-            else assert (S.null b) $ return $ C.StateProducing
-                (Isolate i')
-                (front [a])
-    push front (NeedNewline f) x =
-        case f x of
-            A.Done x' () -> do
-                let header = S8.pack "\r\n"
-                let addHeader = if sendHeaders then (header:) else id
-                push
-                    (front . addHeader)
-                    (NeedHeader $ A.parse parseChunkHeader)
-                    x'
-            A.Partial f' -> return $ C.StateProducing (NeedNewline f') $ front []
-            A.Fail _ contexts msg -> C.monadThrow $ ParseError contexts msg
-    push front Complete leftover = do
-        let end = if sendHeaders then [S8.pack "0\r\n"] else []
-            lo = if S.null leftover then Nothing else Just leftover
-        return $ C.StateFinished lo $ front end
-    close _ = return []
+                    when sendHeaders $ yield header
+                    unless (S.null x') $ leftover x'
+                    CB.isolate i
+            A.Partial f' -> await >>= maybe (return ()) (needHeader f')
+            A.Fail _ contexts msg -> lift $ monadThrow $ ParseError contexts msg $ Position 0 0
+    complete = when sendHeaders $ yield $ S8.pack "0\r\n"
 
-chunkIt :: Monad m => C.Conduit Blaze.Builder m Blaze.Builder
+chunkIt :: Monad m => Pipe l Blaze.Builder Blaze.Builder r m r
 chunkIt =
-    conduit
-  where
-    conduit = C.NeedInput push close
-    push xs = C.HaveOutput conduit (return ()) (chunkedTransferEncoding xs)
-    close = C.HaveOutput (return ()) (return ()) chunkedTransferTerminator
+    awaitE >>= either
+        (\u -> yield chunkedTransferTerminator >> return u)
+        (\x -> yield (chunkedTransferEncoding x) >> chunkIt)

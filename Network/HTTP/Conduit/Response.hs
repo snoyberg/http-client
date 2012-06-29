@@ -11,7 +11,6 @@ module Network.HTTP.Conduit.Response
 
 import Control.Arrow (first)
 import Data.Typeable (Typeable)
-import Data.Monoid (mempty)
 import Control.Monad (liftM)
 
 import Control.Exception (throwIO)
@@ -22,13 +21,11 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
-import Control.Monad.Trans.Resource (MonadResource)
-import Control.Monad.Trans.Class (lift)
-import qualified Data.Conduit as C
+import Data.Conduit hiding (Sink, Conduit)
+import Data.Conduit.Internal (ResumableSource (..), Pipe (..))
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Internal
 
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference)
@@ -39,7 +36,7 @@ import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
 
-import Data.Void (absurd)
+import Data.Void (Void, absurd)
 
 -- | A simple representation of the HTTP response created by 'lbsConsumer'.
 data Response body = Response
@@ -64,7 +61,7 @@ instance Functor Response where
 -- specific request, that user has to re-implement the redirect-following logic
 -- themselves. An example of that might look like this:
 --
--- > myHttp req man = E.catch (C.runResourceT $ http req' man >> return [req'])
+-- > myHttp req man = E.catch (runResourceT $ http req' man >> return [req'])
 -- >                    (\ (StatusCodeException status headers) -> do
 -- >                        l <- myHttp (fromJust $ nextRequest status headers) man
 -- >                        return $ req' : l)
@@ -87,41 +84,41 @@ getRedirectedRequest req hs code
                 else req'
     | otherwise = Nothing
 
--- | Convert a 'Response' that has a 'C.Source' body to one with a lazy
+-- | Convert a 'Response' that has a 'Source' body to one with a lazy
 -- 'L.ByteString' body.
 lbsResponse :: Monad m
-            => m (Response (C.Source m S8.ByteString))
+            => m (Response (ResumableSource m S8.ByteString))
             -> m (Response L.ByteString)
 lbsResponse mres = do
     res <- mres
-    bss <- responseBody res C.$$ CL.consume
+    bss <- responseBody res $$+- CL.consume
     return res
         { responseBody = L.fromChunks bss
         }
 
+-- | This function can\'t be a Conduit, since it would lose leftovers.
 checkHeaderLength :: MonadResource m
                   => Int
-                  -> C.Sink S8.ByteString m a
-                  -> C.Sink S8.ByteString m a
-checkHeaderLength len C.NeedInput{}
-    | len <= 0 =
-        let x = liftIO $ throwIO OverlongHeaders
-         in C.PipeM x (lift x)
-checkHeaderLength len (C.NeedInput pushI closeI) = C.NeedInput
+                  -> Pipe S8.ByteString S8.ByteString Void u m r
+                  -> Pipe S8.ByteString S8.ByteString Void u m r
+checkHeaderLength len NeedInput{}
+    | len <= 0 = liftIO $ throwIO OverlongHeaders
+checkHeaderLength len (NeedInput pushI closeI) = NeedInput
     (\bs -> checkHeaderLength
         (len - S8.length bs)
         (pushI bs)) closeI
-checkHeaderLength len (C.PipeM msink close) = C.PipeM (liftM (checkHeaderLength len) msink) close
-checkHeaderLength _ s@C.Done{} = s
-checkHeaderLength _ (C.HaveOutput _ _ o) = absurd o
+checkHeaderLength len (PipeM msink) = PipeM (liftM (checkHeaderLength len) msink)
+checkHeaderLength _ s@Done{} = s
+checkHeaderLength _ (HaveOutput _ _ o) = absurd o
+checkHeaderLength len (Leftover p i) = Leftover (checkHeaderLength len p) i
 
 getResponse :: MonadResource m
             => ConnRelease m
             -> Request m
-            -> C.Source m S8.ByteString
-            -> m (Response (C.Source m S8.ByteString))
+            -> Source m S8.ByteString
+            -> m (Response (ResumableSource m S8.ByteString))
 getResponse connRelease req@(Request {..}) src1 = do
-    (src2, ((vbs, sc, sm), hs)) <- src1 C.$$+ checkHeaderLength 4096 sinkHeaders
+    (src2, ((vbs, sc, sm), hs)) <- src1 $$+ checkHeaderLength 4096 sinkHeaders
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
@@ -136,19 +133,23 @@ getResponse connRelease req@(Request {..}) src1 = do
         if hasNoBody method sc || mcl == Just 0
             then do
                 cleanup True
-                return mempty
+                (rsrc, ()) <- return () $$+ return ()
+                return rsrc
             else do
                 let src3 =
                         if ("transfer-encoding", "chunked") `elem` hs'
-                            then src2 C.$= chunkedConduit rawBody
+                            then fmapResume ($= chunkedConduit rawBody) src2
                             else
                                 case mcl of
-                                    Just len -> src2 C.$= CB.isolate len
+                                    Just len -> fmapResume ($= CB.isolate len) src2
                                     Nothing  -> src2
                 let src4 =
                         if needsGunzip req hs'
-                            then src3 C.$= CZ.ungzip
+                            then fmapResume ($= CZ.ungzip) src3
                             else src3
-                return $ Data.Conduit.Internal.addCleanup cleanup src4
+                return $ addCleanup' cleanup src4
 
     return $ Response s version hs' body
+  where
+    fmapResume f (ResumableSource src m) = ResumableSource (f src) m
+    addCleanup' f (ResumableSource src m) = ResumableSource (addCleanup f src) (m >> f False)
