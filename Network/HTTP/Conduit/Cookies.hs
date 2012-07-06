@@ -1,7 +1,6 @@
 -- | This module implements the algorithms described in RFC 6265 for the Network.HTTP.Conduit library.
 module Network.HTTP.Conduit.Cookies where
 
-import qualified Network.HTTP.Types as W
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.UTF8 as U
 import Text.Regex
@@ -20,7 +19,7 @@ import qualified Network.HTTP.Conduit.Response as Res
 slash :: Integral a => a
 slash = 47 -- '/'
 
-isIpAddress :: W.Ascii -> Bool
+isIpAddress :: BS.ByteString -> Bool
 isIpAddress a = case strs of
   Just strs' -> helper strs'
   Nothing -> False
@@ -32,7 +31,7 @@ isIpAddress a = case strs of
 
 -- | This corresponds to the subcomponent algorithm entitled \"Domain Matching\" detailed
 -- in section 5.1.3
-domainMatches :: W.Ascii -> W.Ascii -> Bool
+domainMatches :: BS.ByteString -> BS.ByteString -> Bool
 domainMatches string domainString
   | string == domainString = True
   | BS.length string < BS.length domainString + 1 = False
@@ -42,7 +41,7 @@ domainMatches string domainString
 
 -- | This corresponds to the subcomponent algorithm entitled \"Paths\" detailed
 -- in section 5.1.4
-defaultPath :: Req.Request m -> W.Ascii
+defaultPath :: Req.Request m -> BS.ByteString
 defaultPath req
   | BS.null uri_path = U.fromString "/"
   | BS.singleton (BS.head uri_path) /= U.fromString "/" = U.fromString "/"
@@ -52,7 +51,7 @@ defaultPath req
 
 -- | This corresponds to the subcomponent algorithm entitled \"Path-Match\" detailed
 -- in section 5.1.4
-pathMatches :: W.Ascii -> W.Ascii -> Bool
+pathMatches :: BS.ByteString -> BS.ByteString -> Bool
 pathMatches requestPath cookiePath
   | cookiePath == requestPath = True
   | cookiePath `BS.isPrefixOf` requestPath && BS.singleton (BS.last cookiePath) == U.fromString "/" = True
@@ -62,11 +61,11 @@ pathMatches requestPath cookiePath
 
 -- This corresponds to the description of a cookie detailed in Section 5.3 \"Storage Model\"
 data Cookie = Cookie
-  { cookie_name :: W.Ascii
-  , cookie_value :: W.Ascii
+  { cookie_name :: BS.ByteString
+  , cookie_value :: BS.ByteString
   , cookie_expiry_time :: UTCTime
-  , cookie_domain :: W.Ascii
-  , cookie_path :: W.Ascii
+  , cookie_domain :: BS.ByteString
+  , cookie_path :: BS.ByteString
   , cookie_creation_time :: UTCTime
   , cookie_last_access_time :: UTCTime
   , cookie_persistent :: Bool
@@ -123,7 +122,7 @@ removeExistingCookieFromCookieJar cookie cookie_jar' = (mc, CJ lc)
 rejectPublicSuffixes :: Bool
 rejectPublicSuffixes = True
 
-isPublicSuffix :: W.Ascii -> Bool
+isPublicSuffix :: BS.ByteString -> Bool
 isPublicSuffix _ = False
 
 -- | This corresponds to the eviction algorithm described in Section 5.3 \"Storage Model\"
@@ -149,7 +148,7 @@ computeCookieString :: Req.Request m         -- ^ Input request
                     -> CookieJar             -- ^ Current cookie jar
                     -> UTCTime               -- ^ Value that should be used as \"now\"
                     -> Bool                  -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
-                    -> (W.Ascii, CookieJar)  -- ^ (Contents of a \"Cookie\" header, Updated cookie jar (last-access-time is updated))
+                    -> (BS.ByteString, CookieJar)  -- ^ (Contents of a \"Cookie\" header, Updated cookie jar (last-access-time is updated))
 computeCookieString request cookie_jar now is_http_api = (output_line, cookie_jar')
   where matching_cookie cookie = condition1 && condition2 && condition3 && condition4
           where condition1

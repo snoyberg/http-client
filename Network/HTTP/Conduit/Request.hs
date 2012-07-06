@@ -76,11 +76,11 @@ data Request m = Request
     -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool
     -- ^ Whether to use HTTPS (ie, SSL).
-    , host :: W.Ascii
+    , host :: S.ByteString
     , port :: Int
-    , path :: W.Ascii
+    , path :: S.ByteString
     -- ^ Everything from the host to the query string.
-    , queryString :: W.Ascii
+    , queryString :: S.ByteString
     , requestHeaders :: W.RequestHeaders
     , requestBody :: RequestBody m
     , proxy :: Maybe Proxy
@@ -122,7 +122,7 @@ data RequestBody m
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
 data Proxy = Proxy
-    { proxyHost :: W.Ascii -- ^ The host name of the HTTP proxy.
+    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
 

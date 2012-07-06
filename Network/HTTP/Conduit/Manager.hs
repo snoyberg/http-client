@@ -46,7 +46,6 @@ import Network (connectTo, PortID (PortNumber), HostName)
 import Network.Socket (socketToHandle)
 import Data.Certificate.X509 (X509, encodeCertificate)
 
-import qualified Network.HTTP.Types as W
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
 import Network.HTTP.Conduit.ConnInfo
@@ -63,7 +62,7 @@ import System.IO (Handle)
 data ManagerSettings = ManagerSettings
     { managerConnCount :: Int
       -- ^ Number of connections to a single host to keep alive. Default: 10.
-    , managerCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+    , managerCheckCerts :: S8.ByteString -> [X509] -> IO TLSCertificateUsage
       -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     }
 
@@ -76,7 +75,7 @@ instance Default ManagerSettings where
         }
 
 -- | Check certificates using the operating system's certificate checker.
-defaultCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+defaultCheckCerts :: S8.ByteString -> [X509] -> IO TLSCertificateUsage
 defaultCheckCerts host' certs =
     case certificateVerifyDomain (S8.unpack host') certs of
         CertificateUsageAccept -> certificateVerifyChain certs
@@ -89,9 +88,9 @@ data Manager = Manager
     -- ^ @Nothing@ indicates that the manager is closed.
     , mMaxConns :: !Int
     -- ^ This is a per-@ConnKey@ value.
-    , mCheckCerts :: W.Ascii -> [X509] -> IO TLSCertificateUsage
+    , mCheckCerts :: S8.ByteString -> [X509] -> IO TLSCertificateUsage
     -- ^ Check if a certificate is valid.
-    , mCertCache :: !(I.IORef (Map.Map W.Ascii (Map.Map X509Encoded UTCTime)))
+    , mCertCache :: !(I.IORef (Map.Map S8.ByteString (Map.Map X509Encoded UTCTime)))
     -- ^ Cache of validated certificates. The @UTCTime@ gives the expiration
     -- time for the validity of the certificate. The @Ascii@ is the hostname.
     }
@@ -149,7 +148,7 @@ newManager ms = do
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
-     -> I.IORef (Map.Map W.Ascii (Map.Map X509Encoded UTCTime))
+     -> I.IORef (Map.Map S8.ByteString (Map.Map X509Encoded UTCTime))
      -> IO ()
 reap mapRef certCacheRef =
     mask_ loop
@@ -394,7 +393,7 @@ getConn req m =
             (True, False) -> getSslConn $ checkCerts m h
             (True, True) -> getSslProxyConn (checkCerts m h) h (port req)
 
-checkCerts :: Manager -> W.Ascii -> [X509] -> IO TLSCertificateUsage
+checkCerts :: Manager -> S8.ByteString -> [X509] -> IO TLSCertificateUsage
 checkCerts man host' certs = do
 #if DEBUG
     putStrLn $ "checkCerts for host: " ++ show host'
