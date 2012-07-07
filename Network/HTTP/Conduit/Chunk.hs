@@ -12,34 +12,50 @@ import qualified Data.ByteString.Char8 as S8
 import Blaze.ByteString.Builder.HTTP
 import qualified Blaze.ByteString.Builder as Blaze
 
-import qualified Data.Attoparsec.ByteString as A
-
 import Data.Conduit hiding (Source, Sink, Conduit)
 import qualified Data.Conduit.Binary as CB
-import Data.Conduit.Attoparsec (ParseError (ParseError), Position (..))
 
-import Network.HTTP.Conduit.Parser
 import Control.Monad (when, unless)
-import Control.Monad.Trans.Class (lift)
+import Control.Exception (assert)
 
 chunkedConduit :: MonadThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy
                -> Pipe S.ByteString S.ByteString S.ByteString u m ()
-chunkedConduit sendHeaders =
-    await >>= maybe (return ()) (needHeader $ A.parse parseChunkHeader)
+chunkedConduit sendHeaders = do
+    i <- getLen
+    when sendHeaders $ yield $ S8.pack $ showHex i "\r\n"
+    unless (i == 0) $ do
+        CB.isolate i
+        CB.drop 2
+        chunkedConduit sendHeaders
+
+getLen :: Monad m => Pipe S.ByteString S.ByteString o u m Int
+getLen =
+    start 0
   where
-    needHeader f x =
-        case f x of
-            A.Done x' i
-                | i == 0 -> unless (S.null x') (leftover x') >> complete
-                | otherwise -> do
-                    let header = S8.pack $ showHex i "\r\n"
-                    when sendHeaders $ yield header
-                    unless (S.null x') $ leftover x'
-                    CB.isolate i
-            A.Partial f' -> await >>= maybe (return ()) (needHeader f')
-            A.Fail _ contexts msg -> lift $ monadThrow $ ParseError contexts msg $ Position 0 0
-    complete = when sendHeaders $ yield $ S8.pack "0\r\n"
+    start i = await >>= maybe (return i) (go i)
+
+    go i bs =
+        case S.uncons bs of
+            Nothing -> start i
+            Just (w, bs') ->
+                case toI w of
+                    Just i' -> go (i * 16 + i') bs'
+                    Nothing -> do
+                        stripNewLine bs
+                        return i
+
+    stripNewLine bs =
+        case S.uncons $ S.dropWhile (/= 10) bs of
+            Just (10, bs') -> leftover bs'
+            Just _ -> assert False $ await >>= maybe (return ()) stripNewLine
+            Nothing -> await >>= maybe (return ()) stripNewLine
+
+    toI w
+        | 48 <= w && w <= 57  = Just $ fromIntegral w - 48
+        | 65 <= w && w <= 70  = Just $ fromIntegral w - 55
+        | 97 <= w && w <= 102 = Just $ fromIntegral w - 87
+        | otherwise = Nothing
 
 chunkIt :: Monad m => Pipe l Blaze.Builder Blaze.Builder r m r
 chunkIt =
