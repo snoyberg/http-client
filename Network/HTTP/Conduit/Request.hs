@@ -321,6 +321,7 @@ requestBuilder req =
     acceptEncodingHeader =
         case lookup "Accept-Encoding" $ requestHeaders req of
             Nothing -> (("Accept-Encoding", "gzip"):)
+            Just "" -> filter (\(k, _) -> k /= "Accept-Encoding")
             Just _ -> id
 
     hostHeader = (("Host", hh):)
