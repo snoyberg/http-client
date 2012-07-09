@@ -33,8 +33,6 @@
 --
 -- * Host
 --
--- * Accept-Encoding (not currently set, but client usage of this variable /will/ cause breakage).
---
 -- Any network code on Windows requires some initialization, and the network
 -- library provides withSocketsDo to perform it. Therefore, proper usage of
 -- this library will always involve calling that function at some point.  The

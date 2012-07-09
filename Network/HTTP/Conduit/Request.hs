@@ -318,12 +318,18 @@ requestBuilder req =
                 else (:) ("Content-Length", S8.pack $ show contentLength')
     contentLengthHeader Nothing = (:) ("Transfer-Encoding", "chunked")
 
+    acceptEncodingHeader =
+        case lookup "Accept-Encoding" $ requestHeaders req of
+            Nothing -> (("Accept-Encoding", "gzip"):)
+            Just _ -> id
+
+    hostHeader = (("Host", hh):)
+
     headerPairs :: W.RequestHeaders
-    headerPairs
-        = ("Host", hh)
-        : ("Accept-Encoding", "gzip")
-        : (contentLengthHeader contentLength)
-          (requestHeaders req)
+    headerPairs = hostHeader
+                $ acceptEncodingHeader
+                $ contentLengthHeader contentLength
+                $ requestHeaders req
 
     builder :: Builder
     builder =
