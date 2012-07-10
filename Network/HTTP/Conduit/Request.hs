@@ -82,6 +82,26 @@ data Request m = Request
     -- ^ Everything from the host to the query string.
     , queryString :: S.ByteString
     , requestHeaders :: W.RequestHeaders
+    -- ^ Custom HTTP request headers
+    --
+    -- As already stated in the introduction, the Content-Length and Host
+    -- headers are set automatically by this module, and shall not be added to
+    -- requestHeaders.
+    --
+    -- Moreover, the Accept-Encoding header is set implicitly to gzip for
+    -- convenience by default. This behaviour can be overridden if needed, by
+    -- setting the header explicitly to a different value. In order to omit the
+    -- Accept-Header altogether, set it to the empty string \"\". If you need an
+    -- empty Accept-Header (i.e. requesting the identity encoding), set it to a
+    -- non-empty white-space string, e.g. \" \". See RFC 2616 section 14.3 for
+    -- details about the semantics of the Accept-Header field. If you request a
+    -- content-encoding not supported by this module, you will have to decode
+    -- it yourself (see also the 'decompress' field).
+    --
+    -- Note: Multiple header fields with the same field-name will result in
+    -- multiple header fields being sent and therefore it\'s the responsibility
+    -- of the client code to ensure that the rules from RFC 2616 section 4.2
+    -- are honoured.
     , requestBody :: RequestBody m
     , proxy :: Maybe Proxy
     -- ^ Optional HTTP proxy.
