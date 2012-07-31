@@ -19,7 +19,7 @@ module Network.HTTP.Conduit.Request
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
 import Data.Typeable (Typeable)
 
@@ -332,6 +332,14 @@ requestBuilder req =
         | port req == 443 && secure req = host req
         | otherwise = host req <> S8.pack (':' : show (port req))
 
+    requestProtocol
+        | secure req = fromByteString "https://"
+        | otherwise  = fromByteString "http://"
+
+    requestHostname
+        | isJust (proxy req) = requestProtocol <> fromByteString hh
+        | otherwise          = mempty
+
     contentLengthHeader (Just contentLength') =
             if method req `elem` ["GET", "HEAD"] && contentLength' == 0
                 then id
@@ -356,6 +364,7 @@ requestBuilder req =
     builder =
             fromByteString (method req)
             <> fromByteString " "
+            <> requestHostname
             <> (case S8.uncons $ path req of
                     Just ('/', _) -> fromByteString $ path req
                     _ -> fromChar '/' <> fromByteString (path req))
