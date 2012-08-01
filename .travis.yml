@@ -1,0 +1,11 @@
+language: haskell
+
+install:
+    - cabal update
+    - cabal install hspec warp
+    - cabal install
+
+script:
+    - cabal configure --enable-tests
+    - cabal build
+    - cabal test
