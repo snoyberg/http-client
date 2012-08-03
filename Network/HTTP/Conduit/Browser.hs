@@ -118,8 +118,8 @@ makeRequest request = do
               (cookie_jar'', response) <- liftIO $ updateCookieJar res request'' now cookie_jar' cookie_filter
               put $ s {cookieJar = cookie_jar''}
               return (request'', res, response)
-        runRedirectionChain request' redirect_count responses
-          | redirect_count == (-1) = throw . TooManyRedirects =<< mapM (liftIO . runResourceT . lbsResponse) responses
+        runRedirectionChain request' redirect_count ress
+          | redirect_count == (-1) = throw . TooManyRedirects =<< mapM (liftIO . runResourceT . lbsResponse) ress
           | otherwise = do
               (request'', res, response) <- performRequest request'
               let code = HT.statusCode (HC.responseStatus response)
@@ -127,7 +127,7 @@ makeRequest request = do
                 then do request''' <- case HC.getRedirectedRequest request'' (responseHeaders response) code of
                             Just a -> return a
                             Nothing -> throw . HC.UnparseableRedirect =<< (liftIO $ runResourceT $ lbsResponse response)
-                        runRedirectionChain request''' (redirect_count - 1) (response:responses)
+                        runRedirectionChain request''' (redirect_count - 1) (res:ress)
                 else return res
         applyAuthorities auths request' = case auths request' of
           Just (user, pass) -> applyBasicAuth user pass request'
