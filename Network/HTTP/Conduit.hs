@@ -138,6 +138,7 @@ import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
 import Control.Exception.Lifted (throwIO)
+import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
 
@@ -183,7 +184,7 @@ http req0 manager = do
     res@(Response status _version hs body) <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
-            else go (redirectCount req0) req0 def
+            else go (redirectCount req0) req0 def []
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
@@ -191,14 +192,14 @@ http req0 manager = do
             final
             liftIO $ throwIO exc
   where
-    go 0 _ _ = liftIO $ throwIO TooManyRedirects
-    go count req'' cookie_jar'' = do
+    go (-1) _ _ ress = liftIO . throwIO . TooManyRedirects =<< mapM lbsResponse ress
+    go count req'' cookie_jar'' ress = do
         now <- liftIO getCurrentTime
         let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
         res <- httpRaw req' manager
         let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
         case getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res)) of
-            Just req -> go (count - 1) req cookie_jar
+            Just req -> go (count - 1) req cookie_jar (res:ress)
             Nothing -> return res
 
 -- | Get a 'Response' without any redirect following.
@@ -240,7 +241,7 @@ httpRaw req m = do
 -- interleaved actions on the response body during download, you'll need to use
 -- 'http' directly. This function is defined as:
 --
--- @httpLbs = 'lbsResponse' . 'http'@
+-- @httpLbs = 'lbsResponse' <=< 'http'@
 --
 -- Even though the 'Response' contains a lazy bytestring, this
 -- function does /not/ utilize lazy I/O, and therefore the entire
@@ -251,7 +252,7 @@ httpRaw req m = do
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 httpLbs :: (MonadBaseControl IO m, MonadResource m) => Request m -> Manager -> m (Response L.ByteString)
-httpLbs r = lbsResponse . http r
+httpLbs r = lbsResponse <=< http r
 
 -- | Download the specified URL, following any redirects, and
 -- return the response body.

@@ -1,5 +1,4 @@
 {-# LANGUAGE RecordWildCards #-}
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Conduit.Response
@@ -10,7 +9,6 @@ module Network.HTTP.Conduit.Response
     ) where
 
 import Control.Arrow (first)
-import Data.Typeable (Typeable)
 import Control.Monad (liftM)
 
 import Control.Exception (throwIO)
@@ -30,6 +28,8 @@ import qualified Data.Conduit.List as CL
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference)
 
+import Network.HTTP.Conduit.Types (Response (..))
+
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
@@ -37,19 +37,6 @@ import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
 
 import Data.Void (Void, absurd)
-
--- | A simple representation of the HTTP response created by 'lbsConsumer'.
-data Response body = Response
-    { responseStatus :: W.Status
-    , responseVersion :: W.HttpVersion
-    , responseHeaders :: W.ResponseHeaders
-    , responseBody :: body
-    }
-    deriving (Show, Eq, Typeable)
-
--- | Since 1.1.2.
-instance Functor Response where
-    fmap f (Response status v headers body) = Response status v headers (f body)
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -87,10 +74,9 @@ getRedirectedRequest req hs code
 -- | Convert a 'Response' that has a 'Source' body to one with a lazy
 -- 'L.ByteString' body.
 lbsResponse :: Monad m
-            => m (Response (ResumableSource m S8.ByteString))
+            => Response (ResumableSource m S8.ByteString)
             -> m (Response L.ByteString)
-lbsResponse mres = do
-    res <- mres
+lbsResponse res = do
     bss <- responseBody res $$+- CL.consume
     return res
         { responseBody = L.fromChunks bss

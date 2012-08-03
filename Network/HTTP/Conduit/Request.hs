@@ -1,4 +1,3 @@
-{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Conduit.Request
@@ -18,16 +17,13 @@ module Network.HTTP.Conduit.Request
     , requestBuilder
     ) where
 
-import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
-import Data.Typeable (Typeable)
 
 import Data.Default (Default (def))
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar)
-import qualified Blaze.ByteString.Builder as Blaze
 
 import qualified Data.Conduit as C
 import qualified Data.Conduit.List as CL
@@ -37,114 +33,19 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
-import Network.Socks5 (SocksConf)
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
-import Control.Exception (Exception, SomeException, toException)
+import Control.Exception (Exception, toException)
 import Control.Failure (Failure (failure))
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
+import Network.HTTP.Conduit.Types (Request (..), RequestBody (..), ContentType, Proxy (..), HttpException (..))
+
 import Network.HTTP.Conduit.Chunk (chunkIt)
 import Network.HTTP.Conduit.Util (readDec, (<>))
 
-type ContentType = S.ByteString
-
--- | All information on how to connect to a host and what should be sent in the
--- HTTP request.
---
--- If you simply wish to download from a URL, see 'parseUrl'.
---
--- The constructor for this data type is not exposed. Instead, you should use
--- either the 'def' method to retrieve a default instance, or 'parseUrl' to
--- construct from a URL, and then use the records below to make modifications.
--- This approach allows http-conduit to add configuration options without
--- breaking backwards compatibility.
---
--- For example, to construct a POST request, you could do something like:
---
--- > initReq <- parseUrl "http://www.example.com/path"
--- > let req = initReq
--- >             { method = "POST"
--- >             }
---
--- For more information, please see
--- <http://www.yesodweb.com/book/settings-types>.
-data Request m = Request
-    { method :: W.Method
-    -- ^ HTTP request method, eg GET, POST.
-    , secure :: Bool
-    -- ^ Whether to use HTTPS (ie, SSL).
-    , host :: S.ByteString
-    , port :: Int
-    , path :: S.ByteString
-    -- ^ Everything from the host to the query string.
-    , queryString :: S.ByteString
-    , requestHeaders :: W.RequestHeaders
-    -- ^ Custom HTTP request headers
-    --
-    -- As already stated in the introduction, the Content-Length and Host
-    -- headers are set automatically by this module, and shall not be added to
-    -- requestHeaders.
-    --
-    -- Moreover, the Accept-Encoding header is set implicitly to gzip for
-    -- convenience by default. This behaviour can be overridden if needed, by
-    -- setting the header explicitly to a different value. In order to omit the
-    -- Accept-Header altogether, set it to the empty string \"\". If you need an
-    -- empty Accept-Header (i.e. requesting the identity encoding), set it to a
-    -- non-empty white-space string, e.g. \" \". See RFC 2616 section 14.3 for
-    -- details about the semantics of the Accept-Header field. If you request a
-    -- content-encoding not supported by this module, you will have to decode
-    -- it yourself (see also the 'decompress' field).
-    --
-    -- Note: Multiple header fields with the same field-name will result in
-    -- multiple header fields being sent and therefore it\'s the responsibility
-    -- of the client code to ensure that the rules from RFC 2616 section 4.2
-    -- are honoured.
-    , requestBody :: RequestBody m
-    , proxy :: Maybe Proxy
-    -- ^ Optional HTTP proxy.
-    , socksProxy :: Maybe SocksConf
-    -- ^ Optional SOCKS proxy.
-    , rawBody :: Bool
-    -- ^ If @True@, a chunked and\/or gzipped body will not be
-    -- decoded. Use with caution.
-    , decompress :: ContentType -> Bool
-    -- ^ Predicate to specify whether gzipped data should be
-    -- decompressed on the fly (see 'alwaysDecompress' and
-    -- 'browserDecompress'). Default: browserDecompress.
-    , redirectCount :: Int
-    -- ^ How many redirects to follow when getting a resource. 0 means follow
-    -- no redirects. Default value: 10.
-    , checkStatus :: W.Status -> W.ResponseHeaders -> Maybe SomeException
-    -- ^ Check the status code. Note that this will run after all redirects are
-    -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
-    }
-
--- | When using one of the
--- 'RequestBodySource' \/ 'RequestBodySourceChunked' constructors,
--- you must ensure
--- that the 'Source' can be called multiple times.  Usually this
--- is not a problem.
---
--- The 'RequestBodySourceChunked' will send a chunked request
--- body, note that not all servers support this. Only use
--- 'RequestBodySourceChunked' if you know the server you're
--- sending to supports chunked request bodies.
-data RequestBody m
-    = RequestBodyLBS L.ByteString
-    | RequestBodyBS S.ByteString
-    | RequestBodyBuilder Int64 Blaze.Builder
-    | RequestBodySource Int64 (C.Source m Blaze.Builder)
-    | RequestBodySourceChunked (C.Source m Blaze.Builder)
-
--- | Define a HTTP proxy, consisting of a hostname and port number.
-
-data Proxy = Proxy
-    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
-    , proxyPort :: Int -- ^ The port number of the HTTP proxy.
-    }
 
 -- | Convert a URL into a 'Request'.
 --
@@ -245,17 +146,6 @@ instance Default (Request m) where
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs
         }
-
-data HttpException = StatusCodeException W.Status W.ResponseHeaders
-                   | InvalidUrlException String String
-                   | TooManyRedirects
-                   | UnparseableRedirect
-                   | TooManyRetries
-                   | HttpParserException String
-                   | HandshakeFailed
-                   | OverlongHeaders
-    deriving (Show, Typeable)
-instance Exception HttpException
 
 -- | Always decompress a compressed stream.
 alwaysDecompress :: ContentType -> Bool
