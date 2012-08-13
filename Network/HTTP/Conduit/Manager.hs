@@ -17,7 +17,9 @@ module Network.HTTP.Conduit.Manager
     , defaultCheckCerts
     ) where
 
+#if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
+#endif
 import Data.Monoid (mappend)
 import System.IO (hClose, hFlush, IOMode(..))
 import qualified Data.IORef as I

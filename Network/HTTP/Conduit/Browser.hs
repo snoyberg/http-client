@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.Browser
     ( BrowserState
     , BrowserAction
@@ -31,7 +32,9 @@ import Control.Monad.State
 import Control.Exception
 import qualified Control.Exception.Lifted as LE
 import Data.Conduit
+#if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
+#endif
 import qualified Network.HTTP.Types as HT
 import Data.Time.Clock (getCurrentTime, UTCTime)
 import Data.CaseInsensitive (mk)
