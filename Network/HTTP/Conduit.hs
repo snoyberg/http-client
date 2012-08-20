@@ -24,7 +24,7 @@
 -- >      request <- parseUrl "http://google.com/"
 -- >      withManager $ \manager -> do
 -- >          Response _ _ _ src <- http request manager
--- >          src C.$$ sinkFile "google.html"
+-- >          src C.$$+- sinkFile "google.html"
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
