@@ -110,8 +110,8 @@ getResponse connRelease req@(Request {..}) src1 = do
     let timeout' =
             case responseTimeout of
                 Nothing -> id
-                Just seconds -> \ma -> do
-                    x <- timeout (seconds * 1000000) ma
+                Just useconds -> \ma -> do
+                    x <- timeout useconds ma
                     case x of
                         Nothing -> liftIO $ throwIO ResponseTimeout
                         Just y -> return y
