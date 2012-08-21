@@ -89,6 +89,7 @@ module Network.HTTP.Conduit
     , decompress
     , redirectCount
     , checkStatus
+    , responseTimeout
       -- * Manager
     , Manager
     , newManager
