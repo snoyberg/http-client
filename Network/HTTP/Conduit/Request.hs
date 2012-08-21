@@ -145,6 +145,7 @@ instance Default (Request m) where
             if 200 <= sci && sci < 300
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs
+        , responseTimeout = Just 5
         }
 
 -- | Always decompress a compressed stream.

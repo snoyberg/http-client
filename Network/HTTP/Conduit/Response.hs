@@ -38,6 +38,9 @@ import Network.HTTP.Conduit.Chunk
 
 import Data.Void (Void, absurd)
 
+import System.Timeout.Lifted (timeout)
+import Control.Monad.Trans.Control (MonadBaseControl)
+
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
 -- redirection, and the redirection code itself. This function returns 'Nothing'
@@ -98,13 +101,21 @@ checkHeaderLength _ s@Done{} = s
 checkHeaderLength _ (HaveOutput _ _ o) = absurd o
 checkHeaderLength len (Leftover p i) = Leftover (checkHeaderLength len p) i
 
-getResponse :: MonadResource m
+getResponse :: (MonadResource m, MonadBaseControl IO m)
             => ConnRelease m
             -> Request m
             -> Source m S8.ByteString
             -> m (Response (ResumableSource m S8.ByteString))
 getResponse connRelease req@(Request {..}) src1 = do
-    (src2, ((vbs, sc, sm), hs)) <- src1 $$+ checkHeaderLength 4096 sinkHeaders
+    let timeout' =
+            case responseTimeout of
+                Nothing -> id
+                Just seconds -> \ma -> do
+                    x <- timeout (seconds * 1000000) ma
+                    case x of
+                        Nothing -> liftIO $ throwIO ResponseTimeout
+                        Just y -> return y
+    (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+ checkHeaderLength 4096 sinkHeaders
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs

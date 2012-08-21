@@ -94,6 +94,9 @@ data Request m = Request
     , checkStatus :: W.Status -> W.ResponseHeaders -> Maybe SomeException
     -- ^ Check the status code. Note that this will run after all redirects are
     -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
+    , responseTimeout :: Maybe Int
+    -- ^ Number of seconds to wait for a response. If @Nothing@, will wait
+    -- indefinitely. Default: 5 seconds.
     }
 
 -- | When using one of the
@@ -128,6 +131,7 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | HttpParserException String
                    | HandshakeFailed
                    | OverlongHeaders
+                   | ResponseTimeout
     deriving (Show, Typeable)
 instance Exception HttpException
 
