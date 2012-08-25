@@ -1,4 +1,61 @@
 {-# LANGUAGE CPP #-}
+-- | This module is designed to work similarly to the Network.Browser module in the HTTP package.
+-- The idea is that there are two new types defined: 'BrowserState' and 'BrowserAction'. The
+-- purpose of this module is to make it easy to describe a browsing session, including navigating
+-- to multiple pages, and have things like cookie jar updates work as expected as you browse
+-- around.
+--
+-- BrowserAction is a monad that handles all your browser-related activities. This monad is
+-- actually implemented as a specialization of the State monad, over the BrowserState type. The
+-- BrowserState type has various bits of information that a web browser keeps, such as a current
+-- cookie jar, the number of times to retry a request on failure, HTTP proxy information, etc. In
+-- the BrowserAction monad, there is one BrowserState at any given time, and you can modify it by
+-- using the convenience functions in this module.
+--
+-- A special kind of modification of the current browser state is the action of making a HTTP
+-- request. This will do the request according to the params in the current BrowserState, as well
+-- as modifying the current state with, for example, an updated cookie jar.
+--
+-- To use this module, you would bind together a series of BrowserActions (This simulates the user
+-- clicking on links or using a settings dialogue etc.) to describe your browsing session. When
+-- you've described your session, you call 'browse' on your top-level BrowserAction to actually
+-- convert your actions into the ResourceT IO monad.
+--
+-- Here is an example program:
+--
+-- > import qualified Data.ByteString as B
+-- > import qualified Data.ByteString.Lazy as LB
+-- > import qualified Data.ByteString.UTF8 as UB
+-- > import           Data.Conduit
+-- > import           Network.HTTP.Conduit
+-- > import           Network.HTTP.Conduit.Browser
+-- > 
+-- > -- The web request to log in to a service
+-- > req1 :: IO (Request (ResourceT IO))
+-- > req1 = do
+-- >   req <- parseUrl "http://www.myurl.com/login.php"
+-- >   return $ urlEncodedBody [ (UB.fromString "name", UB.fromString "litherum")
+-- >                           , (UB.fromString "pass", UB.fromString "S33kRe7")
+-- >                           ] req
+-- > 
+-- > -- Once authenticated, run this request
+-- > req2 :: IO (Request m')
+-- > req2 = parseUrl "http://www.myurl.com/main.php"
+-- > 
+-- > -- Bind two BrowserActions together
+-- > action :: Request (ResourceT IO) -> Request (ResourceT IO) -> BrowserAction (Response LB.ByteString)
+-- > action r1 r2 = do
+-- >   _ <- makeRequestLbs r1
+-- >   makeRequestLbs r2
+-- > 
+-- > main :: IO ()
+-- > main = do
+-- >   man <- newManager def
+-- >   r1 <- req1
+-- >   r2 <- req2
+-- >   out <- runResourceT $ browse man $ action r1 r2
+-- >   putStrLn $ UB.toString $ B.concat $ LB.toChunks $ responseBody out
+
 module Network.HTTP.Conduit.Browser
     ( BrowserState
     , BrowserAction
