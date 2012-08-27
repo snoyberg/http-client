@@ -9,6 +9,7 @@ import Network.Wai hiding (requestBody)
 import qualified Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Network.HTTP.Conduit
+import Network.HTTP.Conduit.Browser
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException)
@@ -27,11 +28,18 @@ import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (fromByteString)
 
+strictToLazy :: S.ByteString -> L.ByteString
+strictToLazy = L.fromChunks . replicate 1
+
 app :: Application
 app req =
     case pathInfo req of
         [] -> return $ responseLBS status200 [] "homepage"
         ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
+        ["print-cookies"] -> return $ responseLBS status200 [] $
+            strictToLazy $ case lookup "cookie" $ Network.Wai.requestHeaders req of
+                Just a -> a
+                Nothing -> S.empty
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -52,6 +60,19 @@ main = hspecX $ do
             case elbs of
                 Left (_ :: SomeException) -> return ()
                 Right _ -> error "Expected an exception"
+    describe "browser" $ do
+        it "cookie jar works" $ do
+            tid <- forkIO $ run 3011 app
+            request1 <- parseUrl "http://127.0.0.1:3011/cookies"
+            request2 <- parseUrl "http://127.0.0.1:3011/print-cookies"
+            elbs <- withManager $ \manager -> do
+                browse manager $ do
+                    _ <- makeRequestLbs request1
+                    makeRequestLbs request2
+            killThread tid
+            if (S.concat $ L.toChunks $ responseBody elbs) /= fromString "flavor=chocolate-chip"
+                 then error "Should have gotten the cookie back!"
+                 else return ()
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ do
             tid <- forkIO $ run 3010 app
