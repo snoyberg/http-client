@@ -31,6 +31,9 @@ import Blaze.ByteString.Builder (fromByteString)
 strictToLazy :: S.ByteString -> L.ByteString
 strictToLazy = L.fromChunks . replicate 1
 
+lazyToStrict :: L.ByteString -> S.ByteString
+lazyToStrict = S.concat . L.toChunks
+
 app :: Application
 app req =
     case pathInfo req of
@@ -70,7 +73,7 @@ main = hspecX $ do
                     _ <- makeRequestLbs request1
                     makeRequestLbs request2
             killThread tid
-            if (S.concat $ L.toChunks $ responseBody elbs) /= fromString "flavor=chocolate-chip"
+            if (lazyToStrict $ responseBody elbs) /= fromString "flavor=chocolate-chip"
                  then error "Should have gotten the cookie back!"
                  else return ()
     describe "httpLbs" $ do
