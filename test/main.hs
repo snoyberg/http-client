@@ -85,6 +85,19 @@ main = hspecX $ do
             if (lazyToStrict $ responseBody elbs) /= fromString "flavor=chocolate-chip"
                  then error "Should have gotten the cookie back!"
                  else return ()
+        it "cookie filter can deny cookies" $ do
+            tid <- forkIO $ run 3011 app
+            request1 <- parseUrl "http://127.0.0.1:3011/cookies"
+            request2 <- parseUrl "http://127.0.0.1:3011/print-cookies"
+            elbs <- withManager $ \manager -> do
+                browse manager $ do
+                    setCookieFilter $ const $ const $ return False
+                    _ <- makeRequestLbs request1
+                    makeRequestLbs request2
+            killThread tid
+            if (lazyToStrict $ responseBody elbs) /= S.empty
+                 then error "Should have gotten the cookie back!"
+                 else return ()
         it "user agent sets correctly" $ do
             tid <- forkIO $ run 3012 app
             request <- parseUrl "http://127.0.0.1:3012/useragent"
