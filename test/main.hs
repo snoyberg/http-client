@@ -96,7 +96,7 @@ main = hspecX $ do
                     makeRequestLbs request2
             killThread tid
             if (lazyToStrict $ responseBody elbs) /= S.empty
-                 then error "Should have gotten the cookie back!"
+                 then error "Shouldn't have gotten the cookie back!"
                  else return ()
         it "user agent sets correctly" $ do
             tid <- forkIO $ run 3012 app
