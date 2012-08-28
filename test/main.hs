@@ -34,6 +34,9 @@ strictToLazy = L.fromChunks . replicate 1
 lazyToStrict :: L.ByteString -> S.ByteString
 lazyToStrict = S.concat . L.toChunks
 
+dummy :: String
+dummy = "dummy"
+
 app :: Application
 app req =
     case pathInfo req of
@@ -43,7 +46,7 @@ app req =
         ["useragent"] -> return $ responseLBS status200 [] $ getHeader "User-Agent"
         ["redir1"] -> return $ responseLBS temporaryRedirect307 [redir2] L.empty
         ["redir2"] -> return $ responseLBS temporaryRedirect307 [redir3] L.empty
-        ["redir3"] -> return $ responseLBS status200 [] L.empty
+        ["redir3"] -> return $ responseLBS status200 [] $ strictToLazy $ fromString dummy
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -93,9 +96,20 @@ main = hspecX $ do
             if (lazyToStrict $ responseBody elbs) /= fromString "abcd"
                  then error "Should have gotten the user agent back!"
                  else return ()
-        it "max redirects sets correctly" $ do
+        it "can follow redirects" $ do
             tid <- forkIO $ run 3013 app
             request <- parseUrl "http://127.0.0.1:3013/redir1"
+            elbs <- withManager $ \manager -> do
+                browse manager $ do
+                    setMaxRedirects 2
+                    makeRequestLbs request
+            killThread tid
+            if (lazyToStrict $ responseBody elbs) /= fromString dummy
+                 then error "Should be able to follow 2 redirects"
+                 else return ()
+        it "max redirects fails correctly" $ do
+            tid <- forkIO $ run 3014 app
+            request <- parseUrl "http://127.0.0.1:3014/redir1"
             elbs <- try $ withManager $ \manager -> do
                 browse manager $ do
                     setMaxRedirects 1
