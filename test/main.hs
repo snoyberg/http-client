@@ -39,13 +39,19 @@ app req =
     case pathInfo req of
         [] -> return $ responseLBS status200 [] "homepage"
         ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
-        ["print-cookies"] -> return $ responseLBS status200 [] $
-            strictToLazy $ case lookup "cookie" $ Network.Wai.requestHeaders req of
-                Just a -> a
-                Nothing -> S.empty
+        ["print-cookies"] -> return $ responseLBS status200 [] $ getHeader "Cookie"
+        ["useragent"] -> return $ responseLBS status200 [] $ getHeader "User-Agent"
+        ["redir1"] -> return $ responseLBS temporaryRedirect307 [redir2] L.empty
+        ["redir2"] -> return $ responseLBS temporaryRedirect307 [redir3] L.empty
+        ["redir3"] -> return $ responseLBS status200 [] L.empty
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
+          getHeader s = strictToLazy $ case lookup s $ Network.Wai.requestHeaders req of
+                            Just a -> a
+                            Nothing -> S.empty
+          redir2 = (mk (fromString "Location"), fromString "/redir2")
+          redir3 = (mk (fromString "Location"), fromString "/redir3")
 
 main :: IO ()
 main = hspecX $ do
@@ -76,6 +82,28 @@ main = hspecX $ do
             if (lazyToStrict $ responseBody elbs) /= fromString "flavor=chocolate-chip"
                  then error "Should have gotten the cookie back!"
                  else return ()
+        it "user agent sets correctly" $ do
+            tid <- forkIO $ run 3012 app
+            request <- parseUrl "http://127.0.0.1:3012/useragent"
+            elbs <- withManager $ \manager -> do
+                browse manager $ do
+                    setUserAgent $ fromString "abcd"
+                    makeRequestLbs request
+            killThread tid
+            if (lazyToStrict $ responseBody elbs) /= fromString "abcd"
+                 then error "Should have gotten the user agent back!"
+                 else return ()
+        it "max redirects sets correctly" $ do
+            tid <- forkIO $ run 3013 app
+            request <- parseUrl "http://127.0.0.1:3013/redir1"
+            elbs <- try $ withManager $ \manager -> do
+                browse manager $ do
+                    setMaxRedirects 1
+                    makeRequestLbs request
+            killThread tid
+            case elbs of
+                 Left (TooManyRedirects _) -> return ()
+                 _ -> error "Shouldn't have followed all those redirects!"
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ do
             tid <- forkIO $ run 3010 app
