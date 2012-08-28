@@ -10,6 +10,7 @@ import qualified Network.Wai
 import Network.Wai.Handler.Warp (run)
 import Network.HTTP.Conduit
 import Network.HTTP.Conduit.Browser
+import Data.ByteString.Base64 (encode)
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException)
@@ -34,8 +35,14 @@ strictToLazy = L.fromChunks . replicate 1
 lazyToStrict :: L.ByteString -> S.ByteString
 lazyToStrict = S.concat . L.toChunks
 
-dummy :: String
+dummy :: S.ByteString
 dummy = "dummy"
+
+user :: S.ByteString
+user = "user"
+
+pass :: S.ByteString
+pass = "pass"
 
 app :: Application
 app req =
@@ -44,9 +51,10 @@ app req =
         ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
         ["print-cookies"] -> return $ responseLBS status200 [] $ getHeader "Cookie"
         ["useragent"] -> return $ responseLBS status200 [] $ getHeader "User-Agent"
+        ["authorities"] -> return $ responseLBS status200 [] $ getHeader "Authorization"
         ["redir1"] -> return $ responseLBS temporaryRedirect307 [redir2] L.empty
         ["redir2"] -> return $ responseLBS temporaryRedirect307 [redir3] L.empty
-        ["redir3"] -> return $ responseLBS status200 [] $ strictToLazy $ fromString dummy
+        ["redir3"] -> return $ responseLBS status200 [] $ strictToLazy dummy
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -98,6 +106,24 @@ main = hspecX $ do
             if (lazyToStrict $ responseBody elbs) /= S.empty
                  then error "Shouldn't have gotten the cookie back!"
                  else return ()
+        it "can save and load cookie jar" $ do
+            tid <- forkIO $ run 3011 app
+            request1 <- parseUrl "http://127.0.0.1:3011/cookies"
+            request2 <- parseUrl "http://127.0.0.1:3011/print-cookies"
+            (elbs1, elbs2) <- withManager $ \manager -> do
+                browse manager $ do
+                    _ <- makeRequestLbs request1
+                    cookie_jar <- getCookieJar
+                    setCookieJar def
+                    elbs1 <- makeRequestLbs request2
+                    setCookieJar cookie_jar
+                    elbs2 <- makeRequestLbs request2
+                    return (elbs1, elbs2)
+            killThread tid
+            if (((lazyToStrict $ responseBody elbs1) /= S.empty) ||
+                ((lazyToStrict $ responseBody elbs2) /= fromString "flavor=chocolate-chip"))
+                 then error "Cookie jar got garbled up!"
+                 else return ()
         it "user agent sets correctly" $ do
             tid <- forkIO $ run 3012 app
             request <- parseUrl "http://127.0.0.1:3012/useragent"
@@ -109,20 +135,31 @@ main = hspecX $ do
             if (lazyToStrict $ responseBody elbs) /= fromString "abcd"
                  then error "Should have gotten the user agent back!"
                  else return ()
-        it "can follow redirects" $ do
+        it "authorities get set correctly" $ do
             tid <- forkIO $ run 3013 app
-            request <- parseUrl "http://127.0.0.1:3013/redir1"
+            request <- parseUrl "http://127.0.0.1:3013/authorities"
+            elbs <- withManager $ \manager -> do
+                browse manager $ do
+                    setAuthorities $ const $ Just (user, pass)
+                    makeRequestLbs request
+            killThread tid
+            if (lazyToStrict $ responseBody elbs) /= (fromString "Basic " `S.append` (encode $ user `S.append` ":" `S.append` pass))
+                 then error "Authorities didn't get set correctly!"
+                 else return ()
+        it "can follow redirects" $ do
+            tid <- forkIO $ run 3014 app
+            request <- parseUrl "http://127.0.0.1:3014/redir1"
             elbs <- withManager $ \manager -> do
                 browse manager $ do
                     setMaxRedirects 2
                     makeRequestLbs request
             killThread tid
-            if (lazyToStrict $ responseBody elbs) /= fromString dummy
+            if (lazyToStrict $ responseBody elbs) /= dummy
                  then error "Should be able to follow 2 redirects"
                  else return ()
         it "max redirects fails correctly" $ do
-            tid <- forkIO $ run 3014 app
-            request <- parseUrl "http://127.0.0.1:3014/redir1"
+            tid <- forkIO $ run 3015 app
+            request <- parseUrl "http://127.0.0.1:3015/redir1"
             elbs <- try $ withManager $ \manager -> do
                 browse manager $ do
                     setMaxRedirects 1
