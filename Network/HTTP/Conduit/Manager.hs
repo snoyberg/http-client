@@ -37,8 +37,9 @@ import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Exception (mask_, SomeException, catch)
 import Control.Monad.Trans.Resource
-    ( ResourceT, runResourceT, MonadResource (..)
+    ( ResourceT, runResourceT, MonadResource
     , MonadThrow, MonadUnsafeIO
+    , allocate, resourceMask, register, release
     )
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
