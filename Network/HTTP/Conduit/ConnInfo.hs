@@ -161,6 +161,7 @@ getSocket host' port' Nothing = do
     (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
     sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
                       (NS.addrProtocol addr)
+    NS.setSocketOption sock NS.NoDelay 1
     ee <- try' $ NS.connect sock (NS.addrAddress addr)
     case ee of
         Left e -> NS.sClose sock >> throwIO e
