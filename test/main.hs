@@ -65,7 +65,7 @@ app req =
           redir3 = (mk (fromString "Location"), fromString "/redir3")
 
 main :: IO ()
-main = hspecX $ do
+main = hspec $ do
     cookieTest
     describe "simpleHttp" $ do
         it "gets homepage" $ do
