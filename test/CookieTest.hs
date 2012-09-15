@@ -1,8 +1,7 @@
 module CookieTest (cookieTest) where
 
 import Prelude hiding (exp)
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
+import Test.Hspec
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
 import Network.HTTP.Conduit.Cookies

@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-import Test.Hspec.Monadic
+import Test.Hspec
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import Test.Hspec.HUnit ()
 import Test.HUnit
 import Network.Wai hiding (requestBody)
 import qualified Network.Wai
