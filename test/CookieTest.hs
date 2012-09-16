@@ -1,8 +1,7 @@
 module CookieTest (cookieTest) where
 
 import Prelude hiding (exp)
-import Test.Hspec.Monadic
-import Test.Hspec.HUnit ()
+import Test.Hspec
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
 import Network.HTTP.Conduit.Cookies
@@ -442,14 +441,14 @@ testReceiveSetCookieExistingHttpOnly = TestCase $ assertEqual "Existing http-onl
   default_time (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie default_set_cookie default_request default_time False $ createCookieJar [existing_cookie])
   where existing_cookie = default_cookie {cookie_http_only = True}
 
-ipParseTests :: Specs
+ipParseTests :: Spec
 ipParseTests = do
     it "Valid IP" testValidIp
     it "Digit Too High" testIpNumTooHigh
     it "Too Many Segments" testTooManySegmentsInIp
     it "Chars in IP" testCharsInIp
 
-domainMatchingTests :: Specs
+domainMatchingTests :: Spec
 domainMatchingTests = do
     it "Should Match" testDomainMatchesSuccess
     it "Same Domain" testSameDomain
@@ -457,7 +456,7 @@ domainMatchingTests = do
     it "Parent Domain" testParentDomain
     it "Checking for Naive suffix-check" testNaiveSuffixDomain
 
-defaultPathTests :: Specs
+defaultPathTests :: Spec
 defaultPathTests = do
     it "Basic default path test" testDefaultPath
     it "Basic populated default path" testPopulatedDefaultPath
@@ -465,31 +464,31 @@ defaultPathTests = do
     it "Getting a default path that ends in a slash" testDefaultPathEndingInSlash
     it "Getting a short default path" testShortDefaultPath
 
-pathMatchingTests :: Specs
+pathMatchingTests :: Spec
 pathMatchingTests = do
     it "Same paths match" testSamePathsMatch
     it "Putting slash at end" testPathSlashAtEnd
     it "Not putting slash at end" testPathNoSlashAtEnd
     it "Diverging paths don't match" testDivergingPaths
 
-equalityTests :: Specs
+equalityTests :: Spec
 equalityTests = do
     it "The same cookie should be equal to itself" testCookieEqualitySuccess
     it "Changing extra options shouldn't change equality" testCookieEqualityResiliance
     it "Changing a cookie's domain should change its equality" testDomainChangesEquality
 
-removeTests :: Specs
+removeTests :: Spec
 removeTests = do
     it "Removing a cookie works" testRemoveCookie
     it "Removing a nonexistant cookie doesn't work" testRemoveNonexistantCookie
     it "Removing the correct cookie" testRemoveCorrectCookie
 
-evictionTests :: Specs
+evictionTests :: Spec
 evictionTests = do
     it "Testing eviction" testEvictExpiredCookies
     it "Evicting from empty cookie jar" testEvictNoCookies
 
-sendingTests :: Specs
+sendingTests :: Spec
 sendingTests = do
     it "Updates last access time upon using cookies" testComputeCookieStringUpdateLastAccessTime
     it "Host-only flag matches exact host" testComputeCookieStringHostOnly
@@ -503,7 +502,7 @@ sendingTests = do
     it "Sorting works correctly" testComputeCookieStringSort
     it "Inserting cookie header works" testInsertCookiesIntoRequestWorks
 
-receivingTests :: Specs
+receivingTests :: Spec
 receivingTests = do
     it "Can receive set-cookie" testReceiveSetCookie
     it "Receiving a Set-Cookie with a trailing dot on the domain" testReceiveSetCookieTrailingDot
@@ -534,7 +533,7 @@ receivingTests = do
     it "Max-Age flag gets set correctly" testReceiveSetCookieMaxAge
     it "Max-Age is preferred over Expires" testReceiveSetCookiePreferMaxAge
 
-cookieTest :: Specs
+cookieTest :: Spec
 cookieTest = do
     describe "ipParseTests" ipParseTests
     describe "domainMatchingTests" domainMatchingTests
