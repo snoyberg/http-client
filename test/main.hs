@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-import Test.Hspec.Monadic
+import Test.Hspec
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
-import Test.Hspec.HUnit ()
 import Test.HUnit
 import Network.Wai hiding (requestBody)
 import qualified Network.Wai
@@ -65,7 +64,7 @@ app req =
           redir3 = (mk (fromString "Location"), fromString "/redir3")
 
 main :: IO ()
-main = hspecX $ do
+main = hspec $ do
     cookieTest
     describe "simpleHttp" $ do
         it "gets homepage" $ do
