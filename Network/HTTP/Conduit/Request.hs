@@ -1,5 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.Request
     ( Request (..)
     , RequestBody (..)
@@ -66,9 +67,13 @@ parseUrl s =
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
 setUriRelative :: Failure HttpException m => Request m' -> URI -> m (Request m')
 setUriRelative req uri =
+#if MIN_VERSION_network(2,4,0)
+    setUri req $ uri `relativeTo` getUri req
+#else
     case uri `relativeTo` getUri req of
         Just uri' -> setUri req uri'
         Nothing   -> failure $ InvalidUrlException (show uri) "Invalid URL"
+#endif
 
 -- | Extract a 'URI' from the request.
 getUri :: Request m' -> URI
