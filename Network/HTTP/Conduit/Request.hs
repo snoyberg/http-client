@@ -248,7 +248,10 @@ requestBuilder req =
             Just "" -> filter (\(k, _) -> k /= "Accept-Encoding")
             Just _ -> id
 
-    hostHeader = (("Host", hh):)
+    hostHeader x =
+        case lookup "Host" x of
+            Nothing -> ("Host", hh) : x
+            Just{} -> x
 
     headerPairs :: W.RequestHeaders
     headerPairs = hostHeader

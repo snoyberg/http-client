@@ -31,7 +31,11 @@
 --
 -- * Content-Length
 --
--- * Host
+-- Note: In previous versions, the Host header would be set by this module in
+-- all cases. Starting from 1.6.0.5, if a Host header is present in
+-- @requestHeaders@, it will be used in place of the header this module would
+-- have generated. This can be useful for calling a server which utilizes
+-- virtual hosting.
 --
 -- Any network code on Windows requires some initialization, and the network
 -- library provides withSocketsDo to perform it. Therefore, proper usage of
