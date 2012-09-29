@@ -147,7 +147,9 @@ import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
 
+import Control.Exception (fromException, toException)
 import qualified Data.Conduit as C
+import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.Internal as CI
 import Data.Conduit.Blaze (builderToByteString)
 import Data.Conduit (MonadResource)
@@ -193,9 +195,17 @@ http req0 manager = do
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
-            let CI.ResumableSource _ final = body
-            final
-            liftIO $ throwIO exc
+            exc' <-
+                case fromException exc of
+                    Just (StatusCodeException s hs) -> do
+                        lbs <- body C.$$+- CB.take 1024
+                        return $ toException $ StatusCodeException s $ hs ++
+                            [("X-Response-Body-Start", S.concat $ L.toChunks lbs)]
+                    _ -> do
+                        let CI.ResumableSource _ final = body
+                        final
+                        return exc
+            liftIO $ throwIO exc'
   where
     go (-1) _ _ ress = liftIO . throwIO . TooManyRedirects =<< mapM lbsResponse ress
     go count req'' cookie_jar'' ress = do
