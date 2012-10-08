@@ -57,7 +57,6 @@ library
     else
         build-depends: network               >= 2.3
     exposed-modules: Network.HTTP.Conduit
-                     Network.HTTP.Conduit.Browser
                      Network.HTTP.Conduit.Internal
     other-modules:   Network.HTTP.Conduit.Parser
                      Network.HTTP.Conduit.ConnInfo
