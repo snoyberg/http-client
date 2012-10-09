@@ -32,7 +32,7 @@ parseHeader = do
     newline
     return (k, v)
 
-notNewlineColon, isSpace, notNewline :: Word8 -> Bool
+notNewlineColon, isSpace, isNumber, notNewline :: Word8 -> Bool
 
 notNewlineColon 10 = False -- LF
 notNewlineColon 13 = False -- CR
@@ -41,6 +41,8 @@ notNewlineColon _  = True
 
 isSpace 32 = True
 isSpace _  = False
+
+isNumber i = 0x30 <= i && i <= 0x39
 
 notNewline 10 = False
 notNewline 13 = False
@@ -77,13 +79,12 @@ parseStatus = do
     _ <- manyTill (take 1 >> return ()) (try $ string "HTTP/") <?> "HTTP/"
     ver <- takeWhile1 $ not . isSpace
     _ <- word8 32 -- space
-    statCode <- takeWhile1 $ not . isSpace
+    statCode <- takeWhile1 isNumber
     statCode' <-
         case reads $ S8.unpack statCode of
             [] -> fail $ "Invalid status code: " ++ S8.unpack statCode
             (x, _):_ -> return x
-    _ <- word8 32
-    statMsg <- takeWhile1 $ notNewline
+    statMsg <- try (word8 32 >> takeWhile notNewline) <|> return ""
     newline
     if (statCode == "100")
         then newline >> parseStatus
