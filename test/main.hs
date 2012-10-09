@@ -16,7 +16,7 @@ import Control.Exception.Lifted (try, SomeException)
 import Network.HTTP.Conduit.ConnInfo
 import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, ServerSettings (..), HostPreference (HostAny))
-import Data.Conduit (($$))
+import Data.Conduit (($$), yield)
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -252,6 +252,17 @@ main = hspec $ do
                     [ ["hello", "world"]
                     , replicate 500 "foo\003\n\r"
                     ]
+    describe "no status message" $ do
+        it "works" $ do
+            tid <- forkIO noStatusMessage
+            threadDelay 1000000
+            withManager $ \manager -> do
+                _ <- register $ killThread tid
+                req <- parseUrl "http://127.0.0.1:3008"
+                res <- httpLbs req manager
+                liftIO $ do
+                    Network.HTTP.Conduit.responseStatus res `shouldBe` status200
+                    responseBody res `shouldBe` "foo"
 
 overLongHeaders :: IO ()
 overLongHeaders = runTCPServer (ServerSettings 3004 HostAny) $ \_ sink ->
@@ -304,3 +315,9 @@ echo :: IO ()
 echo = run 3007 $ \req -> do
     bss <- Network.Wai.requestBody req $$ CL.consume
     return $ responseLBS status200 [] $ L.fromChunks bss
+
+noStatusMessage :: IO ()
+noStatusMessage = runTCPServer (ServerSettings 3008 HostAny) $ \_ sink ->
+    src $$ sink
+  where
+    src = yield "HTTP/1.0 200\r\nContent-Length: 3\r\n\r\nfoo: barbazbin"
