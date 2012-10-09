@@ -15,7 +15,7 @@ import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException)
 import Network.HTTP.Conduit.ConnInfo
 import CookieTest (cookieTest)
-import Data.Conduit.Network (runTCPServer, ServerSettings (..), HostPreference (HostAny))
+import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (HostAny), appSink, appSource)
 import Data.Conduit (($$), yield)
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
@@ -265,15 +265,15 @@ main = hspec $ do
                     responseBody res `shouldBe` "foo"
 
 overLongHeaders :: IO ()
-overLongHeaders = runTCPServer (ServerSettings 3004 HostAny) $ \_ sink ->
-    src $$ sink
+overLongHeaders = runTCPServer (serverSettings 3004 HostAny) $ \app ->
+    src $$ appSink app
   where
     src = sourceList $ "HTTP/1.0 200 OK\r\nfoo: " : repeat "bar"
 
 notOverLongHeaders :: IO ()
-notOverLongHeaders = runTCPServer (ServerSettings 3005 HostAny) $ \src' sink -> do
-    src' $$ CL.drop 1
-    src $$ sink
+notOverLongHeaders = runTCPServer (serverSettings 3005 HostAny) $ \app -> do
+    appSource app  $$ CL.drop 1
+    src $$ appSink app
   where
     src = sourceList $ [S.concat $ "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16384\r\n\r\n" : ( take 16384 $ repeat "x")]
 
@@ -317,7 +317,7 @@ echo = run 3007 $ \req -> do
     return $ responseLBS status200 [] $ L.fromChunks bss
 
 noStatusMessage :: IO ()
-noStatusMessage = runTCPServer (ServerSettings 3008 HostAny) $ \_ sink ->
-    src $$ sink
+noStatusMessage = runTCPServer (serverSettings 3008 HostAny) $ \app ->
+    src $$ appSink app
   where
     src = yield "HTTP/1.0 200\r\nContent-Length: 3\r\n\r\nfoo: barbazbin"

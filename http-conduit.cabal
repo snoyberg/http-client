@@ -112,7 +112,7 @@ test-suite test
                  , http-types
                  , cookie
                  , regex-compat
-                 , network-conduit
+                 , network-conduit >= 0.6
                  , resourcet
                  , void
                  , deepseq
