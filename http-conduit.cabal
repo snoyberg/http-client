@@ -12,7 +12,7 @@ stability:       Stable
 cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/http-conduit
-extra-source-files: test/main.hs
+extra-source-files: test/main.hs, test/CookieTest.hs
 
 flag network-bytestring
   default: False
