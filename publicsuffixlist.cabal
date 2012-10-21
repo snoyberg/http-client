@@ -17,6 +17,9 @@ library
                  , containers
                  , data-default
                  , MissingH
+                 , bytestring
+                 , idna     >= 0.1.1   && < 1.0
+                 , text
     exposed-modules: Network.PublicSuffixList.Lookup
     ghc-options:     -Wall
 
@@ -27,6 +30,9 @@ Test-Suite test-public-suffix-list
                  , containers
                  , data-default
                  , MissingH
+                 , text
+                 , test-framework-hunit
+                 , HUnit
 
 source-repository head
   type:     git
