@@ -15,6 +15,8 @@ import           Text.IDNA
 isSuffix' :: T.Text -> Bool
 isSuffix' = isSuffix . T.intercalate "." . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')
 
+-- Derived from http://mxr.mozilla.org/mozilla-central/source/netwerk/test/unit/data/test_psl.txt
+-- on October 21, 2012
 hunittests :: Test
 hunittests = TestList [
   --TestCase $ assertEqual " 1" True  $ isSuffix' "",
