@@ -9,8 +9,8 @@ module Network.HTTP.Conduit.ConnInfo
     , connSource
     , sslClientConn
     , socketConn
-    , TLSCertificateRejectReason(..)
-    , TLSCertificateUsage(..)
+    , CertificateRejectReason(..)
+    , CertificateUsage(..)
     , getSocket
 #if DEBUG
     , printOpenSockets
@@ -119,19 +119,19 @@ socketConn _desc sock = do
             sClose sock
         }
 
-sslClientConn :: String -> ([X509] -> IO TLSCertificateUsage) -> Handle -> IO ConnInfo
+sslClientConn :: String -> ([X509] -> IO CertificateUsage) -> Handle -> IO ConnInfo
 sslClientConn _desc onCerts h = do
 #if DEBUG
     i <- addSocket _desc
 #endif
-    let tcp = defaultParams
+    let tcp = defaultParamsClient
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11, TLS12 ]
             , pCiphers = ciphersuite_all
             , onCertificatesRecv = onCerts
             }
     gen <- makeSystem
-    istate <- client tcp gen h
+    istate <- contextNewOnHandle h tcp gen
     handshake istate
     return ConnInfo
         { connRead = recvD istate

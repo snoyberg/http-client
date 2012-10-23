@@ -48,6 +48,8 @@ import Control.DeepSeq (deepseq)
 import Network (connectTo, PortID (PortNumber), HostName)
 import Network.Socket (socketToHandle)
 import Data.Certificate.X509 (X509, encodeCertificate)
+import Data.CertificateStore (CertificateStore)
+import System.Certificate.X509 (getSystemCertificateStore)
 
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
@@ -65,7 +67,7 @@ import System.IO (Handle)
 data ManagerSettings = ManagerSettings
     { managerConnCount :: Int
       -- ^ Number of connections to a single host to keep alive. Default: 10.
-    , managerCheckCerts :: S8.ByteString -> [X509] -> IO TLSCertificateUsage
+    , managerCheckCerts :: CertificateStore -> S8.ByteString -> [X509] -> IO CertificateUsage
       -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     }
 
@@ -78,10 +80,10 @@ instance Default ManagerSettings where
         }
 
 -- | Check certificates using the operating system's certificate checker.
-defaultCheckCerts :: S8.ByteString -> [X509] -> IO TLSCertificateUsage
-defaultCheckCerts host' certs =
+defaultCheckCerts :: CertificateStore -> S8.ByteString -> [X509] -> IO CertificateUsage
+defaultCheckCerts certStore host' certs =
     case certificateVerifyDomain (S8.unpack host') certs of
-        CertificateUsageAccept -> certificateVerifyChain certs
+        CertificateUsageAccept -> certificateVerifyChain certStore certs
         rejected               -> return rejected
 
 -- | Keeps track of open connections for keep-alive.  May be used
@@ -91,7 +93,7 @@ data Manager = Manager
     -- ^ @Nothing@ indicates that the manager is closed.
     , mMaxConns :: !Int
     -- ^ This is a per-@ConnKey@ value.
-    , mCheckCerts :: S8.ByteString -> [X509] -> IO TLSCertificateUsage
+    , mCheckCerts :: S8.ByteString -> [X509] -> IO CertificateUsage
     -- ^ Check if a certificate is valid.
     , mCertCache :: !(I.IORef (Map.Map S8.ByteString (Map.Map X509Encoded UTCTime)))
     -- ^ Cache of validated certificates. The @UTCTime@ gives the expiration
@@ -144,10 +146,11 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 -- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
+    certStore <- getSystemCertificateStore
     mapRef <- I.newIORef (Just Map.empty)
     certCache <- I.newIORef Map.empty
     _ <- forkIO $ reap mapRef certCache
-    return $ Manager mapRef (managerConnCount ms) (managerCheckCerts ms) certCache
+    return $ Manager mapRef (managerConnCount ms) (managerCheckCerts ms $ certStore) certCache
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
@@ -280,7 +283,7 @@ socketDesc :: String -> Int -> String -> String
 socketDesc h p t = unwords [h, show p, t]
 
 getSslConn :: MonadResource m
-            => ([X509] -> IO TLSCertificateUsage)
+            => ([X509] -> IO CertificateUsage)
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
@@ -294,7 +297,7 @@ getSslConn checkCert man host' port' socksProxy' =
 
 getSslProxyConn
             :: MonadResource m
-            => ([X509] -> IO TLSCertificateUsage)
+            => ([X509] -> IO CertificateUsage)
             -> S8.ByteString -- ^ Target host
             -> Int -- ^ Target port
             -> Manager
@@ -396,7 +399,7 @@ getConn req m =
             (True, False) -> getSslConn $ checkCerts m h
             (True, True) -> getSslProxyConn (checkCerts m h) h (port req)
 
-checkCerts :: Manager -> S8.ByteString -> [X509] -> IO TLSCertificateUsage
+checkCerts :: Manager -> S8.ByteString -> [X509] -> IO CertificateUsage
 checkCerts man host' certs = do
 #if DEBUG
     putStrLn $ "checkCerts for host: " ++ show host'
