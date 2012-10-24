@@ -51,6 +51,7 @@ import Data.Certificate.X509 (X509, encodeCertificate)
 import Data.CertificateStore (CertificateStore)
 import System.Certificate.X509 (getSystemCertificateStore)
 
+import Network.TLS (PrivateKey)
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
 import Network.HTTP.Conduit.ConnInfo
@@ -284,20 +285,22 @@ socketDesc h p t = unwords [h, show p, t]
 
 getSslConn :: MonadResource m
             => ([X509] -> IO CertificateUsage)
+            -> [(X509, Maybe PrivateKey)]
             -> Manager
             -> String -- ^ host
             -> Int -- ^ port
             -> Maybe SocksConf -- ^ optional socks proxy
             -> m (ConnRelease m, ConnInfo, ManagedConn)
-getSslConn checkCert man host' port' socksProxy' =
+getSslConn checkCert clientCerts man host' port' socksProxy' =
     getManagedConn man (ConnKey (T.pack host') port' True) $
-        (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc checkCert)
+        (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc checkCert clientCerts)
   where
     desc = socketDesc host' port' "secured"
 
 getSslProxyConn
             :: MonadResource m
             => ([X509] -> IO CertificateUsage)
+            -> [(X509, Maybe PrivateKey)]
             -> S8.ByteString -- ^ Target host
             -> Int -- ^ Target port
             -> Manager
@@ -305,9 +308,9 @@ getSslProxyConn
             -> Int -- ^ Proxy port
             -> Maybe SocksConf -- ^ optional SOCKS proxy
             -> m (ConnRelease m, ConnInfo, ManagedConn)
-getSslProxyConn checkCert thost tport man phost pport socksProxy' =
+getSslProxyConn checkCert clientCerts thost tport man phost pport socksProxy' =
     getManagedConn man (ConnKey (T.pack phost) pport True) $
-        doConnect >>= sslClientConn desc checkCert
+        doConnect >>= sslClientConn desc checkCert clientCerts
   where
     desc = socketDesc phost pport "secured-proxy"
     doConnect = do
@@ -396,8 +399,8 @@ getConn req m =
     go =
         case (secure req, useProxy) of
             (False, _) -> getSocketConn
-            (True, False) -> getSslConn $ checkCerts m h
-            (True, True) -> getSslProxyConn (checkCerts m h) h (port req)
+            (True, False) -> getSslConn (checkCerts m h) (clientCertificates req)
+            (True, True) -> getSslProxyConn (checkCerts m h) (clientCertificates req) h (port req)
 
 checkCerts :: Manager -> S8.ByteString -> [X509] -> IO CertificateUsage
 checkCerts man host' certs = do

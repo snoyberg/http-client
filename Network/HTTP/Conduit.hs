@@ -81,6 +81,7 @@ module Network.HTTP.Conduit
     , def
     , method
     , secure
+    , clientCertificates
     , host
     , port
     , path

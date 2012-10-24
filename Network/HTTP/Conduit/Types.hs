@@ -23,6 +23,9 @@ import Network.Socks5 (SocksConf)
 
 import Control.Exception (Exception, SomeException)
 
+import Data.Certificate.X509 (X509)
+import Network.TLS (PrivateKey)
+
 type ContentType = S.ByteString
 
 -- | All information on how to connect to a host and what should be sent in the
@@ -50,6 +53,8 @@ data Request m = Request
     -- ^ HTTP request method, eg GET, POST.
     , secure :: Bool
     -- ^ Whether to use HTTPS (ie, SSL).
+    , clientCertificates :: [(X509, Maybe PrivateKey)]
+    -- ^ SSL client certificates
     , host :: S.ByteString
     , port :: Int
     , path :: S.ByteString
