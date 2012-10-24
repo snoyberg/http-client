@@ -47,7 +47,6 @@ import Network.HTTP.Conduit.Types (Request (..), RequestBody (..), ContentType, 
 import Network.HTTP.Conduit.Chunk (chunkIt)
 import Network.HTTP.Conduit.Util (readDec, (<>))
 
-
 -- | Convert a URL into a 'Request'.
 --
 -- This defaults some of the values in 'Request', such as setting 'method' to
@@ -136,6 +135,7 @@ instance Default (Request m) where
         { host = "localhost"
         , port = 80
         , secure = False
+        , clientCertificates = []
         , requestHeaders = []
         , path = "/"
         , queryString = S8.empty

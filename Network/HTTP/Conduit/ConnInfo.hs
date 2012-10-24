@@ -119,16 +119,18 @@ socketConn _desc sock = do
             sClose sock
         }
 
-sslClientConn :: String -> ([X509] -> IO CertificateUsage) -> Handle -> IO ConnInfo
-sslClientConn _desc onCerts h = do
+sslClientConn :: String -> ([X509] -> IO CertificateUsage) -> [(X509, Maybe PrivateKey)] -> Handle -> IO ConnInfo
+sslClientConn _desc onCerts clientCerts h = do
 #if DEBUG
     i <- addSocket _desc
 #endif
-    let tcp = defaultParamsClient
+    let setCParams cparams = cparams { onCertificateRequest = const (return clientCerts) }
+        tcp = updateClientParams setCParams $ defaultParamsClient
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11, TLS12 ]
             , pCiphers = ciphersuite_all
             , onCertificatesRecv = onCerts
+            , pCertificates = clientCerts
             }
     gen <- makeSystem
     istate <- contextNewOnHandle h tcp gen
