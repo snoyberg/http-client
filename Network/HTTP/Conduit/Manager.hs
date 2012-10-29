@@ -70,6 +70,8 @@ data ManagerSettings = ManagerSettings
       -- ^ Number of connections to a single host to keep alive. Default: 10.
     , managerCheckCerts :: CertificateStore -> S8.ByteString -> [X509] -> IO CertificateUsage
       -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
+    , managerCertStore :: IO CertificateStore
+      -- ^ Load up the certificate store. By default uses the system store.
     }
 
 type X509Encoded = L.ByteString
@@ -78,6 +80,7 @@ instance Default ManagerSettings where
     def = ManagerSettings
         { managerConnCount = 10
         , managerCheckCerts = defaultCheckCerts
+        , managerCertStore = getSystemCertificateStore
         }
 
 -- | Check certificates using the operating system's certificate checker.
@@ -147,7 +150,7 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 -- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
-    certStore <- getSystemCertificateStore
+    certStore <- managerCertStore ms
     mapRef <- I.newIORef (Just Map.empty)
     certCache <- I.newIORef Map.empty
     _ <- forkIO $ reap mapRef certCache

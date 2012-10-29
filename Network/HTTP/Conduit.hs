@@ -104,6 +104,7 @@ module Network.HTTP.Conduit
     , ManagerSettings
     , managerConnCount
     , managerCheckCerts
+    , managerCertStore
       -- *** Defaults
     , defaultCheckCerts
       -- * Cookies
