@@ -1,11 +1,10 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.PublicSuffixList.Lookup (isSuffix) where
+module Network.PublicSuffixList.Lookup (isSuffix, isSuffix') where
 
 import qualified Data.Map          as M
-import           Data.Maybe
 import qualified Data.Text         as T
 
-import           Network.PublicSuffixList.DataStructure
+import qualified Network.PublicSuffixList.DataStructure as DS
 import           Network.PublicSuffixList.Types
 
 data LookupResult = Inside | AtLeaf | OffEnd
@@ -16,17 +15,17 @@ This function returns whether or not this domain is owned by a
 registrar or a regular person. True means that this is a registrar
 domain; False means it's owned by a person. This is used to determine
 if a cookie is allowed to bet set for a particular domain. For
-example, you shouldn't be able to set a cookie for "com".
+example, you shouldn't be able to set a cookie for \"com\".
 
 Note that this function expects lowercase ASCII strings. These strings
 should be gotten from the toASCII algorithm as described in RFC 3490.
-These strings should not start or end with the '.' character, and should
-not have two '.' characters next to each other.
-(The toASCII alrogithm is implemented in the 'idna' hackage package,
+These strings should not start or end with the \'.\' character, and should
+not have two \'.\' characters next to each other.
+(The toASCII algorithm is implemented in the \'idna\' hackage package,
 though that package doesn't always map strings to lowercase)
-|-}
-isSuffix :: T.Text -> Bool
-isSuffix s
+-}
+isSuffix' :: DataStructure -> T.Text -> Bool
+isSuffix' dataStructure s
   -- Any TLD is a suffix
   | length ps == 1 = True
   -- Only match against the exception rules if we have a full match
@@ -49,3 +48,7 @@ isSuffix s
         recurse (c : cs) t = case getNext t c of
           Nothing -> OffEnd
           Just t' -> recurse cs t'
+
+-- | >>> isSuffix = isSuffix' Network.PublicSuffixList.DataStructure.dataStructure
+isSuffix :: T.Text -> Bool
+isSuffix = isSuffix' DS.dataStructure

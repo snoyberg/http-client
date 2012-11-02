@@ -1,19 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Test.PublicSuffixList (tests) where
-
 import           Data.Char
 import           Data.Maybe
 import qualified Data.Text            as T
 import           Debug.Trace
-import           Network.PublicSuffixList.Lookup
+import qualified Network.PublicSuffixList.Lookup as L
 import           System.Exit
 import           Test.HUnit
 import           Test.Framework.Providers.HUnit
 import           Text.IDNA
 
 isSuffix' :: T.Text -> Bool
-isSuffix' = isSuffix . T.intercalate "." . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')
+isSuffix' = L.isSuffix . T.intercalate "." . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')
 
 -- Derived from http://mxr.mozilla.org/mozilla-central/source/netwerk/test/unit/data/test_psl.txt
 -- on October 21, 2012

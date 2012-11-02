@@ -6,7 +6,7 @@ author:          Myles C. Maxfield <myles.maxfield@gmail.com>
 maintainer:      Myles C. Maxfield <myles.maxfield@gmail.com>
 synopsis:        Is a given string a domain suffix?
 description:     Is a given string a domain suffix?
-category:        network
+category:        Network
 stability:       Experimental
 cabal-version:   >= 1.8
 build-type:      Simple
@@ -20,7 +20,15 @@ library
                  , bytestring
                  , idna     >= 0.1.1   && < 1.0
                  , text
+                 , http-conduit
+                 , time
+                 , conduit
+                 , utf8-string
+                 , transformers
     exposed-modules: Network.PublicSuffixList.Lookup
+                   , Network.PublicSuffixList.Create
+                   , Network.PublicSuffixList.DataStructure
+    other-modules: Network.PublicSuffixList.Types
     ghc-options:     -Wall
 
 Test-Suite test-public-suffix-list
@@ -33,6 +41,7 @@ Test-Suite test-public-suffix-list
                  , text
                  , test-framework-hunit
                  , HUnit
+                 , idna     >= 0.1.1   && < 1.0
 
 source-repository head
   type:     git
