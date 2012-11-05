@@ -7,7 +7,6 @@ import           Debug.Trace
 import qualified Network.PublicSuffixList.Lookup as L
 import           System.Exit
 import           Test.HUnit
-import           Test.Framework.Providers.HUnit
 import           Text.IDNA
 
 isSuffix' :: T.Text -> Bool
@@ -78,8 +77,6 @@ hunittests = TestList [
   TestCase $ assertEqual "59" False $ isSuffix' "test.k12.ak.us",
   TestCase $ assertEqual "60" False $ isSuffix' "www.test.k12.ak.us"
   ]
-
-tests = hUnitTestToTests hunittests
 
 main = do
   counts <- runTestTT hunittests

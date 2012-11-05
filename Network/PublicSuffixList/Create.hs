@@ -23,7 +23,7 @@ and one to handle the regular rules.
 module Network.PublicSuffixList.Create (PublicSuffixListException, sink) where
 
 import           Control.Exception
-import qualified Data.ByteString.UTF8 as UTF8BS
+import qualified Data.ByteString      as BS
 import qualified Data.Conduit         as C
 import qualified Data.Conduit.List    as CL
 import qualified Data.Conduit.Text    as CT
@@ -66,5 +66,5 @@ foldingFunction d@(rules, exceptions) s'
 {-
 Generate the opaque 'DataStructure'
 -}
-sink :: C.MonadThrow m => C.GSink UTF8BS.ByteString m DataStructure
+sink :: C.MonadThrow m => C.GSink BS.ByteString m DataStructure
 sink = CT.decode CT.utf8 C.>+> CT.lines C.>+> CL.fold foldingFunction def
