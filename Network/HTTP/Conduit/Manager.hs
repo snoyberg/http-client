@@ -150,11 +150,19 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 -- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
-    certStore <- managerCertStore ms
+    icertStore <- I.newIORef Nothing
+    let getCertStore = do
+            mcertStore <- I.readIORef icertStore
+            case mcertStore of
+                Nothing -> do
+                    certStore <- managerCertStore ms
+                    I.writeIORef icertStore $ Just certStore
+                    return certStore
+                Just x -> return x
     mapRef <- I.newIORef (Just Map.empty)
     certCache <- I.newIORef Map.empty
     _ <- forkIO $ reap mapRef certCache
-    return $ Manager mapRef (managerConnCount ms) (managerCheckCerts ms $ certStore) certCache
+    return $ Manager mapRef (managerConnCount ms) (\x y -> getCertStore >>= \cs -> managerCheckCerts ms cs x y) certCache
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
