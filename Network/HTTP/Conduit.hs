@@ -100,6 +100,7 @@ module Network.HTTP.Conduit
     , newManager
     , closeManager
     , withManager
+    , withManagerSettings
       -- ** Settings
     , ManagerSettings
     , managerConnCount

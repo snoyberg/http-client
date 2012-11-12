@@ -12,6 +12,7 @@ module Network.HTTP.Conduit.Manager
     , getConn
     , ConnReuse (..)
     , withManager
+    , withManagerSettings
     , ConnRelease
     , ManagedConn (..)
     , defaultCheckCerts
@@ -254,7 +255,7 @@ neFromList xs =
 -- | Create a new manager, use it in the provided function, and then release it.
 --
 -- This function uses the default manager settings. For more control, use
--- 'newManager'.
+-- 'withManagerSettings'.
 withManager :: ( MonadIO m
                , MonadBaseControl IO m
                , MonadThrow m
@@ -262,6 +263,16 @@ withManager :: ( MonadIO m
                ) => (Manager -> ResourceT m a) -> m a
 withManager f = runResourceT $ do
     (_, manager) <- allocate (newManager def) closeManager
+    f manager
+
+-- | Create a new manager with provided settings, use it in the provided function, and then release it.
+withManagerSettings :: ( MonadIO m
+                       , MonadBaseControl IO m
+                       , MonadThrow m
+                       , MonadUnsafeIO m
+                       ) => ManagerSettings -> (Manager -> ResourceT m a) -> m a
+withManagerSettings s f = runResourceT $ do
+    (_, manager) <- allocate (newManager s) closeManager
     f manager
 
 -- | Close all connections in a 'Manager'. Afterwards, the
