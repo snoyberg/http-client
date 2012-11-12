@@ -91,8 +91,8 @@ defaultCheckCerts certStore host' certs =
         CertificateUsageAccept -> certificateVerifyChain certStore certs
         rejected               -> return rejected
 
--- | Keeps track of open connections for keep-alive.  May be used
--- concurrently by multiple threads.
+-- | Keeps track of open connections for keep-alive.
+-- If possible, you should share a single 'Manager' between multiple threads and requests.
 data Manager = Manager
     { mConns :: !(I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo))))
     -- ^ @Nothing@ indicates that the manager is closed.
@@ -149,6 +149,9 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | otherwise = (l, Just x)
 
 -- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
+--
+-- Creating a new 'Manager' is an expensive operation, you are advised to share
+-- a single 'Manager' between requests instead.
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
     icertStore <- I.newIORef Nothing
