@@ -12,6 +12,7 @@ module Network.HTTP.Conduit.Manager
     , getConn
     , ConnReuse (..)
     , withManager
+    , withManagerSettings
     , ConnRelease
     , ManagedConn (..)
     , defaultCheckCerts
@@ -90,8 +91,8 @@ defaultCheckCerts certStore host' certs =
         CertificateUsageAccept -> certificateVerifyChain certStore certs
         rejected               -> return rejected
 
--- | Keeps track of open connections for keep-alive.  May be used
--- concurrently by multiple threads.
+-- | Keeps track of open connections for keep-alive.
+-- If possible, you should share a single 'Manager' between multiple threads and requests.
 data Manager = Manager
     { mConns :: !(I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo))))
     -- ^ @Nothing@ indicates that the manager is closed.
@@ -148,6 +149,9 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | otherwise = (l, Just x)
 
 -- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
+--
+-- Creating a new 'Manager' is an expensive operation, you are advised to share
+-- a single 'Manager' between requests instead.
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
     icertStore <- I.newIORef Nothing
@@ -254,7 +258,7 @@ neFromList xs =
 -- | Create a new manager, use it in the provided function, and then release it.
 --
 -- This function uses the default manager settings. For more control, use
--- 'newManager'.
+-- 'withManagerSettings'.
 withManager :: ( MonadIO m
                , MonadBaseControl IO m
                , MonadThrow m
@@ -262,6 +266,16 @@ withManager :: ( MonadIO m
                ) => (Manager -> ResourceT m a) -> m a
 withManager f = runResourceT $ do
     (_, manager) <- allocate (newManager def) closeManager
+    f manager
+
+-- | Create a new manager with provided settings, use it in the provided function, and then release it.
+withManagerSettings :: ( MonadIO m
+                       , MonadBaseControl IO m
+                       , MonadThrow m
+                       , MonadUnsafeIO m
+                       ) => ManagerSettings -> (Manager -> ResourceT m a) -> m a
+withManagerSettings s f = runResourceT $ do
+    (_, manager) <- allocate (newManager s) closeManager
     f manager
 
 -- | Close all connections in a 'Manager'. Afterwards, the

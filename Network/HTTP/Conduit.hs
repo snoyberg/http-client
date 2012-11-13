@@ -100,6 +100,7 @@ module Network.HTTP.Conduit
     , newManager
     , closeManager
     , withManager
+    , withManagerSettings
       -- ** Settings
     , ManagerSettings
     , managerConnCount
@@ -277,13 +278,15 @@ httpLbs r = lbsResponse <=< http r
 -- This function will 'throwIO' an 'HttpException' for any
 -- response with a non-2xx status code (besides 3xx redirects up
 -- to a limit of 10 redirects). It uses 'parseUrl' to parse the
--- input. This function essentially wraps 'httpLbsRedirect'.
+-- input. This function essentially wraps 'httpLbs'.
 --
 -- Note: Even though this function returns a lazy bytestring, it
 -- does /not/ utilize lazy I/O, and therefore the entire response
 -- body will live in memory. If you want constant memory usage,
--- you'll need to use the @conduit@ package and 'http' or
--- 'httpRedirect' directly.
+-- you'll need to use the @conduit@ package and 'http' directly.
+--
+-- Note: This function creates a new 'Manager'. It should be avoided
+-- in production code.
 simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ withManager $ \man -> do
     url' <- liftIO $ parseUrl url
