@@ -140,6 +140,7 @@ module Network.HTTP.Conduit
     ) where
 
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
@@ -154,6 +155,7 @@ import Control.Exception (fromException, toException)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.Internal as CI
+import Data.Conduit.List (sinkNull)
 import Data.Conduit.Blaze (builderToByteString)
 import Data.Conduit (MonadResource)
 import Control.Exception.Lifted (try, SomeException)
@@ -217,7 +219,24 @@ http req0 manager = do
         res <- httpRaw req' manager
         let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
         case getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res)) of
-            Just req -> go (count - 1) req cookie_jar (res:ress)
+            Just req -> do
+                -- Allow the original connection to return to the
+                -- connection pool immediately by flushing the body.
+                -- If the response body is too large, don't flush, but
+                -- instead just close the connection.
+                let maxFlush = 2048
+                    readMay bs =
+                        case S8.readInt bs of
+                            Just (i, bs') | S.null bs' -> Just i
+                            _ -> Nothing
+                    sink =
+                        case lookup "content-length" (responseHeaders res) >>= readMay of
+                            Just i | i > maxFlush -> return ()
+                            _ -> CB.isolate maxFlush C.=$ sinkNull
+                responseBody res C.$$+- sink
+
+                -- And now perform the actual redirect
+                go (count - 1) req cookie_jar (res:ress)
             Nothing -> return res
 
 -- | Get a 'Response' without any redirect following.
