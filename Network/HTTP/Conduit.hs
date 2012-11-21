@@ -224,7 +224,7 @@ http req0 manager = do
                 -- connection pool immediately by flushing the body.
                 -- If the response body is too large, don't flush, but
                 -- instead just close the connection.
-                let maxFlush = 2048
+                let maxFlush = 1024
                     readMay bs =
                         case S8.readInt bs of
                             Just (i, bs') | S.null bs' -> Just i
