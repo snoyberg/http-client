@@ -2,6 +2,7 @@
 module Network.HTTP.Conduit.Cookies where
 
 import qualified Data.ByteString as BS
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.UTF8 as U
 import Text.Regex
 import Data.Maybe
@@ -53,11 +54,15 @@ defaultPath req
 -- in section 5.1.4
 pathMatches :: BS.ByteString -> BS.ByteString -> Bool
 pathMatches requestPath cookiePath
-  | cookiePath == requestPath = True
-  | cookiePath `BS.isPrefixOf` requestPath && BS.singleton (BS.last cookiePath) == U.fromString "/" = True
-  | cookiePath `BS.isPrefixOf` requestPath && BS.singleton (BS.head remainder) == U.fromString "/" = True
+  | cookiePath == path = True
+  | cookiePath `BS.isPrefixOf` path && BS.singleton (BS.last cookiePath) == U.fromString "/" = True
+  | cookiePath `BS.isPrefixOf` path && BS.singleton (BS.head remainder)  == U.fromString "/" = True
   | otherwise = False
   where remainder = BS.drop (BS.length cookiePath) requestPath
+        path = case S8.uncons requestPath of
+                 Just ('/', _) -> requestPath
+                 _             -> '/' `S8.cons` requestPath
+
 
 -- This corresponds to the description of a cookie detailed in Section 5.3 \"Storage Model\"
 data Cookie = Cookie
