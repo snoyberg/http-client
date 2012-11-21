@@ -1,6 +1,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+
+{-# OPTIONS_GHC -fno-warn-orphans #-}
+
 module Network.HTTP.Conduit.Request
     ( Request (..)
     , RequestBody (..)

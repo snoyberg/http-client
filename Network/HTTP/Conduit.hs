@@ -202,9 +202,9 @@ http req0 manager = do
         Just exc -> do
             exc' <-
                 case fromException exc of
-                    Just (StatusCodeException s hs) -> do
+                    Just (StatusCodeException s hdrs) -> do
                         lbs <- body C.$$+- CB.take 1024
-                        return $ toException $ StatusCodeException s $ hs ++
+                        return $ toException $ StatusCodeException s $ hdrs ++
                             [("X-Response-Body-Start", S.concat $ L.toChunks lbs)]
                     _ -> do
                         let CI.ResumableSource _ final = body
