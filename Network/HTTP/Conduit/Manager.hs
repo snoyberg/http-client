@@ -372,16 +372,20 @@ getManagedConn
 -- We want to avoid any holes caused by async exceptions, so let's mask.
 getManagedConn man key open = resourceMask $ \restore -> do
     -- Try to take the socket out of the manager.
+    liftIO $ print ("taking", key)
     mci <- liftIO $ takeSocket man key
     (ci, isManaged) <-
         case mci of
             -- There wasn't a matching connection in the manager, so create a
             -- new one.
             Nothing -> do
+                liftIO $ print ("creating", key)
                 ci <- restore $ liftIO open
                 return (ci, Fresh)
             -- Return the existing one
-            Just ci -> return (ci, Reused)
+            Just ci -> do
+                liftIO $ print ("reusing", key)
+                return (ci, Reused)
 
     -- When we release this connection, we can either reuse it (put it back in
     -- the manager) or not reuse it (close the socket). We set up a mutable
