@@ -13,6 +13,7 @@ import Control.Concurrent (forkIO, killThread, threadDelay)
 import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException)
 import Network.HTTP.Conduit.ConnInfo
+import Network (withSocketsDo)
 import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (HostAny), appSink, appSource)
 import Data.Conduit (($$), yield)
@@ -37,7 +38,7 @@ app req =
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
 
 main :: IO ()
-main = hspec $ do
+main = withSocketsDo $ hspec $ do
     cookieTest
     describe "simpleHttp" $ do
         it "gets homepage" $ do
