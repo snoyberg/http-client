@@ -42,21 +42,21 @@ main = withSocketsDo $ hspec $ do
     cookieTest
     describe "simpleHttp" $ do
         it "gets homepage" $ do
-            tid <- forkIO $ run 3000 app
-            lbs <- simpleHttp "http://127.0.0.1:3000/"
+            tid <- forkIO $ run 13000 app
+            lbs <- simpleHttp "http://127.0.0.1:13000/"
             killThread tid
             lbs @?= "homepage"
         it "throws exception on 404" $ do
-            tid <- forkIO $ run 3001 app
-            elbs <- try $ simpleHttp "http://127.0.0.1:3001/404"
+            tid <- forkIO $ run 13001 app
+            elbs <- try $ simpleHttp "http://127.0.0.1:13001/404"
             killThread tid
             case elbs of
                 Left (_ :: SomeException) -> return ()
                 Right _ -> error "Expected an exception"
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ do
-            tid <- forkIO $ run 3010 app
-            request <- parseUrl "http://127.0.0.1:3010/cookies"
+            tid <- forkIO $ run 13010 app
+            request <- parseUrl "http://127.0.0.1:13010/cookies"
             withManager $ \manager -> do
                 Response _ _ headers _ <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
@@ -66,12 +66,12 @@ main = withSocketsDo $ hspec $ do
     describe "manager" $ do
         it "closes all connections" $ do
             clearSocketsList
-            tid1 <- forkIO $ run 3002 app
-            tid2 <- forkIO $ run 3003 app
+            tid1 <- forkIO $ run 13002 app
+            tid2 <- forkIO $ run 13003 app
             threadDelay 1000
             withManager $ \manager -> do
-                let Just req1 = parseUrl "http://127.0.0.1:3002/"
-                let Just req2 = parseUrl "http://127.0.0.1:3003/"
+                let Just req1 = parseUrl "http://127.0.0.1:13002/"
+                let Just req2 = parseUrl "http://127.0.0.1:13003/"
                 _res1a <- http req1 manager
                 _res1b <- http req1 manager
                 _res2 <- http req2 manager
@@ -85,7 +85,7 @@ main = withSocketsDo $ hspec $ do
             threadDelay 1000
             withManager $ \manager -> do
                 _ <- register $ killThread tid1
-                let Just req1 = parseUrl "http://127.0.0.1:3004/"
+                let Just req1 = parseUrl "http://127.0.0.1:13004/"
                 res1 <- try $ http req1 manager
                 case res1 of
                     Left e -> liftIO $ show (e :: SomeException) @?= show OverlongHeaders
@@ -95,7 +95,7 @@ main = withSocketsDo $ hspec $ do
             threadDelay 1000
             withManager $ \manager -> do
                 _ <- register $ killThread tid1
-                let Just req1 = parseUrl "http://127.0.0.1:3005/"
+                let Just req1 = parseUrl "http://127.0.0.1:13005/"
                 _ <- httpLbs req1 manager
                 return ()
     describe "redirects" $ do
@@ -105,7 +105,7 @@ main = withSocketsDo $ hspec $ do
             withManager $ \manager -> do
                 _ <- register $ killThread tid
                 let go (encoded, final) = do
-                        let Just req1 = parseUrl $ "http://127.0.0.1:3006/redir/" ++ encoded
+                        let Just req1 = parseUrl $ "http://127.0.0.1:13006/redir/" ++ encoded
                         res <- httpLbs req1 manager
                         liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
                         liftIO $ responseBody res @?= L.fromChunks [TE.encodeUtf8 final]
@@ -124,7 +124,7 @@ main = withSocketsDo $ hspec $ do
             withManager $ \manager -> do
                 _ <- register $ killThread tid
                 let go bss = do
-                        let Just req1 = parseUrl "http://127.0.0.1:3007"
+                        let Just req1 = parseUrl "http://127.0.0.1:13007"
                             src = sourceList $ map fromByteString bss
                             lbs = L.fromChunks bss
                         res <- httpLbs req1
@@ -144,20 +144,20 @@ main = withSocketsDo $ hspec $ do
             threadDelay 1000000
             withManager $ \manager -> do
                 _ <- register $ killThread tid
-                req <- parseUrl "http://127.0.0.1:3008"
+                req <- parseUrl "http://127.0.0.1:13008"
                 res <- httpLbs req manager
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
                     responseBody res `shouldBe` "foo"
 
 overLongHeaders :: IO ()
-overLongHeaders = runTCPServer (serverSettings 3004 HostAny) $ \app ->
+overLongHeaders = runTCPServer (serverSettings 13004 HostAny) $ \app ->
     src $$ appSink app
   where
     src = sourceList $ "HTTP/1.0 200 OK\r\nfoo: " : repeat "bar"
 
 notOverLongHeaders :: IO ()
-notOverLongHeaders = runTCPServer (serverSettings 3005 HostAny) $ \app -> do
+notOverLongHeaders = runTCPServer (serverSettings 13005 HostAny) $ \app -> do
     appSource app  $$ CL.drop 1
     src $$ appSink app
   where
@@ -165,12 +165,12 @@ notOverLongHeaders = runTCPServer (serverSettings 3005 HostAny) $ \app -> do
 
 redir :: IO ()
 redir =
-    run 3006 redirApp
+    run 13006 redirApp
   where
     redirApp req =
         case pathInfo req of
             ["redir", foo] -> return $ responseLBS status301
-                [ ("Location", "http://127.0.0.1:3006/content/" `S.append` escape foo)
+                [ ("Location", "http://127.0.0.1:13006/content/" `S.append` escape foo)
                 ]
                 ""
             ["content", foo] -> return $ responseLBS status200 [] $ L.fromChunks [TE.encodeUtf8 foo]
@@ -198,12 +198,12 @@ redir =
          in ['%', showHex' b, showHex' c]
 
 echo :: IO ()
-echo = run 3007 $ \req -> do
+echo = run 13007 $ \req -> do
     bss <- Network.Wai.requestBody req $$ CL.consume
     return $ responseLBS status200 [] $ L.fromChunks bss
 
 noStatusMessage :: IO ()
-noStatusMessage = runTCPServer (serverSettings 3008 HostAny) $ \app ->
+noStatusMessage = runTCPServer (serverSettings 13008 HostAny) $ \app ->
     src $$ appSink app
   where
     src = yield "HTTP/1.0 200\r\nContent-Length: 3\r\n\r\nfoo: barbazbin"
