@@ -150,6 +150,9 @@ import Control.Exception.Lifted (throwIO)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Control (MonadBaseControl)
+import Control.Monad.Trans.Resource
+import Control.Monad.Trans.State (get, put, evalStateT)
+import Control.Monad.Trans (lift)
 
 import Control.Exception (fromException, toException)
 import qualified Data.Conduit as C
@@ -167,6 +170,7 @@ import Network.HTTP.Conduit.Response
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Cookies
+import Network.HTTP.Conduit.Internal (httpRedirect)
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -196,7 +200,7 @@ http req0 manager = do
     res@(Response status _version hs body) <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
-            else go (redirectCount req0) req0 def []
+            else go (redirectCount req0) req0 def
     case checkStatus req0 status hs of
         Nothing -> return res
         Just exc -> do
@@ -212,32 +216,20 @@ http req0 manager = do
                         return exc
             liftIO $ throwIO exc'
   where
-    go (-1) _ _ ress = liftIO . throwIO . TooManyRedirects =<< mapM lbsResponse ress
-    go count req'' cookie_jar'' ress = do
+    go count req''' cookie_jar''' = (`evalStateT` cookie_jar''') $
+      httpRedirect
+      count
+      (\req'' -> do
+        cookie_jar'' <- get
         now <- liftIO getCurrentTime
         let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
-        res <- httpRaw req' manager
+        res <- lift $ httpRaw req' manager
         let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
-        case getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res)) of
-            Just req -> do
-                -- Allow the original connection to return to the
-                -- connection pool immediately by flushing the body.
-                -- If the response body is too large, don't flush, but
-                -- instead just close the connection.
-                let maxFlush = 1024
-                    readMay bs =
-                        case S8.readInt bs of
-                            Just (i, bs') | S.null bs' -> Just i
-                            _ -> Nothing
-                    sink =
-                        case lookup "content-length" (responseHeaders res) >>= readMay of
-                            Just i | i > maxFlush -> return ()
-                            _ -> CB.isolate maxFlush C.=$ sinkNull
-                responseBody res C.$$+- sink
-
-                -- And now perform the actual redirect
-                go (count - 1) req cookie_jar (res:ress)
-            Nothing -> return res
+        put cookie_jar
+        let mreq = getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res))
+        return (res, mreq))
+      (lift . lbsResponse)
+      req'''
 
 -- | Get a 'Response' without any redirect following.
 httpRaw

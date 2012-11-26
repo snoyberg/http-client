@@ -3,27 +3,31 @@
 import Test.Hspec
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
-import qualified Network.Wai
+import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (run)
 import Network.HTTP.Conduit
 import Data.ByteString.Base64 (encode)
 import Control.Concurrent (forkIO, killThread, threadDelay)
 import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException)
+import qualified Control.Exception as E (catch)
 import Network.HTTP.Conduit.ConnInfo
 import Network (withSocketsDo)
 import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (HostAny), appSink, appSource)
 import Data.Conduit (($$), yield)
+import Control.Monad (void)
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
 import Data.Conduit.List (sourceList)
 import Data.CaseInsensitive (mk)
-import Data.List (partition)
+import Data.List (partition, lookup)
 import qualified Data.Conduit.List as CL
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (fromByteString)
@@ -33,6 +37,21 @@ app req =
     case pathInfo req of
         [] -> return $ responseLBS status200 [] "homepage"
         ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
+        ["cookie_redir1"] -> return $ responseLBS status303 [tastyCookie, (hLocation, "/checkcookie")] ""
+        ["checkcookie"] -> return $ case lookup hCookie $ Wai.requestHeaders req of
+                                Just "flavor=chocolate-chip" -> responseLBS status200 [] "nom-nom-nom"
+                                _ -> responseLBS status412 [] "Baaaw where's my chocolate?"
+        ["infredir", i'] ->
+            let i = read $ T.unpack i'
+            in return $ responseLBS status303
+                    [(hLocation, S.append "/infredir/" $ S8.pack $ show $ i+1)]
+                    (L8.pack $ show i)
+        ["infredirrepeat", i'] ->
+            let i = read $ T.unpack i'
+            in return $ responseLBS status303
+                    [(hLocation, S.append "/infredirrepeat/" $ S8.pack $ show $ i+1)
+                    ,(hContentLength, "2048")]
+                    (L8.pack $ take 2048 $ unwords $ repeat $ show i)
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -63,6 +82,13 @@ main = withSocketsDo $ hspec $ do
                     (setCookieHeaders, _) = partition ((== setCookie) . fst) headers
                 liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
             killThread tid
+        it "redirects set cookies" $ do
+            tid <- forkIO $ run 13010 app
+            request <- parseUrl "http://127.0.0.1:13010/cookie_redir1"
+            withManager $ \manager -> do
+                _ <- register $ killThread tid
+                Response _ _ _ body <- httpLbs request manager
+                liftIO $ body @?= "nom-nom-nom"
     describe "manager" $ do
         it "closes all connections" $ do
             clearSocketsList
@@ -116,7 +142,14 @@ main = withSocketsDo $ hspec $ do
                     , ("hello%20world", "hello world")
                     , ("hello%20world%3f%23", "hello world?#")
                     ]
-
+        it "TooManyRedirects: redirect request body is preserved" $ do
+            tid <- forkIO $ run 3000 app
+            let Just req = parseUrl "http://127.0.0.1:3000/infredir/0"
+            let go (res, i) = liftIO $ responseBody res @?= (L8.pack $ show i)
+            E.catch (withManager $ \manager -> do
+                void $ register $ killThread tid
+                void $ http req{redirectCount=5} manager) $
+                \(TooManyRedirects redirs) -> mapM_ go (zip redirs [5,4..0])
     describe "chunked request body" $ do
         it "works" $ do
             tid <- forkIO echo
@@ -199,7 +232,7 @@ redir =
 
 echo :: IO ()
 echo = run 13007 $ \req -> do
-    bss <- Network.Wai.requestBody req $$ CL.consume
+    bss <- Wai.requestBody req $$ CL.consume
     return $ responseLBS status200 [] $ L.fromChunks bss
 
 noStatusMessage :: IO ()

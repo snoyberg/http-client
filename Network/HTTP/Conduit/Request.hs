@@ -11,6 +11,8 @@ module Network.HTTP.Conduit.Request
     , Proxy (..)
     , parseUrl
     , setUriRelative
+    , getUri
+    , setUri
     , browserDecompress
     , HttpException (..)
     , alwaysDecompress
