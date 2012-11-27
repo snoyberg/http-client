@@ -16,9 +16,10 @@ import Network.HTTP.Conduit.ConnInfo
 import Network (withSocketsDo)
 import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (HostAny), appSink, appSource)
-import Data.Conduit (($$), yield)
+import Data.Conduit (($$), yield, Flush (Chunk))
 import Control.Monad.Trans.Resource (register)
 import Control.Monad.IO.Class (liftIO)
+import Control.Monad (forever)
 import Data.ByteString.UTF8 (fromString)
 import Data.Conduit.List (sourceList)
 import Data.CaseInsensitive (mk)
@@ -149,6 +150,21 @@ main = withSocketsDo $ hspec $ do
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
                     responseBody res `shouldBe` "foo"
+
+    describe "redirect" $ do
+        it "ignores large response bodies" $ do
+            tid <- forkIO $ run 13100 $ \req ->
+                case pathInfo req of
+                    ["foo"] -> return $ responseLBS status200 [] "Hello World!"
+                    _ -> return $ ResponseSource status301 [("location", "http://localhost:13100/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
+            threadDelay 1000000
+            withManager $ \manager -> do
+                _ <- register $ killThread tid
+                req <- parseUrl "http://127.0.0.1:13100"
+                res <- httpLbs req manager
+                liftIO $ do
+                    Network.HTTP.Conduit.responseStatus res `shouldBe` status200
+                    responseBody res `shouldBe` "Hello World!"
 
 overLongHeaders :: IO ()
 overLongHeaders = runTCPServer (serverSettings 13004 HostAny) $ \app ->
