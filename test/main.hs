@@ -44,11 +44,13 @@ main = withSocketsDo $ hspec $ do
     describe "simpleHttp" $ do
         it "gets homepage" $ do
             tid <- forkIO $ run 13000 app
+            threadDelay 10000
             lbs <- simpleHttp "http://127.0.0.1:13000/"
             killThread tid
             lbs @?= "homepage"
         it "throws exception on 404" $ do
             tid <- forkIO $ run 13001 app
+            threadDelay 10000
             elbs <- try $ simpleHttp "http://127.0.0.1:13001/404"
             killThread tid
             case elbs of
@@ -57,6 +59,7 @@ main = withSocketsDo $ hspec $ do
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ do
             tid <- forkIO $ run 13010 app
+            threadDelay 10000
             request <- parseUrl "http://127.0.0.1:13010/cookies"
             withManager $ \manager -> do
                 Response _ _ headers _ <- httpLbs request manager
