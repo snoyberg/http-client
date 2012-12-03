@@ -146,8 +146,8 @@ main = withSocketsDo $ hspec $ do
                     , ("hello%20world%3f%23", "hello world?#")
                     ]
         it "TooManyRedirects: redirect request body is preserved" $ do
-            tid <- forkIO $ run 3000 app
-            let Just req = parseUrl "http://127.0.0.1:3000/infredir/0"
+            tid <- forkIO $ run 13009 app
+            let Just req = parseUrl "http://127.0.0.1:13009/infredir/0"
             let go (res, i) = liftIO $ responseBody res @?= (L8.pack $ show i)
             E.catch (withManager $ \manager -> do
                 void $ register $ killThread tid
