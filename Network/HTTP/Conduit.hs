@@ -140,7 +140,6 @@ module Network.HTTP.Conduit
     ) where
 
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
@@ -149,7 +148,6 @@ import Data.Default (def)
 import Control.Exception.Lifted (throwIO)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.Trans.Resource
 import Control.Monad.Trans.State (get, put, evalStateT)
 import Control.Monad.Trans (lift)
@@ -158,9 +156,7 @@ import Control.Exception (fromException, toException)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.Internal as CI
-import Data.Conduit.List (sinkNull)
 import Data.Conduit.Blaze (builderToByteString)
-import Data.Conduit (MonadResource)
 import Control.Exception.Lifted (try, SomeException)
 
 import Data.Time.Clock
@@ -228,7 +224,7 @@ http req0 manager = do
         put cookie_jar
         let mreq = getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res))
         return (res, mreq))
-      (lift . lbsResponse)
+      lift
       req'''
 
 -- | Get a 'Response' without any redirect following.
