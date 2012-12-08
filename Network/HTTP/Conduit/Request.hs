@@ -179,7 +179,7 @@ applyBasicAuth user passwd req =
     basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
 
 
--- | Add a proxy to the the Request so that the Request when executed will use
+-- | Add a proxy to the Request so that the Request when executed will use
 -- the provided proxy.
 addProxy :: S.ByteString -> Int -> Request m -> Request m
 addProxy hst prt req =
@@ -187,7 +187,7 @@ addProxy hst prt req =
 
 -- FIXME add a helper for generating POST bodies
 
--- | Add url-encoded paramters to the 'Request'.
+-- | Add url-encoded parameters to the 'Request'.
 --
 -- This sets a new 'requestBody', adds a content-type request header and
 -- changes the 'method' to POST.
