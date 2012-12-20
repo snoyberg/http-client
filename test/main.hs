@@ -33,6 +33,7 @@ import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (fromByteString)
+import System.IO
 
 app :: Application
 app req =
@@ -87,7 +88,9 @@ withApp' app' f = do
         (const $ takeMVar baton >> f port)
 
 main :: IO ()
-main = withSocketsDo $ hspec $ do
+main = withSocketsDo $ do
+  mapM_ (`hSetBuffering` LineBuffering) [stdout, stderr]
+  hspec $ do
     cookieTest
     describe "simpleHttp" $ do
         it "gets homepage" $ withApp app $ \port -> do
