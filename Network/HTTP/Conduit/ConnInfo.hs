@@ -19,7 +19,8 @@ module Network.HTTP.Conduit.ConnInfo
 #endif
     ) where
 
-import Control.Exception (SomeException, throwIO, try)
+import Control.Exception (IOException, bracketOnError, throwIO)
+import qualified Control.Exception as E
 import System.IO (Handle, hClose)
 
 import Control.Monad.IO.Class (liftIO)
@@ -29,7 +30,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 
 import Network (PortID(..))
-import Network.Socket (Socket, sClose)
+import Network.Socket (Socket, sClose, AddrInfo)
 import Network.Socket.ByteString (recv, sendAll)
 import qualified Network.Socket as NS
 import Network.Socks5 (socksConnectWith, SocksConf)
@@ -160,14 +161,21 @@ getSocket host' port' Nothing = do
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
                         }
-    (addr:_) <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
-    sock <- NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
-                      (NS.addrProtocol addr)
-    NS.setSocketOption sock NS.NoDelay 1
-    ee <- try' $ NS.connect sock (NS.addrAddress addr)
-    case ee of
-        Left e -> NS.sClose sock >> throwIO e
-        Right () -> return sock
-  where
-    try' :: IO a -> IO (Either SomeException a)
-    try' = try
+    addrs <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+    firstSuccessful addrs $ \addr ->
+        bracketOnError
+            (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
+                       (NS.addrProtocol addr))
+            (NS.sClose)
+            (\sock -> do
+                NS.setSocketOption sock NS.NoDelay 1
+                NS.connect sock (NS.addrAddress addr)
+                return sock)
+
+firstSuccessful :: [AddrInfo] -> (AddrInfo -> IO a) -> IO a
+firstSuccessful []     _  = error "getAddrInfo returned empty list"
+firstSuccessful (a:as) cb =
+    cb a `E.catch` \(e :: IOException) ->
+        case as of
+            [] -> throwIO e
+            _  -> firstSuccessful as cb
