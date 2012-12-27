@@ -234,7 +234,11 @@ httpRaw
      -> Manager
      -> m (Response (C.ResumableSource m S.ByteString))
 httpRaw req m = do
-    (connRelease, ci, isManaged) <- getConn req m
+    (connRelease, ci, isManaged) <- getConnectionWrapper
+        req
+        (responseTimeout req)
+        (failedConnectionException req)
+        (getConn req m)
     let src = connSource ci
 
     -- Originally, we would only test for exceptions when sending the request,

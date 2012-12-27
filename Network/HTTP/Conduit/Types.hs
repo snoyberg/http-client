@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Conduit.Types
     ( Request (..)
     , RequestBody (..)
@@ -6,6 +8,9 @@ module Network.HTTP.Conduit.Types
     , Proxy (..)
     , HttpException (..)
     , Response (..)
+    , ConnRelease
+    , ConnReuse (..)
+    , ManagedConn (..)
     ) where
 
 import Data.Int (Int64)
@@ -25,6 +30,7 @@ import Control.Exception (Exception, SomeException)
 
 import Data.Certificate.X509 (X509)
 import Network.TLS (PrivateKey)
+import Network.HTTP.Conduit.ConnInfo (ConnInfo)
 
 type ContentType = S.ByteString
 
@@ -102,7 +108,27 @@ data Request m = Request
     , responseTimeout :: Maybe Int
     -- ^ Number of microseconds to wait for a response. If @Nothing@, will wait
     -- indefinitely. Default: 5 seconds.
+    , getConnectionWrapper :: forall n. (C.MonadResource n, C.MonadBaseControl IO n)
+                           => Maybe Int
+                           -> HttpException
+                           -> n (ConnRelease n, ConnInfo, ManagedConn)
+                           -> n (ConnRelease n, ConnInfo, ManagedConn)
+    -- ^ Wraps the calls for getting new connections. This can be useful for
+    -- instituting some kind of timeouts. The first argument is the value of
+    -- @responseTimeout@. Second argument is the exception to be thrown on
+    -- failure.
+    --
+    -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
+    -- institutes a timeout half of the length of @responseTimeout@.
+    --
+    -- Since 1.8.6
     }
+
+data ConnReuse = Reuse | DontReuse
+
+type ConnRelease m = ConnReuse -> m ()
+
+data ManagedConn = Fresh | Reused
 
 -- | When using one of the
 -- 'RequestBodySource' \/ 'RequestBodySourceChunked' constructors,
@@ -138,6 +164,7 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | HandshakeFailed
                    | OverlongHeaders
                    | ResponseTimeout
+                   | FailedConnectionException String Int -- ^ host/port
     deriving (Show, Typeable)
 instance Exception HttpException
 

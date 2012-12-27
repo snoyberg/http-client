@@ -16,6 +16,7 @@ module Network.HTTP.Conduit.Manager
     , ConnRelease
     , ManagedConn (..)
     , defaultCheckCerts
+    , failedConnectionException
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -56,9 +57,9 @@ import Network.TLS (PrivateKey)
 import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 
 import Network.HTTP.Conduit.ConnInfo
+import Network.HTTP.Conduit.Types
 import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
-import Network.HTTP.Conduit.Request
 import Network.Socks5 (SocksConf, socksConnectWith)
 import Data.Default
 import Data.Maybe (mapMaybe)
@@ -358,8 +359,6 @@ getSslProxyConn checkCert clientCerts thost tport man phost pport socksProxy' =
         error $ "Proxy failed to CONNECT to '"
                 ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
 
-data ManagedConn = Fresh | Reused
-
 -- | This function needs to acquire a @ConnInfo@- either from the @Manager@ or
 -- via I\/O, and register it with the @ResourceT@ so it is guaranteed to be
 -- either released or returned to the manager.
@@ -405,9 +404,19 @@ getManagedConn man key open = resourceMask $ \restore -> do
             release releaseKey
     return (connRelease, ci, isManaged)
 
-data ConnReuse = Reuse | DontReuse
+-- | Create an exception to be thrown if the connection for the given request
+-- fails.
+failedConnectionException :: Request m -> HttpException
+failedConnectionException req =
+    FailedConnectionException host port
+  where
+    (_, host, port) = getConnDest req
 
-type ConnRelease m = ConnReuse -> m ()
+getConnDest :: Request m -> (Bool, String, Int)
+getConnDest req =
+    case proxy req of
+        Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
+        Nothing -> (False, S8.unpack $ host req, port req)
 
 getConn :: MonadResource m
         => Request m
@@ -417,10 +426,7 @@ getConn req m =
     go m connhost connport (socksProxy req)
   where
     h = host req
-    (useProxy, connhost, connport) =
-        case proxy req of
-            Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
-            Nothing -> (False, S8.unpack h, port req)
+    (useProxy, connhost, connport) = getConnDest req
     go =
         case (secure req, useProxy) of
             (False, _) -> getSocketConn

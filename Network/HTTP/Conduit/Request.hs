@@ -41,7 +41,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
-import Control.Exception (Exception, toException)
+import Control.Exception.Lifted (Exception, toException, throwIO)
 import Control.Failure (Failure (failure))
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
@@ -51,6 +51,7 @@ import Network.HTTP.Conduit.Types (Request (..), RequestBody (..), ContentType, 
 
 import Network.HTTP.Conduit.Chunk (chunkIt)
 import Network.HTTP.Conduit.Util (readDec, (<>))
+import System.Timeout.Lifted (timeout)
 
 -- | Convert a URL into a 'Request'.
 --
@@ -156,6 +157,14 @@ instance Default (Request m) where
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs
         , responseTimeout = Just 5000000
+        , getConnectionWrapper = \mtimeout exc f ->
+            case mtimeout of
+                Nothing -> f
+                Just timeout' -> do
+                    mres <- timeout (timeout' `div` 2) f
+                    case mres of
+                        Nothing -> throwIO exc
+                        Just res -> return res
         }
 
 -- | Always decompress a compressed stream.
