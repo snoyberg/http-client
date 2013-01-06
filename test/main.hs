@@ -191,7 +191,7 @@ main = withSocketsDo $ do
             let app' port req =
                     case pathInfo req of
                         ["foo"] -> return $ responseLBS status200 [] "Hello World!"
-                        _ -> return $ ResponseSource status301 [("location", S8.pack $ "http://localhost:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
+                        _ -> return $ ResponseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
             withApp' app' $ \port -> withManager $ \manager -> do
                 req <- parseUrl $ "http://127.0.0.1:" ++ show port
                 res <- httpLbs req manager
