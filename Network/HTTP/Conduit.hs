@@ -157,7 +157,7 @@ import qualified Data.Conduit as C
 import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.Internal as CI
 import Data.Conduit.Blaze (builderToByteString)
-import Control.Exception.Lifted (try, SomeException)
+import Control.Exception.Lifted (try, IOException)
 
 import Data.Time.Clock
 
@@ -260,7 +260,7 @@ httpRaw req m = do
         -- thrown in the response body, just throw them as normal.
         (Right x, _) -> return x
   where
-    try' :: MonadBaseControl IO m => m a -> m (Either SomeException a)
+    try' :: MonadBaseControl IO m => m a -> m (Either IOException a)
     try' = try
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
