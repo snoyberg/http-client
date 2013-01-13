@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         1.8.6.3
+version:         1.9
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -32,7 +32,8 @@ library
                  , attoparsec            >= 0.8.0.2
                  , utf8-string           >= 0.3.4
                  , blaze-builder         >= 0.2.1
-                 , http-types            >= 0.6
+                 , http-types            >= 0.7
+                 , mime-types            >= 0.1
                  , cprng-aes             >= 0.2
                  , tls                   >= 1.0.0
                  , tls-extra             >= 0.5.0
@@ -53,6 +54,9 @@ library
                  , regex-compat
                  , mtl
                  , deepseq
+                 , array                 >= 0.4
+                 , random
+                 , filepath
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
                      , network-bytestring    >= 0.1.3   && < 0.1.4
@@ -60,6 +64,7 @@ library
         build-depends: network               >= 2.3
     exposed-modules: Network.HTTP.Conduit
                      Network.HTTP.Conduit.Internal
+                     Network.HTTP.Conduit.MultipartFormData
     other-modules:   Network.HTTP.Conduit.Parser
                      Network.HTTP.Conduit.ConnInfo
                      Network.HTTP.Conduit.Request
@@ -118,6 +123,10 @@ test-suite test
                  , void
                  , deepseq
                  , mtl
+                 , array
+                 , random
+                 , filepath
+                 , mime-types
 
 source-repository head
   type:     git

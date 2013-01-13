@@ -16,7 +16,7 @@ module Network.HTTP.Conduit.Types
 import Data.Int (Int64)
 import Data.Typeable (Typeable)
 
-import qualified Blaze.ByteString.Builder as Blaze
+import Blaze.ByteString.Builder
 
 import qualified Data.Conduit as C
 
@@ -31,6 +31,9 @@ import Control.Exception (Exception, SomeException)
 import Data.Certificate.X509 (X509)
 import Network.TLS (PrivateKey)
 import Network.HTTP.Conduit.ConnInfo (ConnInfo)
+import Network.HTTP.Conduit.Util
+
+import Data.Monoid (Monoid(..))
 
 type ContentType = S.ByteString
 
@@ -140,12 +143,14 @@ data ManagedConn = Fresh | Reused
 -- body, note that not all servers support this. Only use
 -- 'RequestBodySourceChunked' if you know the server you're
 -- sending to supports chunked request bodies.
+--
+-- Note on Monoid instance: `RequestBodyBS <> RequestBodyBS = RequestBodyLBS . fromChunks`
 data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
-    | RequestBodyBuilder Int64 Blaze.Builder
-    | RequestBodySource Int64 (C.Source m Blaze.Builder)
-    | RequestBodySourceChunked (C.Source m Blaze.Builder)
+    | RequestBodyBuilder Int64 Builder
+    | RequestBodySource Int64 (C.Source m Builder)
+    | RequestBodySourceChunked (C.Source m Builder)
 
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
@@ -180,3 +185,64 @@ data Response body = Response
 -- | Since 1.1.2.
 instance Functor Response where
     fmap f (Response status v headers body) = Response status v headers (f body)
+
+-- | Since 1.9
+instance Show (RequestBody m) where
+    showsPrec d (RequestBodyBS a) =
+        showParen (d>=11) $ showString "RequestBodyBS " . showsPrec 11 a
+    showsPrec d (RequestBodyLBS a) =
+        showParen (d>=11) $ showString "RequestBodyLBS " . showsPrec 11 a
+    showsPrec d (RequestBodyBuilder l _) =
+        showParen (d>=11) $ showString "RequestBodyBuilder " . showsPrec 11 l .
+            showString " " . showString "<Builder>"
+    showsPrec d (RequestBodySource l _) =
+        showParen (d>=11) $ showString "RequestBodySource " . showsPrec 11 l .
+            showString " <Source m Builder>"
+    showsPrec d (RequestBodySourceChunked _) =
+        showParen (d>=11) $ showString "RequestBodySource <Source m Builder>"
+
+-- | Since 1.9.
+-- Note that: @RequestBodyBS \<\> RequestBodyBS = RequestBodyLBS . fromChunks@
+instance Monad m => Monoid (RequestBody m) where
+    mempty = RequestBodyLBS mempty
+    mappend (RequestBodySourceChunked a) b =
+        RequestBodySourceChunked (a <> toChunked b)
+    mappend a (RequestBodySourceChunked b) =
+        RequestBodySourceChunked (toChunked a <> b)
+    
+    mappend (RequestBodySource l1 a) b =
+        let (l2, b') = toSource b in RequestBodySource (l1 + l2) (a <> b')
+    mappend a (RequestBodySource l2 b) =
+        let (l1, a') = toSource a in RequestBodySource (l1 + l2) (a' <> b)
+    
+    mappend (RequestBodyBuilder l1 a) b =
+        let (l2, b') = toBuilder b in RequestBodyBuilder (l1 + l2) (a <> b')
+    mappend a (RequestBodyBuilder l2 b) =
+        let (l1, a') = toBuilder a in RequestBodyBuilder (l1 + l2) (a' <> b)
+    
+    mappend (RequestBodyLBS a) b = RequestBodyLBS (a <> toLBS b)
+    mappend a (RequestBodyLBS b) = RequestBodyLBS (toLBS a <> b)
+    
+    mappend (RequestBodyBS a) (RequestBodyBS b) = RequestBodyLBS (L.fromChunks [a,b])
+
+toChunked :: Monad m => RequestBody m -> C.Source m Builder
+toChunked (RequestBodyBS a) = sourceSingle $ fromByteString a
+toChunked (RequestBodyLBS a) = sourceSingle $ fromLazyByteString a
+toChunked (RequestBodyBuilder _ a) = sourceSingle a
+toChunked (RequestBodySource _ a) = a
+toChunked (RequestBodySourceChunked a) = a
+
+toSource :: Monad m => RequestBody m -> (Int64, C.Source m Builder)
+toSource (RequestBodyBS a) = (fromIntegral $ S.length a, sourceSingle $ fromByteString a)
+toSource (RequestBodyLBS a) = (L.length a, sourceSingle $ fromLazyByteString a)
+toSource (RequestBodyBuilder l a) = (l, sourceSingle a)
+toSource (RequestBodySource l a) = (l, a)
+
+toBuilder :: RequestBody m -> (Int64, Builder)
+toBuilder (RequestBodyBS a) = (fromIntegral $ S.length a, fromByteString a)
+toBuilder (RequestBodyLBS a) = (L.length a, fromLazyByteString a)
+toBuilder (RequestBodyBuilder l a) = (l, a)
+
+toLBS :: RequestBody m -> L.ByteString
+toLBS (RequestBodyBS a) = fromStrict a
+toLBS (RequestBodyLBS a) = a

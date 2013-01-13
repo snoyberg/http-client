@@ -50,7 +50,7 @@ import qualified Data.ByteString.Base64 as B64
 import Network.HTTP.Conduit.Types (Request (..), RequestBody (..), ContentType, Proxy (..), HttpException (..))
 
 import Network.HTTP.Conduit.Chunk (chunkIt)
-import Network.HTTP.Conduit.Util (readDec, (<>))
+import Network.HTTP.Conduit.Util (readDec, (<>), sourceSingle)
 import System.Timeout.Lifted (timeout)
 
 -- | Convert a URL into a 'Request'.
@@ -227,8 +227,6 @@ requestBuilder
 requestBuilder req =
     CL.sourceList [builder] `mappend` bodySource
   where
-    sourceSingle = CL.sourceList . return
-
     (contentLength, bodySource) =
         case requestBody req of
             RequestBodyLBS lbs -> (Just $ L.length lbs, sourceSingle $ fromLazyByteString lbs)
