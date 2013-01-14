@@ -143,8 +143,6 @@ data ManagedConn = Fresh | Reused
 -- body, note that not all servers support this. Only use
 -- 'RequestBodySourceChunked' if you know the server you're
 -- sending to supports chunked request bodies.
---
--- Note on Monoid instance: `RequestBodyBS <> RequestBodyBS = RequestBodyLBS . fromChunks`
 data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
