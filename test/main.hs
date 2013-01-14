@@ -21,7 +21,7 @@ import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Conduit (($$), yield, Flush (Chunk))
+import Data.Conduit (($$), yield, Flush (Chunk), runResourceT)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -32,8 +32,9 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
-import Blaze.ByteString.Builder (fromByteString)
+import Blaze.ByteString.Builder (fromByteString, toByteString)
 import System.IO
+import Data.Monoid (mconcat)
 
 app :: Application
 app req =
@@ -49,12 +50,6 @@ app req =
             in return $ responseLBS status303
                     [(hLocation, S.append "/infredir/" $ S8.pack $ show $ i+1)]
                     (L8.pack $ show i)
-        ["infredirrepeat", i'] ->
-            let i = read $ T.unpack i' :: Int
-            in return $ responseLBS status303
-                    [(hLocation, S.append "/infredirrepeat/" $ S8.pack $ show $ i + 1)
-                    ,(hContentLength, "2048")]
-                    (L8.pack $ take 2048 $ unwords $ repeat $ show i)
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -198,6 +193,20 @@ main = withSocketsDo $ do
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
                     responseBody res `shouldBe` "Hello World!"
+    describe "multipart/form-data" $ do
+        it "formats correctly" $ do
+            let bd = "---------------------------190723902820679116301912680260"
+            (RequestBodySource _ src) <- renderParts bd
+                [partBS "email" ""
+                ,partBS "parent_id" "70488"
+                ,partBS "captcha" ""
+                ,partBS "homeboard" "0chan.hk"
+                ,partBS "text" $ TE.encodeUtf8 ">>72127\r\nМы работаем над этим."
+                ,partFileSource "upload" "nyan.gif"
+                ]
+            mfd <- fmap (toByteString . mconcat) $ runResourceT $ src $$ CL.consume
+            exam <- S.readFile "multipart-example.bin"
+            mfd @?= exam
 
 withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
