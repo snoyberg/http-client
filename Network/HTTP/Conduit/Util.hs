@@ -7,13 +7,9 @@ module Network.HTTP.Conduit.Util
     , readDec
     , hasNoBody
     , fromStrict
-    , sourceSingle
     ) where
 
 import Data.Monoid (Monoid, mappend)
-
-import Data.Conduit (Pipe)
-import qualified Data.Conduit.List as CL
 
 import qualified Data.ByteString.Char8 as S8
 #if MIN_VERSION_bytestring(0,10,0)
@@ -86,7 +82,3 @@ hasNoBody _ i = 100 <= i && i < 200
 fromStrict :: S.ByteString -> L.ByteString
 fromStrict x = L.fromChunks [x]
 #endif
-
-{-# INLINE sourceSingle #-}
-sourceSingle :: Monad m => a -> Pipe l i a u m ()
-sourceSingle = CL.sourceList . return
