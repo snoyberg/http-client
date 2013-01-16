@@ -39,7 +39,6 @@ import Network.HTTP.Conduit.Chunk
 import Data.Void (Void, absurd)
 
 import System.Timeout.Lifted (timeout)
-import Control.Monad.Trans.Control (MonadBaseControl)
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the

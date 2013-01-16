@@ -408,9 +408,9 @@ getManagedConn man key open = resourceMask $ \restore -> do
 -- fails.
 failedConnectionException :: Request m -> HttpException
 failedConnectionException req =
-    FailedConnectionException host port
+    FailedConnectionException host' port'
   where
-    (_, host, port) = getConnDest req
+    (_, host', port') = getConnDest req
 
 getConnDest :: Request m -> (Bool, String, Int)
 getConnDest req =

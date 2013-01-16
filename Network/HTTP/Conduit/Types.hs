@@ -203,44 +203,27 @@ instance Show (RequestBody m) where
 -- Note that: @RequestBodyBS \<\> RequestBodyBS = RequestBodyLBS . fromChunks@
 instance Monad m => Monoid (RequestBody m) where
     mempty = RequestBodyLBS mempty
-    mappend (RequestBodySourceChunked a) b =
-        RequestBodySourceChunked (a <> toChunked b)
-    mappend a (RequestBodySourceChunked b) =
-        RequestBodySourceChunked (toChunked a <> b)
-    
-    mappend (RequestBodySource l1 a) b =
-        let (l2, b') = toSource b in RequestBodySource (l1 + l2) (a <> b')
-    mappend a (RequestBodySource l2 b) =
-        let (l1, a') = toSource a in RequestBodySource (l1 + l2) (a' <> b)
-    
-    mappend (RequestBodyBuilder l1 a) b =
-        let (l2, b') = toBuilder b in RequestBodyBuilder (l1 + l2) (a <> b')
-    mappend a (RequestBodyBuilder l2 b) =
-        let (l1, a') = toBuilder a in RequestBodyBuilder (l1 + l2) (a' <> b)
-    
-    mappend (RequestBodyLBS a) b = RequestBodyLBS (a <> toLBS b)
-    mappend a (RequestBodyLBS b) = RequestBodyLBS (toLBS a <> b)
-    
-    mappend (RequestBodyBS a) (RequestBodyBS b) = RequestBodyLBS (L.fromChunks [a,b])
 
-toChunked :: Monad m => RequestBody m -> C.Source m Builder
-toChunked (RequestBodyBS a) = sourceSingle $ fromByteString a
-toChunked (RequestBodyLBS a) = sourceSingle $ fromLazyByteString a
-toChunked (RequestBodyBuilder _ a) = sourceSingle a
-toChunked (RequestBodySource _ a) = a
-toChunked (RequestBodySourceChunked a) = a
+    mappend a b =
+        case (simplify a, simplify b) of
+            (SBuilder l1 b1, SBuilder l2 b2) -> RequestBodyBuilder (l1 + l2) (b1 <> b2)
+            (SBuilder l1 b1, SSource l2 s2) -> RequestBodySource (l1 + l2) (C.yield b1 <> s2)
+            (SSource l1 s1, SBuilder l2 b2) -> RequestBodySource (l1 + l2) (s1 <> C.yield b2)
+            (SSource l1 s1, SSource l2 s2) -> RequestBodySource (l1 + l2) (s1 <> s2)
+            (a', b') -> RequestBodySourceChunked (toChunked a' <> toChunked b')
 
-toSource :: Monad m => RequestBody m -> (Int64, C.Source m Builder)
-toSource (RequestBodyBS a) = (fromIntegral $ S.length a, sourceSingle $ fromByteString a)
-toSource (RequestBodyLBS a) = (L.length a, sourceSingle $ fromLazyByteString a)
-toSource (RequestBodyBuilder l a) = (l, sourceSingle a)
-toSource (RequestBodySource l a) = (l, a)
+data Simplified m = SBuilder Int64 Builder
+                  | SSource Int64 (C.Source m Builder)
+                  | SChunked (C.Source m Builder)
 
-toBuilder :: RequestBody m -> (Int64, Builder)
-toBuilder (RequestBodyBS a) = (fromIntegral $ S.length a, fromByteString a)
-toBuilder (RequestBodyLBS a) = (L.length a, fromLazyByteString a)
-toBuilder (RequestBodyBuilder l a) = (l, a)
+simplify :: Monad m => RequestBody m -> Simplified m
+simplify (RequestBodyBS a) = SBuilder (fromIntegral $ S.length a) (fromByteString a)
+simplify (RequestBodyLBS a) = SBuilder (fromIntegral $ L.length a) (fromLazyByteString a)
+simplify (RequestBodyBuilder l a) = SBuilder l a
+simplify (RequestBodySource l a) = SSource l a
+simplify (RequestBodySourceChunked a) = SChunked a
 
-toLBS :: RequestBody m -> L.ByteString
-toLBS (RequestBodyBS a) = fromStrict a
-toLBS (RequestBodyLBS a) = a
+toChunked :: Monad m => Simplified m -> C.Source m Builder
+toChunked (SBuilder _ b) = C.yield b
+toChunked (SSource _ s) = s
+toChunked (SChunked s) = s
