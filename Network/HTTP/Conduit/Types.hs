@@ -200,7 +200,6 @@ instance Show (RequestBody m) where
         showParen (d>=11) $ showString "RequestBodySource <Source m Builder>"
 
 -- | Since 1.8.7
--- Note that: @RequestBodyBS \<\> RequestBodyBS = RequestBodyLBS . fromChunks@
 instance Monad m => Monoid (RequestBody m) where
     mempty = RequestBodyLBS mempty
 
