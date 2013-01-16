@@ -1,4 +1,9 @@
-module Network.PublicSuffixList.Types where
+{-|
+This module is only exported for the use of the 'publicsuffixlistcreate' package.
+Every one else should consider everything in this file to be opaque.
+-}
+
+module Network.PublicSuffixList.Internal.Types where
 
 import           Data.Default
 import qualified Data.Map             as M

@@ -1,5 +1,5 @@
 name:            publicsuffixlist
-version:         0.0.1
+version:         0.0.2
 license:         BSD3
 license-file:    LICENSE
 author:          Myles C. Maxfield <myles.maxfield@gmail.com>
@@ -17,13 +17,10 @@ library
                  , containers
                  , data-default
                  , bytestring >= 0.9
-                 , idna       >= 0.1.2   && < 1.0
                  , text       >= 0.11
-                 , conduit    >= 0.5.0   && < 0.6.0
     exposed-modules: Network.PublicSuffixList.Lookup
-                   , Network.PublicSuffixList.Create
                    , Network.PublicSuffixList.DataStructure
-    other-modules: Network.PublicSuffixList.Types
+                   , Network.PublicSuffixList.Internal.Types
     ghc-options:     -Wall
 
 Test-Suite test-public-suffix-list

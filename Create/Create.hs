@@ -13,7 +13,7 @@ import qualified Network.HTTP.Conduit as HC
 import           System.IO
 
 import           Network.PublicSuffixList.Create
-import           Network.PublicSuffixList.Types
+import           Network.PublicSuffixList.Internal.Types
 
 
 generateDataStructure :: String -> IO (DataStructure, UTCTime)
@@ -29,7 +29,7 @@ generateDataStructure url = do
 main :: IO ()
 main = do
   (ds, current_time) <- generateDataStructure "http://mxr.mozilla.org/mozilla-central/source/netwerk/dns/effective_tld_names.dat?raw=1"
-  withFile "Network/PublicSuffixList/DataStructure.hs" WriteMode $ \ h -> do
+  withFile "../Lookup/Network/PublicSuffixList/DataStructure.hs" WriteMode $ \ h -> do
     hPutStrLn h "{-# LANGUAGE OverloadedStrings #-}"
     hPutStrLn h ""
     hPutStrLn h $ "-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at " ++ show current_time
@@ -38,7 +38,7 @@ main = do
     hPutStrLn h ""
     hPutStrLn h "import Data.Map"
     hPutStrLn h ""
-    hPutStrLn h "import Network.PublicSuffixList.Types"
+    hPutStrLn h "import Network.PublicSuffixList.Internal.Types"
     hPutStrLn h ""
     hPutStrLn h "{-|"
     hPutStrLn h $ "The opaque data structure that 'isSuffix' can query. This data structure was generated at " ++ show current_time
