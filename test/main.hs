@@ -21,7 +21,7 @@ import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Conduit (($$), yield, Flush (Chunk), runResourceT)
+import Data.Conduit (($$), yield, Flush (Chunk), runResourceT, await)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -207,6 +207,17 @@ main = withSocketsDo $ do
             mfd <- fmap (toByteString . mconcat) $ runResourceT $ src $$ CL.consume
             exam <- S.readFile "multipart-example.bin"
             mfd @?= exam
+
+    describe "HTTP/1.0" $ do
+        it "BaseHTTP" $ do
+            let baseHTTP app' = do
+                    appSource app' $$ await
+                    yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" $$ appSink app'
+            withCApp baseHTTP $ \port -> withManager $ \manager -> do
+                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                res1 <- httpLbs req manager
+                res2 <- httpLbs req manager
+                liftIO $ res1 @?= res2
 
 withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
 withCApp app' f = do

@@ -122,7 +122,7 @@ getResponse connRelease req@(Request {..}) src1 = do
     let mcl = lookup "content-length" hs' >>= readDec . S8.unpack
 
     -- should we put this connection back into the connection manager?
-    let toPut = Just "close" /= lookup "connection" hs'
+    let toPut = Just "close" /= lookup "connection" hs' && vbs /= "1.0"
     let cleanup bodyConsumed = connRelease $ if toPut && bodyConsumed then Reuse else DontReuse
 
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
