@@ -166,7 +166,6 @@ import Network.HTTP.Conduit.Response
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Cookies
-import Network.HTTP.Conduit.MultipartFormData
 import Network.HTTP.Conduit.Internal (httpRedirect)
 
 -- | The most low-level function for initiating an HTTP request.
