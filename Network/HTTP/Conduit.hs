@@ -131,7 +131,6 @@ module Network.HTTP.Conduit
     , browserDecompress
       -- * Request bodies
     , urlEncodedBody
-    , module Network.HTTP.Conduit.MultipartFormData
       -- * Exceptions
     , HttpException (..)
 #if DEBUG
