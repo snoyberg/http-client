@@ -168,6 +168,9 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | OverlongHeaders
                    | ResponseTimeout
                    | FailedConnectionException String Int -- ^ host/port
+                   | ExpectedBlankAfter100Continue
+                   | InvalidStatusLine S.ByteString
+                   | InvalidHeader S.ByteString
     deriving (Show, Typeable)
 instance Exception HttpException
 
