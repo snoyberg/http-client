@@ -128,6 +128,9 @@ partFileSourceChunked n f =
 -- | Construct a 'Part' from form name, filepath and a 'RequestBody'
 --
 -- > partFileRequestBody "who_calls" "caller.json" $ RequestBodyBS "{\"caller\":\"Jason J Jason\"}"
+--
+-- > -- empty upload form
+-- > partFileRequestBody "file" mempty mempty
 partFileRequestBody :: (Monad m, Monad m') => Text -> FilePath -> RequestBody m' -> Part m m'
 partFileRequestBody n f rqb =
     partFileRequestBodyM n f $ return rqb
