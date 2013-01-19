@@ -57,7 +57,7 @@ library
                  , regex-compat
                  , mtl
                  , deepseq
-                 , array                 >= 0.4
+                 , array                 >= 0.3
                  , random
                  , filepath
     if flag(network-bytestring)
