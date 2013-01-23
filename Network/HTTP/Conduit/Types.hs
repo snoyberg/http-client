@@ -1,4 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Conduit.Types
     ( Request (..)
     , RequestBody (..)
@@ -6,12 +8,15 @@ module Network.HTTP.Conduit.Types
     , Proxy (..)
     , HttpException (..)
     , Response (..)
+    , ConnRelease
+    , ConnReuse (..)
+    , ManagedConn (..)
     ) where
 
 import Data.Int (Int64)
 import Data.Typeable (Typeable)
 
-import qualified Blaze.ByteString.Builder as Blaze
+import Blaze.ByteString.Builder
 
 import qualified Data.Conduit as C
 
@@ -25,6 +30,10 @@ import Control.Exception (Exception, SomeException)
 
 import Data.Certificate.X509 (X509)
 import Network.TLS (PrivateKey)
+import Network.HTTP.Conduit.ConnInfo (ConnInfo)
+import Network.HTTP.Conduit.Util
+
+import Data.Monoid (Monoid(..))
 
 type ContentType = S.ByteString
 
@@ -102,7 +111,27 @@ data Request m = Request
     , responseTimeout :: Maybe Int
     -- ^ Number of microseconds to wait for a response. If @Nothing@, will wait
     -- indefinitely. Default: 5 seconds.
+    , getConnectionWrapper :: forall n. (C.MonadResource n, C.MonadBaseControl IO n)
+                           => Maybe Int
+                           -> HttpException
+                           -> n (ConnRelease n, ConnInfo, ManagedConn)
+                           -> n (ConnRelease n, ConnInfo, ManagedConn)
+    -- ^ Wraps the calls for getting new connections. This can be useful for
+    -- instituting some kind of timeouts. The first argument is the value of
+    -- @responseTimeout@. Second argument is the exception to be thrown on
+    -- failure.
+    --
+    -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
+    -- institutes a timeout half of the length of @responseTimeout@.
+    --
+    -- Since 1.8.6
     }
+
+data ConnReuse = Reuse | DontReuse
+
+type ConnRelease m = ConnReuse -> m ()
+
+data ManagedConn = Fresh | Reused
 
 -- | When using one of the
 -- 'RequestBodySource' \/ 'RequestBodySourceChunked' constructors,
@@ -117,9 +146,9 @@ data Request m = Request
 data RequestBody m
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
-    | RequestBodyBuilder Int64 Blaze.Builder
-    | RequestBodySource Int64 (C.Source m Blaze.Builder)
-    | RequestBodySourceChunked (C.Source m Blaze.Builder)
+    | RequestBodyBuilder Int64 Builder
+    | RequestBodySource Int64 (C.Source m Builder)
+    | RequestBodySourceChunked (C.Source m Builder)
 
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
@@ -138,6 +167,10 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | HandshakeFailed
                    | OverlongHeaders
                    | ResponseTimeout
+                   | FailedConnectionException String Int -- ^ host/port
+                   | ExpectedBlankAfter100Continue
+                   | InvalidStatusLine S.ByteString
+                   | InvalidHeader S.ByteString
     deriving (Show, Typeable)
 instance Exception HttpException
 
@@ -153,3 +186,46 @@ data Response body = Response
 -- | Since 1.1.2.
 instance Functor Response where
     fmap f (Response status v headers body) = Response status v headers (f body)
+
+-- | Since 1.8.7
+instance Show (RequestBody m) where
+    showsPrec d (RequestBodyBS a) =
+        showParen (d>=11) $ showString "RequestBodyBS " . showsPrec 11 a
+    showsPrec d (RequestBodyLBS a) =
+        showParen (d>=11) $ showString "RequestBodyLBS " . showsPrec 11 a
+    showsPrec d (RequestBodyBuilder l _) =
+        showParen (d>=11) $ showString "RequestBodyBuilder " . showsPrec 11 l .
+            showString " " . showString "<Builder>"
+    showsPrec d (RequestBodySource l _) =
+        showParen (d>=11) $ showString "RequestBodySource " . showsPrec 11 l .
+            showString " <Source m Builder>"
+    showsPrec d (RequestBodySourceChunked _) =
+        showParen (d>=11) $ showString "RequestBodySource <Source m Builder>"
+
+-- | Since 1.8.7
+instance Monad m => Monoid (RequestBody m) where
+    mempty = RequestBodyLBS mempty
+
+    mappend a b =
+        case (simplify a, simplify b) of
+            (SBuilder l1 b1, SBuilder l2 b2) -> RequestBodyBuilder (l1 + l2) (b1 <> b2)
+            (SBuilder l1 b1, SSource l2 s2) -> RequestBodySource (l1 + l2) (C.yield b1 <> s2)
+            (SSource l1 s1, SBuilder l2 b2) -> RequestBodySource (l1 + l2) (s1 <> C.yield b2)
+            (SSource l1 s1, SSource l2 s2) -> RequestBodySource (l1 + l2) (s1 <> s2)
+            (a', b') -> RequestBodySourceChunked (toChunked a' <> toChunked b')
+
+data Simplified m = SBuilder Int64 Builder
+                  | SSource Int64 (C.Source m Builder)
+                  | SChunked (C.Source m Builder)
+
+simplify :: Monad m => RequestBody m -> Simplified m
+simplify (RequestBodyBS a) = SBuilder (fromIntegral $ S.length a) (fromByteString a)
+simplify (RequestBodyLBS a) = SBuilder (fromIntegral $ L.length a) (fromLazyByteString a)
+simplify (RequestBodyBuilder l a) = SBuilder l a
+simplify (RequestBodySource l a) = SSource l a
+simplify (RequestBodySourceChunked a) = SChunked a
+
+toChunked :: Monad m => Simplified m -> C.Source m Builder
+toChunked (SBuilder _ b) = C.yield b
+toChunked (SSource _ s) = s
+toChunked (SChunked s) = s

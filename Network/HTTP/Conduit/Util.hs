@@ -6,11 +6,18 @@ module Network.HTTP.Conduit.Util
     , (<>)
     , readDec
     , hasNoBody
+    , fromStrict
     ) where
 
 import Data.Monoid (Monoid, mappend)
 
 import qualified Data.ByteString.Char8 as S8
+#if MIN_VERSION_bytestring(0,10,0)
+import Data.ByteString.Lazy (fromStrict)
+#else
+import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString as S
+#endif
 
 import qualified Data.Text as T
 import qualified Data.Text.Read
@@ -69,3 +76,9 @@ hasNoBody "HEAD" _ = True
 hasNoBody _ 204 = True
 hasNoBody _ 304 = True
 hasNoBody _ i = 100 <= i && i < 200
+
+#if !MIN_VERSION_bytestring(0,10,0)
+{-# INLINE fromStrict #-}
+fromStrict :: S.ByteString -> L.ByteString
+fromStrict x = L.fromChunks [x]
+#endif

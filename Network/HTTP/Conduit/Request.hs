@@ -11,6 +11,8 @@ module Network.HTTP.Conduit.Request
     , Proxy (..)
     , parseUrl
     , setUriRelative
+    , getUri
+    , setUri
     , browserDecompress
     , HttpException (..)
     , alwaysDecompress
@@ -39,7 +41,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
-import Control.Exception (Exception, toException)
+import Control.Exception.Lifted (Exception, toException, throwIO)
 import Control.Failure (Failure (failure))
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
@@ -49,6 +51,7 @@ import Network.HTTP.Conduit.Types (Request (..), RequestBody (..), ContentType, 
 
 import Network.HTTP.Conduit.Chunk (chunkIt)
 import Network.HTTP.Conduit.Util (readDec, (<>))
+import System.Timeout.Lifted (timeout)
 
 -- | Convert a URL into a 'Request'.
 --
@@ -154,6 +157,14 @@ instance Default (Request m) where
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs
         , responseTimeout = Just 5000000
+        , getConnectionWrapper = \mtimeout exc f ->
+            case mtimeout of
+                Nothing -> f
+                Just timeout' -> do
+                    mres <- timeout (timeout' `div` 2) f
+                    case mres of
+                        Nothing -> throwIO exc
+                        Just res -> return res
         }
 
 -- | Always decompress a compressed stream.
@@ -177,7 +188,7 @@ applyBasicAuth user passwd req =
     basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
 
 
--- | Add a proxy to the the Request so that the Request when executed will use
+-- | Add a proxy to the Request so that the Request when executed will use
 -- the provided proxy.
 addProxy :: S.ByteString -> Int -> Request m -> Request m
 addProxy hst prt req =
@@ -185,7 +196,7 @@ addProxy hst prt req =
 
 -- FIXME add a helper for generating POST bodies
 
--- | Add url-encoded paramters to the 'Request'.
+-- | Add url-encoded parameters to the 'Request'.
 --
 -- This sets a new 'requestBody', adds a content-type request header and
 -- changes the 'method' to POST.
@@ -216,13 +227,11 @@ requestBuilder
 requestBuilder req =
     CL.sourceList [builder] `mappend` bodySource
   where
-    sourceSingle = CL.sourceList . return
-
     (contentLength, bodySource) =
         case requestBody req of
-            RequestBodyLBS lbs -> (Just $ L.length lbs, sourceSingle $ fromLazyByteString lbs)
-            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, sourceSingle $ fromByteString bs)
-            RequestBodyBuilder i b -> (Just $ i, sourceSingle b)
+            RequestBodyLBS lbs -> (Just $ L.length lbs, C.yield $ fromLazyByteString lbs)
+            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, C.yield $ fromByteString bs)
+            RequestBodyBuilder i b -> (Just $ i, C.yield b)
             RequestBodySource i source -> (Just i, source)
             RequestBodySourceChunked source -> (Nothing, source C.$= chunkIt)
 

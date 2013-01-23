@@ -8,18 +8,20 @@ module Network.HTTP.Conduit.Response
     , lbsResponse
     ) where
 
+import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (first)
-import Control.Monad (liftM)
+import Control.Monad (liftM, unless, when)
 
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
 
+import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
-import Data.Conduit hiding (Sink, Conduit)
+import Data.Conduit hiding (Conduit)
 import Data.Conduit.Internal (ResumableSource (..), Pipe (..))
 import qualified Data.Conduit.Zlib as CZ
 import qualified Data.Conduit.Binary as CB
@@ -33,13 +35,11 @@ import Network.HTTP.Conduit.Types (Response (..))
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
-import Network.HTTP.Conduit.Parser
 import Network.HTTP.Conduit.Chunk
 
 import Data.Void (Void, absurd)
 
 import System.Timeout.Lifted (timeout)
-import Control.Monad.Trans.Control (MonadBaseControl)
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -99,7 +99,7 @@ checkHeaderLength len (NeedInput pushI closeI) = NeedInput
 checkHeaderLength len (PipeM msink) = PipeM (liftM (checkHeaderLength len) msink)
 checkHeaderLength _ s@Done{} = s
 checkHeaderLength _ (HaveOutput _ _ o) = absurd o
-checkHeaderLength len (Leftover p i) = Leftover (checkHeaderLength len p) i
+checkHeaderLength len (Leftover p i) = Leftover (checkHeaderLength (len + S.length i) p) i
 
 getResponse :: (MonadResource m, MonadBaseControl IO m)
             => ConnRelease m
@@ -115,14 +115,14 @@ getResponse connRelease req@(Request {..}) src1 = do
                     case x of
                         Nothing -> liftIO $ throwIO ResponseTimeout
                         Just y -> return y
-    (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+ checkHeaderLength 4096 sinkHeaders
+    (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+ checkHeaderLength 4096 sinkHeaders'
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs
     let mcl = lookup "content-length" hs' >>= readDec . S8.unpack
 
     -- should we put this connection back into the connection manager?
-    let toPut = Just "close" /= lookup "connection" hs'
+    let toPut = Just "close" /= lookup "connection" hs' && vbs /= "1.0"
     let cleanup bodyConsumed = connRelease $ if toPut && bodyConsumed then Reuse else DontReuse
 
     -- RFC 2616 section 4.4_1 defines responses that must not include a body
@@ -150,3 +150,73 @@ getResponse connRelease req@(Request {..}) src1 = do
   where
     fmapResume f (ResumableSource src m) = ResumableSource (f src) m
     addCleanup' f (ResumableSource src m) = ResumableSource (addCleanup f src) (m >> f False)
+
+-- | New version of @sinkHeaders@ that doesn't use attoparsec. Should create
+-- more meaningful exceptions.
+--
+-- Since 1.8.7
+sinkHeaders' :: (MonadThrow m, MonadResource m) => Sink S.ByteString m (Status, [Header])
+sinkHeaders' = do
+    status <- getStatusLine
+    headers <- parseHeaders id
+    return (status, headers)
+  where
+    getStatusLine = do
+        status@(_, code, _) <- sinkLine >>= parseStatus
+        if code == 100
+            then newline ExpectedBlankAfter100Continue >> getStatusLine
+            else return status
+
+    newline exc = do
+        line <- sinkLine
+        unless (S.null line) $ monadThrow exc
+
+    sinkLine = do
+        bs <- fmap (killCR . S.concat) $ CB.takeWhile (/= charLF) =$ CL.consume
+        CB.drop 1
+        return bs
+    charLF = 10
+    charCR = 13
+    charSpace = 32
+    charColon = 58
+    killCR bs
+        | S.null bs = bs
+        | S.last bs == charCR = S.init bs
+        | otherwise = bs
+
+    parseStatus :: MonadThrow m => S.ByteString -> m Status
+    parseStatus bs = do
+        let (ver, bs2) = S.breakByte charSpace bs
+            (code, bs3) = S.breakByte charSpace $ S.dropWhile (== charSpace) bs2
+            msg = S.dropWhile (== charSpace) bs3
+        case (,) <$> parseVersion ver <*> parseCode code of
+            Just (ver', code') -> return (ver', code', msg)
+            _ -> monadThrow $ InvalidStatusLine bs
+
+    stripPrefixBS x y
+        | x `S.isPrefixOf` y = Just $ S.drop (S.length x) y
+        | otherwise = Nothing
+    parseVersion = stripPrefixBS "HTTP/"
+    parseCode bs =
+        case S8.readInt bs of
+            Just (i, "") -> Just i
+            _ -> Nothing
+
+    parseHeaders front = do
+        line <- sinkLine
+        if S.null line
+            then return $ front []
+            else do
+                header <- parseHeader line
+                parseHeaders $ front . (header:)
+
+    parseHeader :: MonadThrow m => S.ByteString -> m Header
+    parseHeader bs = do
+        let (key, bs2) = S.breakByte charColon bs
+        when (S.null bs2) $ monadThrow $ InvalidHeader bs
+        return (strip key, strip $ S.drop 1 bs2)
+
+    strip = S.dropWhile (== charSpace) . fst . S.spanEnd (== charSpace)
+
+type Header = (S.ByteString, S.ByteString)
+type Status = (S.ByteString, Int, S.ByteString)

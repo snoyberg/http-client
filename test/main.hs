@@ -3,108 +3,142 @@
 import Test.Hspec
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
-import qualified Network.Wai
-import Network.Wai.Handler.Warp (run)
-import Network.HTTP.Conduit
-import Data.ByteString.Base64 (encode)
-import Control.Concurrent (forkIO, killThread, threadDelay)
+import qualified Network.Wai as Wai
+import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop)
+import Network.HTTP.Conduit hiding (port)
+import Network.HTTP.Conduit.MultipartFormData
+import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar)
 import Network.HTTP.Types
-import Control.Exception.Lifted (try, SomeException)
+import Control.Exception.Lifted (try, SomeException, bracket, onException, IOException)
+import qualified Data.IORef as I
+import qualified Control.Exception as E (catch)
 import Network.HTTP.Conduit.ConnInfo
+import Network (withSocketsDo)
+import Network.Socket (sClose)
 import CookieTest (cookieTest)
-import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (HostAny), appSink, appSource)
-import Data.Conduit (($$), yield)
-import Control.Monad.Trans.Resource (register)
+import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
+import qualified Data.Conduit.Network
+import System.IO.Unsafe (unsafePerformIO)
+import Data.Conduit (($$), yield, Flush (Chunk), runResourceT, await)
+import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
 import Data.Conduit.List (sourceList)
 import Data.CaseInsensitive (mk)
 import Data.List (partition)
 import qualified Data.Conduit.List as CL
+import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
-import Blaze.ByteString.Builder (fromByteString)
+import Blaze.ByteString.Builder (fromByteString, toByteString)
+import System.IO
+import Data.Monoid (mconcat)
 
 app :: Application
 app req =
     case pathInfo req of
         [] -> return $ responseLBS status200 [] "homepage"
         ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
+        ["cookie_redir1"] -> return $ responseLBS status303 [tastyCookie, (hLocation, "/checkcookie")] ""
+        ["checkcookie"] -> return $ case lookup hCookie $ Wai.requestHeaders req of
+                                Just "flavor=chocolate-chip" -> responseLBS status200 [] "nom-nom-nom"
+                                _ -> responseLBS status412 [] "Baaaw where's my chocolate?"
+        ["infredir", i'] ->
+            let i = read $ T.unpack i' :: Int
+            in return $ responseLBS status303
+                    [(hLocation, S.append "/infredir/" $ S8.pack $ show $ i+1)]
+                    (L8.pack $ show i)
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
 
+nextPort :: I.IORef Int
+nextPort = unsafePerformIO $ I.newIORef 15452
+
+getPort :: IO Int
+getPort = do
+    port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
+    esocket <- try $ bindPort port HostIPv4
+    case esocket of
+        Left (_ :: IOException) -> getPort
+        Right socket -> do
+            sClose socket
+            return port
+
+withApp :: Application -> (Int -> IO ()) -> IO ()
+withApp app' f = withApp' (const app') f
+
+withApp' :: (Int -> Application) -> (Int -> IO ()) -> IO ()
+withApp' app' f = do
+    port <- getPort
+    baton <- newEmptyMVar
+    bracket
+        (forkIO $ runSettings defaultSettings
+            { settingsPort = port
+            , settingsBeforeMainLoop = putMVar baton ()
+            } (app' port) `onException` putMVar baton ())
+        killThread
+        (const $ takeMVar baton >> f port)
+
 main :: IO ()
-main = hspec $ do
+main = withSocketsDo $ do
+  mapM_ (`hSetBuffering` LineBuffering) [stdout, stderr]
+  hspec $ do
     cookieTest
     describe "simpleHttp" $ do
-        it "gets homepage" $ do
-            tid <- forkIO $ run 3000 app
-            lbs <- simpleHttp "http://127.0.0.1:3000/"
-            killThread tid
+        it "gets homepage" $ withApp app $ \port -> do
+            lbs <- simpleHttp $ "http://127.0.0.1:" ++ show port
             lbs @?= "homepage"
-        it "throws exception on 404" $ do
-            tid <- forkIO $ run 3001 app
-            elbs <- try $ simpleHttp "http://127.0.0.1:3001/404"
-            killThread tid
+        it "throws exception on 404" $ withApp app $ \port -> do
+            elbs <- try $ simpleHttp $ concat ["http://127.0.0.1:", show port, "/404"]
             case elbs of
                 Left (_ :: SomeException) -> return ()
                 Right _ -> error "Expected an exception"
     describe "httpLbs" $ do
-        it "preserves 'set-cookie' headers" $ do
-            tid <- forkIO $ run 3010 app
-            request <- parseUrl "http://127.0.0.1:3010/cookies"
+        it "preserves 'set-cookie' headers" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
                 Response _ _ headers _ <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
                     (setCookieHeaders, _) = partition ((== setCookie) . fst) headers
                 liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
-            killThread tid
-    describe "manager" $ do
-        it "closes all connections" $ do
-            clearSocketsList
-            tid1 <- forkIO $ run 3002 app
-            tid2 <- forkIO $ run 3003 app
-            threadDelay 1000
+        it "redirects set cookies" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookie_redir1"]
             withManager $ \manager -> do
-                let Just req1 = parseUrl "http://127.0.0.1:3002/"
-                let Just req2 = parseUrl "http://127.0.0.1:3003/"
+                Response _ _ _ body <- httpLbs request manager
+                liftIO $ body @?= "nom-nom-nom"
+    describe "manager" $ do
+        it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
+            clearSocketsList
+            withManager $ \manager -> do
+                let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port1
+                let Just req2 = parseUrl $ "http://127.0.0.1:" ++ show port2
                 _res1a <- http req1 manager
                 _res1b <- http req1 manager
                 _res2 <- http req2 manager
                 return ()
             requireAllSocketsClosed
-            killThread tid2
-            killThread tid1
     describe "DOS protection" $ do
-        it "overlong headers" $ do
-            tid1 <- forkIO overLongHeaders
-            threadDelay 1000
+        it "overlong headers" $ overLongHeaders $ \port -> do
             withManager $ \manager -> do
-                _ <- register $ killThread tid1
-                let Just req1 = parseUrl "http://127.0.0.1:3004/"
+                let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
                 res1 <- try $ http req1 manager
                 case res1 of
                     Left e -> liftIO $ show (e :: SomeException) @?= show OverlongHeaders
                     _ -> error "Shouldn't have worked"
-        it "not overlong headers" $ do
-            tid1 <- forkIO notOverLongHeaders
-            threadDelay 1000
+        it "not overlong headers" $ notOverLongHeaders $ \port -> do
             withManager $ \manager -> do
-                _ <- register $ killThread tid1
-                let Just req1 = parseUrl "http://127.0.0.1:3005/"
+                let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
                 _ <- httpLbs req1 manager
                 return ()
     describe "redirects" $ do
-        it "doesn't double escape" $ do
-            tid <- forkIO redir
-            threadDelay 1000000
+        it "doesn't double escape" $ redir $ \port -> do
             withManager $ \manager -> do
-                _ <- register $ killThread tid
                 let go (encoded, final) = do
-                        let Just req1 = parseUrl $ "http://127.0.0.1:3006/redir/" ++ encoded
+                        let Just req1 = parseUrl $ concat ["http://127.0.0.1:", show port, "/redir/", encoded]
                         res <- httpLbs req1 manager
                         liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
                         liftIO $ responseBody res @?= L.fromChunks [TE.encodeUtf8 final]
@@ -115,15 +149,17 @@ main = hspec $ do
                     , ("hello%20world", "hello world")
                     , ("hello%20world%3f%23", "hello world?#")
                     ]
-
+        it "TooManyRedirects: redirect request body is preserved" $ withApp app $ \port -> do
+            let Just req = parseUrl $ concat ["http://127.0.0.1:", show port, "/infredir/0"]
+            let go (res, i) = liftIO $ responseBody res @?= (L8.pack $ show i)
+            E.catch (withManager $ \manager -> do
+                void $ http req{redirectCount=5} manager) $
+                \(TooManyRedirects redirs) -> mapM_ go (zip redirs [5,4..0 :: Int])
     describe "chunked request body" $ do
-        it "works" $ do
-            tid <- forkIO echo
-            threadDelay 1000000
+        it "works" $ echo $ \port -> do
             withManager $ \manager -> do
-                _ <- register $ killThread tid
                 let go bss = do
-                        let Just req1 = parseUrl "http://127.0.0.1:3007"
+                        let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
                             src = sourceList $ map fromByteString bss
                             lbs = L.fromChunks bss
                         res <- httpLbs req1
@@ -138,38 +174,85 @@ main = hspec $ do
                     , replicate 500 "foo\003\n\r"
                     ]
     describe "no status message" $ do
-        it "works" $ do
-            tid <- forkIO noStatusMessage
-            threadDelay 1000000
+        it "works" $ noStatusMessage $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
-                _ <- register $ killThread tid
-                req <- parseUrl "http://127.0.0.1:3008"
                 res <- httpLbs req manager
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
                     responseBody res `shouldBe` "foo"
 
-overLongHeaders :: IO ()
-overLongHeaders = runTCPServer (serverSettings 3004 HostAny) $ \app ->
-    src $$ appSink app
+    describe "redirect" $ do
+        it "ignores large response bodies" $ do
+            let app' port req =
+                    case pathInfo req of
+                        ["foo"] -> return $ responseLBS status200 [] "Hello World!"
+                        _ -> return $ ResponseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
+            withApp' app' $ \port -> withManager $ \manager -> do
+                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                res <- httpLbs req manager
+                liftIO $ do
+                    Network.HTTP.Conduit.responseStatus res `shouldBe` status200
+                    responseBody res `shouldBe` "Hello World!"
+    describe "multipart/form-data" $ do
+        it "formats correctly" $ do
+            let bd = "---------------------------190723902820679116301912680260"
+            (RequestBodySource _ src) <- renderParts bd
+                [partBS "email" ""
+                ,partBS "parent_id" "70488"
+                ,partBS "captcha" ""
+                ,partBS "homeboard" "0chan.hk"
+                ,partBS "text" $ TE.encodeUtf8 ">>72127\r\nМы работаем над этим."
+                ,partFileSource "upload" "nyan.gif"
+                ]
+            mfd <- fmap (toByteString . mconcat) $ runResourceT $ src $$ CL.consume
+            exam <- S.readFile "multipart-example.bin"
+            mfd @?= exam
+
+    describe "HTTP/1.0" $ do
+        it "BaseHTTP" $ do
+            let baseHTTP app' = do
+                    appSource app' $$ await
+                    yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" $$ appSink app'
+            withCApp baseHTTP $ \port -> withManager $ \manager -> do
+                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                res1 <- httpLbs req manager
+                res2 <- httpLbs req manager
+                liftIO $ res1 @?= res2
+
+withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
+withCApp app' f = do
+    port <- getPort
+    baton <- newEmptyMVar
+    let start = putMVar baton ()
+        settings :: ServerSettings IO
+        settings = (serverSettings port HostAny :: ServerSettings IO) { serverAfterBind = const start }
+    bracket
+        (forkIO $ runTCPServer settings app' `onException` start)
+        killThread
+        (const $ takeMVar baton >> f port)
+
+overLongHeaders :: (Int -> IO ()) -> IO ()
+overLongHeaders =
+    withCApp $ \app' -> src $$ appSink app'
   where
     src = sourceList $ "HTTP/1.0 200 OK\r\nfoo: " : repeat "bar"
 
-notOverLongHeaders :: IO ()
-notOverLongHeaders = runTCPServer (serverSettings 3005 HostAny) $ \app -> do
-    appSource app  $$ CL.drop 1
-    src $$ appSink app
+notOverLongHeaders :: (Int -> IO ()) -> IO ()
+notOverLongHeaders = withCApp $ \app' -> do
+    appSource app' $$ CL.drop 1
+    src $$ appSink app'
   where
     src = sourceList $ [S.concat $ "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16384\r\n\r\n" : ( take 16384 $ repeat "x")]
 
-redir :: IO ()
+redir :: (Int -> IO ()) -> IO ()
 redir =
-    run 3006 redirApp
+    withApp' redirApp
   where
-    redirApp req =
+    redirApp port req =
         case pathInfo req of
             ["redir", foo] -> return $ responseLBS status301
-                [ ("Location", "http://127.0.0.1:3006/content/" `S.append` escape foo)
+                [ ("Location", S8.pack (concat ["http://127.0.0.1:", show port, "/content/"]) `S.append` escape foo)
                 ]
                 ""
             ["content", foo] -> return $ responseLBS status200 [] $ L.fromChunks [TE.encodeUtf8 foo]
@@ -196,13 +279,13 @@ redir =
                 | otherwise = error $ "Invalid argument to showHex: " ++ show x
          in ['%', showHex' b, showHex' c]
 
-echo :: IO ()
-echo = run 3007 $ \req -> do
-    bss <- Network.Wai.requestBody req $$ CL.consume
+echo :: (Int -> IO ()) -> IO ()
+echo = withApp $ \req -> do
+    bss <- Wai.requestBody req $$ CL.consume
     return $ responseLBS status200 [] $ L.fromChunks bss
 
-noStatusMessage :: IO ()
-noStatusMessage = runTCPServer (serverSettings 3008 HostAny) $ \app ->
-    src $$ appSink app
+noStatusMessage :: (Int -> IO ()) -> IO ()
+noStatusMessage =
+    withCApp $ \app' -> src $$ appSink app'
   where
     src = yield "HTTP/1.0 200\r\nContent-Length: 3\r\n\r\nfoo: barbazbin"
