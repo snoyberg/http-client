@@ -134,6 +134,8 @@ data Request m = Request
     , initialCookieJar :: CookieJar
     -- ^ A user-defined cookie jar to start the request chain off. Note that this
     -- field is ignored in 'http' if 'redirectCount' is set to 0.
+    --
+    -- Since 1.9.0
     }
 
 data ConnReuse = Reuse | DontReuse
