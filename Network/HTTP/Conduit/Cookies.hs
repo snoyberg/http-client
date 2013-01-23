@@ -12,10 +12,10 @@ import Data.Time.Calendar
 import Web.Cookie
 import qualified Data.CaseInsensitive as CI
 import Blaze.ByteString.Builder
-import Data.Default
 
 import qualified Network.HTTP.Conduit.Request as Req
 import qualified Network.HTTP.Conduit.Response as Res
+import Network.HTTP.Conduit.Types
 
 slash :: Integral a => a
 slash = 47 -- '/'
@@ -54,55 +54,14 @@ defaultPath req
 -- in section 5.1.4
 pathMatches :: BS.ByteString -> BS.ByteString -> Bool
 pathMatches requestPath cookiePath
-  | cookiePath == path = True
-  | cookiePath `BS.isPrefixOf` path && BS.singleton (BS.last cookiePath) == U.fromString "/" = True
-  | cookiePath `BS.isPrefixOf` path && BS.singleton (BS.head remainder)  == U.fromString "/" = True
+  | cookiePath == path' = True
+  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.last cookiePath) == U.fromString "/" = True
+  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.head remainder)  == U.fromString "/" = True
   | otherwise = False
   where remainder = BS.drop (BS.length cookiePath) requestPath
-        path = case S8.uncons requestPath of
+        path' = case S8.uncons requestPath of
                  Just ('/', _) -> requestPath
                  _             -> '/' `S8.cons` requestPath
-
-
--- This corresponds to the description of a cookie detailed in Section 5.3 \"Storage Model\"
-data Cookie = Cookie
-  { cookie_name :: BS.ByteString
-  , cookie_value :: BS.ByteString
-  , cookie_expiry_time :: UTCTime
-  , cookie_domain :: BS.ByteString
-  , cookie_path :: BS.ByteString
-  , cookie_creation_time :: UTCTime
-  , cookie_last_access_time :: UTCTime
-  , cookie_persistent :: Bool
-  , cookie_host_only :: Bool
-  , cookie_secure_only :: Bool
-  , cookie_http_only :: Bool
-  }
-  deriving (Show)
--- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
-instance Eq Cookie where
-  (==) a b = name_matches && domain_matches && path_matches
-    where name_matches = cookie_name a == cookie_name b
-          domain_matches = cookie_domain a == cookie_domain b
-          path_matches = cookie_path a == cookie_path b
-instance Ord Cookie where
-  compare c1 c2
-    | BS.length (cookie_path c1) > BS.length (cookie_path c2) = LT
-    | BS.length (cookie_path c1) < BS.length (cookie_path c2) = GT
-    | cookie_creation_time c1 > cookie_creation_time c2 = GT
-    | otherwise = LT
-
-newtype CookieJar = CJ { expose :: [Cookie] }
-
--- | empty cookie jar
-instance Default CookieJar where
-  def = CJ []
-
-instance Eq CookieJar where
-  (==) cj1 cj2 = (L.sort $ expose cj1) == (L.sort $ expose cj2)
-
-instance Show CookieJar where
-  show = show . expose
 
 createCookieJar :: [Cookie] -> CookieJar
 createCookieJar = CJ

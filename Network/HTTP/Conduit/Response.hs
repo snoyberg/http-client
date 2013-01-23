@@ -21,6 +21,8 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
+import Data.Default (def)
+
 import Data.Conduit hiding (Conduit)
 import Data.Conduit.Internal (ResumableSource (..), Pipe (..))
 import qualified Data.Conduit.Zlib as CZ
@@ -146,7 +148,7 @@ getResponse connRelease req@(Request {..}) src1 = do
                             else src3
                 return $ addCleanup' cleanup src4
 
-    return $ Response s version hs' body
+    return $ Response s version hs' body def
   where
     fmapResume f (ResumableSource src m) = ResumableSource (f src) m
     addCleanup' f (ResumableSource src m) = ResumableSource (addCleanup f src) (m >> f False)

@@ -11,6 +11,8 @@ module Network.HTTP.Conduit.Types
     , ConnRelease
     , ConnReuse (..)
     , ManagedConn (..)
+    , Cookie (..)
+    , CookieJar (..)
     ) where
 
 import Data.Int (Int64)
@@ -22,6 +24,10 @@ import qualified Data.Conduit as C
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
+
+import Data.Time.Clock
+import Data.Default
+import qualified Data.List as DL
 
 import qualified Network.HTTP.Types as W
 import Network.Socks5 (SocksConf)
@@ -125,6 +131,9 @@ data Request m = Request
     -- institutes a timeout half of the length of @responseTimeout@.
     --
     -- Since 1.8.6
+    , initialCookieJar :: CookieJar
+    -- ^ A user-defined cookie jar to start the request chain off. Note that this
+    -- field is ignored in 'http' if 'redirectCount' is set to 0.
     }
 
 data ConnReuse = Reuse | DontReuse
@@ -180,12 +189,54 @@ data Response body = Response
     , responseVersion :: W.HttpVersion
     , responseHeaders :: W.ResponseHeaders
     , responseBody :: body
+    , responseCookieJar :: CookieJar
     }
     deriving (Show, Eq, Typeable)
 
+-- This corresponds to the description of a cookie detailed in Section 5.3 \"Storage Model\"
+data Cookie = Cookie
+  { cookie_name :: S.ByteString
+  , cookie_value :: S.ByteString
+  , cookie_expiry_time :: UTCTime
+  , cookie_domain :: S.ByteString
+  , cookie_path :: S.ByteString
+  , cookie_creation_time :: UTCTime
+  , cookie_last_access_time :: UTCTime
+  , cookie_persistent :: Bool
+  , cookie_host_only :: Bool
+  , cookie_secure_only :: Bool
+  , cookie_http_only :: Bool
+  }
+  deriving (Show)
+
+newtype CookieJar = CJ { expose :: [Cookie] }
+
+-- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
+instance Eq Cookie where
+  (==) a b = name_matches && domain_matches && path_matches
+    where name_matches = cookie_name a == cookie_name b
+          domain_matches = cookie_domain a == cookie_domain b
+          path_matches = cookie_path a == cookie_path b
+instance Ord Cookie where
+  compare c1 c2
+    | S.length (cookie_path c1) > S.length (cookie_path c2) = LT
+    | S.length (cookie_path c1) < S.length (cookie_path c2) = GT
+    | cookie_creation_time c1 > cookie_creation_time c2 = GT
+    | otherwise = LT
+
+-- | empty cookie jar
+instance Default CookieJar where
+  def = CJ []
+
+instance Eq CookieJar where
+  (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
+
+instance Show CookieJar where
+  show = show . expose
+
 -- | Since 1.1.2.
 instance Functor Response where
-    fmap f (Response status v headers body) = Response status v headers (f body)
+    fmap f response = response {responseBody = f (responseBody response)}
 
 -- | Since 1.8.7
 instance Show (RequestBody m) where

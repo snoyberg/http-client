@@ -36,6 +36,31 @@ import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (fromByteString, toByteString)
 import System.IO
 import Data.Monoid (mconcat)
+import Data.Time.Clock
+import Data.Time.Calendar
+
+past :: UTCTime
+past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
+
+future :: UTCTime
+future = UTCTime (ModifiedJulianDay 562000) (secondsToDiffTime 0)
+
+cookie :: Cookie
+cookie = Cookie { cookie_name = "key"
+                , cookie_value = "value"
+                , cookie_expiry_time = future
+                , cookie_domain = "127.0.0.1"
+                , cookie_path = "/dump_cookies"
+                , cookie_creation_time = past
+                , cookie_last_access_time = past
+                , cookie_persistent = False
+                , cookie_host_only = False
+                , cookie_secure_only = False
+                , cookie_http_only = False
+                }
+
+cookie_jar :: CookieJar
+cookie_jar = createCookieJar [cookie]
 
 app :: Application
 app req =
@@ -51,6 +76,7 @@ app req =
             in return $ responseLBS status303
                     [(hLocation, S.append "/infredir/" $ S8.pack $ show $ i+1)]
                     (L8.pack $ show i)
+        ["dump_cookies"] -> return $ responseLBS status200 [] $ L.fromChunks $ return $ maybe "" id $ lookup hCookie $ Wai.requestHeaders req
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -110,6 +136,21 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 response <- httpLbs request manager
                 liftIO $ (responseBody response) @?= "nom-nom-nom"
+        it "user-defined cookie jar works" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
+            withManager $ \manager -> do
+                response <- httpLbs (request {redirectCount = 1, initialCookieJar = cookie_jar}) manager
+                liftIO $ (responseBody response) @?= "key=value"
+        it "user-defined cookie jar is ignored when redirection is disabled" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
+            withManager $ \manager -> do
+                response <- httpLbs (request {redirectCount = 0, initialCookieJar = cookie_jar}) manager
+                liftIO $ (responseBody response) @?= ""
+        it "cookie jar is available in response" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
+            withManager $ \manager -> do
+                response <- httpLbs request manager
+                liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
     describe "manager" $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             clearSocketsList

@@ -94,12 +94,14 @@ module Network.HTTP.Conduit
     , redirectCount
     , checkStatus
     , responseTimeout
+    , initialCookieJar
       -- * Response
     , Response
     , responseStatus
     , responseVersion
     , responseHeaders
     , responseBody
+    , responseCookieJar
       -- * Manager
     , Manager
     , newManager
@@ -174,6 +176,7 @@ import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Cookies
 import Network.HTTP.Conduit.Internal (httpRedirect)
+import Network.HTTP.Conduit.Types
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -200,21 +203,21 @@ http
     -> Manager
     -> m (Response (C.ResumableSource m S.ByteString))
 http req0 manager = do
-    res@(Response status _version hs body) <-
+    res <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
-            else go (redirectCount req0) req0 def
-    case checkStatus req0 status hs of
+            else go (redirectCount req0) req0 (initialCookieJar req0)
+    case checkStatus req0 (responseStatus res) (responseHeaders res) of
         Nothing -> return res
         Just exc -> do
             exc' <-
                 case fromException exc of
                     Just (StatusCodeException s hdrs) -> do
-                        lbs <- body C.$$+- CB.take 1024
+                        lbs <- (responseBody res) C.$$+- CB.take 1024
                         return $ toException $ StatusCodeException s $ hdrs ++
                             [("X-Response-Body-Start", S.concat $ L.toChunks lbs)]
                     _ -> do
-                        let CI.ResumableSource _ final = body
+                        let CI.ResumableSource _ final = (responseBody res)
                         final
                         return exc
             liftIO $ throwIO exc'
@@ -230,7 +233,7 @@ http req0 manager = do
         let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
         put cookie_jar
         let mreq = getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res))
-        return (res, mreq))
+        return (res {responseCookieJar = cookie_jar}, mreq))
       lift
       req'''
 

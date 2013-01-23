@@ -5,6 +5,7 @@ import Test.Hspec
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
 import Network.HTTP.Conduit.Cookies
+import Network.HTTP.Conduit.Types
 import qualified Network.HTTP.Conduit as HC
 import Data.ByteString.UTF8
 import Data.Maybe
@@ -106,8 +107,8 @@ testDefaultPathEndingInSlash = TestCase $ assertEqual "Getting default path that
 
 testSamePathsMatch :: Test
 testSamePathsMatch = TestCase $ assertBool "The same path should match" $
-  pathMatches path path
-  where path = fromString "/a/path"
+  pathMatches path' path'
+  where path' = fromString "/a/path"
 
 testPathSlashAtEnd :: Test
 testPathSlashAtEnd = TestCase $ assertBool "Putting the slash at the end should still match paths" $
