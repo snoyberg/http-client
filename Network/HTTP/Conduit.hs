@@ -75,7 +75,6 @@ module Network.HTTP.Conduit
       -- * Datatypes
     , Proxy (..)
     , RequestBody (..)
-    , Response (..)
       -- ** Request
     , Request
     , def
@@ -95,6 +94,12 @@ module Network.HTTP.Conduit
     , redirectCount
     , checkStatus
     , responseTimeout
+      -- * Response
+    , Response
+    , responseStatus
+    , responseVersion
+    , responseHeaders
+    , responseBody
       -- * Manager
     , Manager
     , newManager

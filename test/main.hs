@@ -101,15 +101,15 @@ main = withSocketsDo $ do
         it "preserves 'set-cookie' headers" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
-                Response _ _ headers _ <- httpLbs request manager
+                response <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
-                    (setCookieHeaders, _) = partition ((== setCookie) . fst) headers
+                    (setCookieHeaders, _) = partition ((== setCookie) . fst) (responseHeaders response)
                 liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
         it "redirects set cookies" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookie_redir1"]
             withManager $ \manager -> do
-                Response _ _ _ body <- httpLbs request manager
-                liftIO $ body @?= "nom-nom-nom"
+                response <- httpLbs request manager
+                liftIO $ (responseBody response) @?= "nom-nom-nom"
     describe "manager" $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             clearSocketsList
@@ -212,7 +212,7 @@ main = withSocketsDo $ do
     describe "HTTP/1.0" $ do
         it "BaseHTTP" $ do
             let baseHTTP app' = do
-                    appSource app' $$ await
+                    _ <- appSource app' $$ await
                     yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" $$ appSink app'
             withCApp baseHTTP $ \port -> withManager $ \manager -> do
                 req <- parseUrl $ "http://127.0.0.1:" ++ show port
