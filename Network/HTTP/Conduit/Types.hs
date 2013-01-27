@@ -26,7 +26,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Network.Socks5 (SocksConf)
 
-import Control.Exception (Exception, SomeException)
+import Control.Exception (Exception, SomeException, IOException)
 
 import Data.Certificate.X509 (X509)
 import Network.TLS (PrivateKey)
@@ -171,6 +171,7 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | ExpectedBlankAfter100Continue
                    | InvalidStatusLine S.ByteString
                    | InvalidHeader S.ByteString
+                   | InternalIOException IOException
     deriving (Show, Typeable)
 instance Exception HttpException
 

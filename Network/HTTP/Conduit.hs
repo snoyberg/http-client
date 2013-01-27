@@ -147,7 +147,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
-import Control.Exception.Lifted (throwIO)
+import Control.Exception.Lifted (throwIO, handle)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
@@ -194,7 +194,7 @@ http
     => Request m
     -> Manager
     -> m (Response (C.ResumableSource m S.ByteString))
-http req0 manager = do
+http req0 manager = wrapIOException $ do
     res@(Response status _version hs body) <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
@@ -283,7 +283,10 @@ httpRaw req m = do
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 httpLbs :: (MonadBaseControl IO m, MonadResource m) => Request m -> Manager -> m (Response L.ByteString)
-httpLbs r = lbsResponse <=< http r
+httpLbs r = wrapIOException . (lbsResponse <=< http r)
+
+wrapIOException :: MonadBaseControl IO m => m a -> m a
+wrapIOException = handle $ throwIO . InternalIOException
 
 -- | Download the specified URL, following any redirects, and
 -- return the response body.
