@@ -212,6 +212,7 @@ data Cookie = Cookie
   deriving (Show)
 
 newtype CookieJar = CJ { expose :: [Cookie] }
+  deriving (Show)
 
 -- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
 instance Eq Cookie where
@@ -219,6 +220,7 @@ instance Eq Cookie where
     where name_matches = cookie_name a == cookie_name b
           domain_matches = cookie_domain a == cookie_domain b
           path_matches = cookie_path a == cookie_path b
+
 instance Ord Cookie where
   compare c1 c2
     | S.length (cookie_path c1) > S.length (cookie_path c2) = LT
@@ -226,15 +228,15 @@ instance Ord Cookie where
     | cookie_creation_time c1 > cookie_creation_time c2 = GT
     | otherwise = LT
 
--- | empty cookie jar
 instance Default CookieJar where
   def = CJ []
 
 instance Eq CookieJar where
   (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
 
-instance Show CookieJar where
-  show = show . expose
+instance Monoid CookieJar where
+  mempty = def
+  (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sort $ a `mappend` b)
 
 -- | Since 1.1.2.
 instance Functor Response where
