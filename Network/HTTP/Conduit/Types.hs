@@ -234,6 +234,7 @@ instance Default CookieJar where
 instance Eq CookieJar where
   (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
 
+-- | Since 1.9
 instance Monoid CookieJar where
   mempty = def
   (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sort $ a `mappend` b)
