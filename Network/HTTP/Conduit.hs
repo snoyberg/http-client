@@ -196,7 +196,9 @@ import Network.HTTP.Conduit.Types
 -- into a 'C.Sink', perhaps a file or another socket.
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
--- specified by the 'redirectCount' setting.
+-- specified by the 'redirectCount' setting. If 'redirectCount' is zero,
+-- the 'initialCookieJar' field will be ignored. If 'redirectCount' is
+-- non-zero, any \"Cookie\" header in the request will be stripped out.
 http
     :: (MonadResource m, MonadBaseControl IO m)
     => Request m
