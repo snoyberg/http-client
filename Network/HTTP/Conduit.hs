@@ -187,6 +187,33 @@ import Network.HTTP.Conduit.Internal (httpRedirect)
 -- You may also directly connect the returned 'C.Source'
 -- into a 'C.Sink', perhaps a file or another socket.
 --
+-- An important note: the response body returned by this function represents a
+-- live HTTP connection. As such, if you do not use the response body, an open
+-- socket will be retained until the containing @ResourceT@ block exits. If you
+-- do not need the response body, it is recommended that you explicitly shut
+-- down the connection immediately, using the pattern:
+--
+-- > responseBody res $$+- return ()
+--
+-- As a more thorough example, consider the following program. Without the
+-- explicit response body closing, the program will run out of file descriptors
+-- around the 1000th request (depending on the operating system limits).
+--
+-- > import Control.Monad          (replicateM_)
+-- > import Control.Monad.IO.Class (liftIO)
+-- > import Data.Conduit           (($$+-))
+-- > import Network                (withSocketsDo)
+-- > import Network.HTTP.Conduit
+-- >
+-- > main = withSocketsDo $ withManager $ \manager -> do
+-- >     req <- parseUrl "http://localhost/"
+-- >     mapM_ (worker manager req) [1..5000]
+-- >
+-- > worker manager req i = do
+-- >     res <- http req manager
+-- >     responseBody res $$+- return () -- The important line
+-- >     liftIO $ print (i, responseStatus res)
+--
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 http
