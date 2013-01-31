@@ -158,8 +158,6 @@ import Control.Exception.Lifted (throwIO)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
-import Control.Monad.Trans.State (get, put, evalStateT)
-import Control.Monad.Trans (lift)
 
 import Control.Exception (fromException, toException)
 import qualified Data.Conduit as C
@@ -196,9 +194,8 @@ import Network.HTTP.Conduit.Types
 -- into a 'C.Sink', perhaps a file or another socket.
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
--- specified by the 'redirectCount' setting. If 'redirectCount' is zero,
--- the 'initialCookieJar' field will be ignored. If 'redirectCount' is
--- non-zero, any \"Cookie\" header in the request will be stripped out.
+-- specified by the 'redirectCount' setting. Any \"Cookie\" header in the
+-- request will be stripped out.
 http
     :: (MonadResource m, MonadBaseControl IO m)
     => Request m
@@ -208,36 +205,30 @@ http req0 manager = do
     res <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
-            else go (redirectCount req0) req0 (initialCookieJar req0)
-    case checkStatus req0 (responseStatus res) (responseHeaders res) of
+            else go (redirectCount req0) req0
+    case checkStatus req0 (responseStatus res) (responseHeaders res) (responseCookieJar res) of
         Nothing -> return res
         Just exc -> do
             exc' <-
                 case fromException exc of
-                    Just (StatusCodeException s hdrs) -> do
+                    Just (StatusCodeException s hdrs cookie_jar) -> do
                         lbs <- (responseBody res) C.$$+- CB.take 1024
-                        return $ toException $ StatusCodeException s $ hdrs ++
-                            [("X-Response-Body-Start", S.concat $ L.toChunks lbs)]
+                        return $ toException $ StatusCodeException s (hdrs ++
+                            [("X-Response-Body-Start", S.concat $ L.toChunks lbs)]) cookie_jar
                     _ -> do
                         let CI.ResumableSource _ final = (responseBody res)
                         final
                         return exc
             liftIO $ throwIO exc'
   where
-    go count req''' cookie_jar''' = (`evalStateT` cookie_jar''') $
-      httpRedirect
+    go count req' = httpRedirect
       count
-      (\req'' -> do
-        cookie_jar'' <- get
-        now <- liftIO getCurrentTime
-        let (req', cookie_jar') = insertCookiesIntoRequest req'' (evictExpiredCookies cookie_jar'' now) now
-        res <- lift $ httpRaw req' manager
-        let (cookie_jar, _) = updateCookieJar res req' now cookie_jar'
-        put cookie_jar
-        let mreq = getRedirectedRequest req' (responseHeaders res) (W.statusCode (responseStatus res))
-        return (res {responseCookieJar = cookie_jar}, mreq))
-      lift
-      req'''
+      (\req -> do
+        res <- httpRaw req manager
+        let mreq = getRedirectedRequest req (responseHeaders res) (responseCookieJar res) (W.statusCode (responseStatus res))
+        return (res, mreq))
+      id
+      req'
 
 -- | Get a 'Response' without any redirect following.
 httpRaw
@@ -245,7 +236,9 @@ httpRaw
      => Request m
      -> Manager
      -> m (Response (C.ResumableSource m S.ByteString))
-httpRaw req m = do
+httpRaw req' m = do
+    now <- liftIO getCurrentTime
+    let (req, cookie_jar') = insertCookiesIntoRequest req' (evictExpiredCookies (initialCookieJar req') now) now
     (connRelease, ci, isManaged) <- getConnectionWrapper
         req
         (responseTimeout req)
@@ -270,7 +263,9 @@ httpRaw req m = do
         (Left e, Fresh) -> liftIO $ throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the response body, just throw them as normal.
-        (Right x, _) -> return x
+        (Right res, _) -> do
+            let (cookie_jar, _) = updateCookieJar res req now cookie_jar'
+            return $ res {responseCookieJar = cookie_jar}
   where
     try' :: MonadBaseControl IO m => m a -> m (Either IOException a)
     try' = try
