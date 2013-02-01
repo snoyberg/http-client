@@ -29,6 +29,7 @@
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
 --
+-- * Cookie
 -- * Content-Length
 --
 -- Note: In previous versions, the Host header would be set by this module in
@@ -36,6 +37,42 @@
 -- @requestHeaders@, it will be used in place of the header this module would
 -- have generated. This can be useful for calling a server which utilizes
 -- virtual hosting.
+--
+-- Use `initialCookieJar` If you want to supply cookies with your request:
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > import Network.HTTP.Conduit
+-- > import Network
+-- > import Data.Time.Clock
+-- > import Data.Time.Calendar
+-- > import qualified Control.Exception as E
+-- >
+-- > past :: UTCTime
+-- > past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
+-- > 
+-- > future :: UTCTime
+-- > future = UTCTime (ModifiedJulianDay 562000) (secondsToDiffTime 0)
+-- > 
+-- > cookie :: Cookie
+-- > cookie = Cookie { cookie_name = "password_hash"
+-- >                 , cookie_value = "abf472c35f8297fbcabf2911230001234fd2"
+-- >                 , cookie_expiry_time = future
+-- >                 , cookie_domain = "example.com"
+-- >                 , cookie_path = "/"
+-- >                 , cookie_creation_time = past
+-- >                 , cookie_last_access_time = past
+-- >                 , cookie_persistent = False
+-- >                 , cookie_host_only = False
+-- >                 , cookie_secure_only = False
+-- >                 , cookie_http_only = False
+-- >                 }
+-- >
+-- > main = withSocketsDo $ do
+-- >      request' <- parseUrl "http://example.com/secret-page"
+-- >      let request = request' { initialCookieJar = createCookieJar [cookie] }
+-- >      E.catch (withManager $ httpLbs request)
+-- >              (\(StatusCodeException s _ _) ->
+-- >                if statusCode==403 then putStrLn "login failed" else return ())
 --
 -- Any network code on Windows requires some initialization, and the network
 -- library provides withSocketsDo to perform it. Therefore, proper usage of
@@ -194,8 +231,7 @@ import Network.HTTP.Conduit.Types
 -- into a 'C.Sink', perhaps a file or another socket.
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
--- specified by the 'redirectCount' setting. Any \"Cookie\" header in the
--- request will be stripped out.
+-- specified by the 'redirectCount' setting.
 http
     :: (MonadResource m, MonadBaseControl IO m)
     => Request m
