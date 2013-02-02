@@ -30,6 +30,7 @@
 -- be added to 'requestHeaders':
 --
 -- * Content-Length
+-- * Transfer-Encoding
 --
 -- Note: In previous versions, the Host header would be set by this module in
 -- all cases. Starting from 1.6.1, if a Host header is present in
