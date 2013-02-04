@@ -293,7 +293,8 @@ httpRaw req' m = do
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the response body, just throw them as normal.
         (Right res, _) -> do
-            let (cookie_jar, _) = updateCookieJar res req now cookie_jar'
+            now' <- liftIO getCurrentTime
+            let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
             return $ res {responseCookieJar = cookie_jar}
   where
     try' :: MonadBaseControl IO m => m a -> m (Either IOException a)
