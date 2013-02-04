@@ -7,6 +7,14 @@ module Network.HTTP.Conduit.Internal
     , setUri
     , setUriRelative
     , httpRedirect
+      -- * Cookie functions
+    , updateCookieJar
+    , receiveSetCookie
+    , generateCookie
+    , insertCheckedCookie
+    , insertCookiesIntoRequest
+    , computeCookieString
+    , evictExpiredCookies
     ) where
 
 import Network.HTTP.Conduit.Parser
@@ -23,6 +31,7 @@ import Data.Conduit.List (sinkNull)
 
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Response
+import Network.HTTP.Conduit.Cookies
 
 -- | Redirect loop
 httpRedirect

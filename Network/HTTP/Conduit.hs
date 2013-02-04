@@ -157,13 +157,6 @@ module Network.HTTP.Conduit
     , CookieJar
     , createCookieJar
     , destroyCookieJar
-    , updateCookieJar
-    , receiveSetCookie
-    , generateCookie
-    , insertCheckedCookie
-    , insertCookiesIntoRequest
-    , computeCookieString
-    , evictExpiredCookies
       -- * Utility functions
     , parseUrl
     , applyBasicAuth
