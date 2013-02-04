@@ -165,7 +165,7 @@ instance Default (Request m) where
                     case mres of
                         Nothing -> throwIO exc
                         Just res -> return res
-        , initialCookieJar = def
+        , cookieJar = def
         }
 
 -- | Always decompress a compressed stream.

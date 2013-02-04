@@ -72,9 +72,9 @@ getRedirectedRequest req hs cookie_jar code
                 then req'
                     { method = "GET"
                     , requestBody = RequestBodyBS ""
-                    , initialCookieJar = cookie_jar
+                    , cookieJar = cookie_jar
                     }
-                else req' {initialCookieJar = cookie_jar}
+                else req' {cookieJar = cookie_jar}
     | otherwise = Nothing
 
 -- | Convert a 'Response' that has a 'Source' body to one with a lazy

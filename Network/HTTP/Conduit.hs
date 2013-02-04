@@ -131,7 +131,7 @@ module Network.HTTP.Conduit
     , redirectCount
     , checkStatus
     , responseTimeout
-    , initialCookieJar
+    , cookieJar
       -- * Response
     , Response
     , responseStatus
@@ -274,7 +274,7 @@ httpRaw
      -> m (Response (C.ResumableSource m S.ByteString))
 httpRaw req' m = do
     now <- liftIO getCurrentTime
-    let (req, cookie_jar') = insertCookiesIntoRequest req' (evictExpiredCookies (initialCookieJar req') now) now
+    let (req, cookie_jar') = insertCookiesIntoRequest req' (evictExpiredCookies (cookieJar req') now) now
     (connRelease, ci, isManaged) <- getConnectionWrapper
         req
         (responseTimeout req)

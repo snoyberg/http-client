@@ -131,7 +131,7 @@ data Request m = Request
     -- institutes a timeout half of the length of @responseTimeout@.
     --
     -- Since 1.8.6
-    , initialCookieJar :: CookieJar
+    , cookieJar :: CookieJar
     -- ^ A user-defined cookie jar to start the request chain off. Note that this
     -- field is ignored in 'http' if 'redirectCount' is set to 0.
     --

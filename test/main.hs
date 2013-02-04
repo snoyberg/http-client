@@ -139,12 +139,12 @@ main = withSocketsDo $ do
         it "user-defined cookie jar works" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {redirectCount = 1, initialCookieJar = cookie_jar}) manager
+                response <- httpLbs (request {redirectCount = 1, cookieJar = cookie_jar}) manager
                 liftIO $ (responseBody response) @?= "key=value"
         it "user-defined cookie jar is not ignored when redirection is disabled" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {redirectCount = 0, initialCookieJar = cookie_jar}) manager
+                response <- httpLbs (request {redirectCount = 0, cookieJar = cookie_jar}) manager
                 liftIO $ (responseBody response) @?= "key=value"
         it "cookie jar is available in response" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
