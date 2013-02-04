@@ -38,7 +38,7 @@
 -- have generated. This can be useful for calling a server which utilizes
 -- virtual hosting.
 --
--- Use `initialCookieJar` If you want to supply cookies with your request:
+-- Use `cookieJar` If you want to supply cookies with your request:
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- > import Network.HTTP.Conduit
@@ -69,7 +69,7 @@
 -- >
 -- > main = withSocketsDo $ do
 -- >      request' <- parseUrl "http://example.com/secret-page"
--- >      let request = request' { initialCookieJar = createCookieJar [cookie] }
+-- >      let request = request' { cookieJar = createCookieJar [cookie] }
 -- >      E.catch (withManager $ httpLbs request)
 -- >              (\(StatusCodeException s _ _) ->
 -- >                if statusCode==403 then putStrLn "login failed" else return ())
