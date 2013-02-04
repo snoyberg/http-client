@@ -59,7 +59,7 @@ import System.Timeout.Lifted (timeout)
 -- >                        return $ req' : l)
 -- >     where req' = req { redirectCount = 0 }
 -- >           nextRequest status headers cookie_jar = getRedirectedRequest req' headers cookie_jar $ W.statusCode status
-getRedirectedRequest :: Request m -> W.ResponseHeaders -> CookieJar -> Int -> Maybe (Request m)
+getRedirectedRequest :: Request m -> W.ResponseHeaders -> Maybe CookieJar -> Int -> Maybe (Request m)
 getRedirectedRequest req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs

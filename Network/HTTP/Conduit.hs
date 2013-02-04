@@ -266,8 +266,11 @@ httpRaw
      -> Manager
      -> m (Response (C.ResumableSource m S.ByteString))
 httpRaw req' m = do
-    now <- liftIO getCurrentTime
-    let (req, cookie_jar') = insertCookiesIntoRequest req' (evictExpiredCookies (cookieJar req') now) now
+    (req, cookie_jar') <- case cookieJar req' of
+        Just cj -> do
+            now <- liftIO getCurrentTime
+            return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
+        Nothing -> return (req', def)
     (connRelease, ci, isManaged) <- getConnectionWrapper
         req
         (responseTimeout req)
@@ -292,10 +295,12 @@ httpRaw req' m = do
         (Left e, Fresh) -> liftIO $ throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the response body, just throw them as normal.
-        (Right res, _) -> do
-            now' <- liftIO getCurrentTime
-            let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
-            return $ res {responseCookieJar = cookie_jar}
+        (Right res, _) -> case cookieJar req' of
+            Just _ -> do
+                now' <- liftIO getCurrentTime
+                let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
+                return $ res {responseCookieJar = Just cookie_jar}
+            Nothing -> return res
   where
     try' :: MonadBaseControl IO m => m a -> m (Either IOException a)
     try' = try
