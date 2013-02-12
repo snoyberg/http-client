@@ -156,7 +156,7 @@ data Proxy = Proxy
     { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
-    deriving (Show, Read, Eq, Typeable)
+    deriving (Show, Read, Eq, Ord, Typeable)
 
 data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | InvalidUrlException String String
