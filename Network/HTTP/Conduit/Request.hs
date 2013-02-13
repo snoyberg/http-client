@@ -139,6 +139,25 @@ setUri req uri = do
                     False {- HTTP -} -> return 80
                     True {- HTTPS -} -> return 443
 
+instance Show (Request m) where
+    show x = unlines
+        [ "Request {"
+        , "  host                 = " ++ show (host x)
+        , "  port                 = " ++ show (port x)
+        , "  secure               = " ++ show (secure x)
+        , "  clientCertificates   = " ++ show (clientCertificates x)
+        , "  requestHeaders       = " ++ show (requestHeaders x)
+        , "  path                 = " ++ show (path x)
+        , "  queryString          = " ++ show (queryString x)
+        , "  requestBody          = " ++ show (requestBody x)
+        , "  method               = " ++ show (method x)
+        , "  proxy                = " ++ show (proxy x)
+        , "  rawBody              = " ++ show (rawBody x)
+        , "  redirectCount        = " ++ show (redirectCount x)
+        , "  responseTimeout      = " ++ show (responseTimeout x)
+        , "}"
+        ]
+
 instance Default (Request m) where
     def = Request
         { host = "localhost"
