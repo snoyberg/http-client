@@ -9,6 +9,7 @@ import Network.Wai hiding (requestBody)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop)
 import Network.HTTP.Conduit hiding (port)
+import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Conduit.MultipartFormData
 import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar)
 import Network.HTTP.Types
@@ -139,18 +140,31 @@ main = withSocketsDo $ do
         it "user-defined cookie jar works" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {redirectCount = 1, initialCookieJar = cookie_jar}) manager
+                response <- httpLbs (request {redirectCount = 1, cookieJar = Just cookie_jar}) manager
                 liftIO $ (responseBody response) @?= "key=value"
-        it "user-defined cookie jar is ignored when redirection is disabled" $ withApp app $ \port -> do
+        it "user-defined cookie jar is not ignored when redirection is disabled" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {redirectCount = 0, initialCookieJar = cookie_jar}) manager
-                liftIO $ (responseBody response) @?= ""
+                response <- httpLbs (request {redirectCount = 0, cookieJar = Just cookie_jar}) manager
+                liftIO $ (responseBody response) @?= "key=value"
         it "cookie jar is available in response" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
-                response <- httpLbs request manager
-                liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
+                response <- httpLbs (request {cookieJar = Just def}) manager
+                case responseCookieJar response of
+                    Just cj -> liftIO $ (length $ destroyCookieJar cj) @?= 1
+                    Nothing -> fail "We supplied a cookie jar so we should get one back"
+        it "Cookie header isn't touched when no cookie jar supplied" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
+            withManager $ \manager -> do
+                let request_headers = (mk "Cookie", "key2=value2") : filter ((/= mk "Cookie") . fst) (NHC.requestHeaders request)
+                response <- httpLbs (request {NHC.requestHeaders = request_headers, cookieJar = Nothing}) manager
+                liftIO $ (responseBody response) @?= "key2=value2"
+        it "Response cookie jar is nothing when request cookie jar is nothing" $ withApp app $ \port -> do
+            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
+            withManager $ \manager -> do
+                response <- httpLbs (request {cookieJar = Nothing}) manager
+                liftIO $ (responseCookieJar response) @?= Nothing
     describe "manager" $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             clearSocketsList

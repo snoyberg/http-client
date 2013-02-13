@@ -32,7 +32,7 @@ import qualified Data.Conduit.List as CL
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference)
 
-import Network.HTTP.Conduit.Types (Response (..))
+import Network.HTTP.Conduit.Types (Response (..), CookieJar)
 
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.Request
@@ -54,13 +54,13 @@ import System.Timeout.Lifted (timeout)
 -- themselves. An example of that might look like this:
 --
 -- > myHttp req man = E.catch (runResourceT $ http req' man >> return [req'])
--- >                    (\ (StatusCodeException status headers) -> do
--- >                        l <- myHttp (fromJust $ nextRequest status headers) man
+-- >                    (\ (StatusCodeException status headers cookie_jar) -> do
+-- >                        l <- myHttp (fromJust $ nextRequest status headers cookie_jar) man
 -- >                        return $ req' : l)
 -- >     where req' = req { redirectCount = 0 }
--- >           nextRequest status headers = getRedirectedRequest req' headers $ W.statusCode status
-getRedirectedRequest :: Request m -> W.ResponseHeaders -> Int -> Maybe (Request m)
-getRedirectedRequest req hs code
+-- >           nextRequest status headers cookie_jar = getRedirectedRequest req' headers cookie_jar $ W.statusCode status
+getRedirectedRequest :: Request m -> W.ResponseHeaders -> Maybe CookieJar -> Int -> Maybe (Request m)
+getRedirectedRequest req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
         req' <- setUriRelative req =<< parseURIReference (S8.unpack l')
@@ -72,8 +72,9 @@ getRedirectedRequest req hs code
                 then req'
                     { method = "GET"
                     , requestBody = RequestBodyBS ""
+                    , cookieJar = cookie_jar
                     }
-                else req'
+                else req' {cookieJar = cookie_jar}
     | otherwise = Nothing
 
 -- | Convert a 'Response' that has a 'Source' body to one with a lazy

@@ -152,10 +152,10 @@ instance Default (Request m) where
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10
-        , checkStatus = \s@(W.Status sci _) hs ->
+        , checkStatus = \s@(W.Status sci _) hs cookie_jar ->
             if 200 <= sci && sci < 300
                 then Nothing
-                else Just $ toException $ StatusCodeException s hs
+                else Just $ toException $ StatusCodeException s hs cookie_jar
         , responseTimeout = Just 5000000
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
@@ -165,7 +165,7 @@ instance Default (Request m) where
                     case mres of
                         Nothing -> throwIO exc
                         Just res -> return res
-        , initialCookieJar = def
+        , cookieJar = Just def
         }
 
 -- | Always decompress a compressed stream.
