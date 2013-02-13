@@ -103,12 +103,13 @@ checkHeaderLength len (Leftover p i) = Leftover (checkHeaderLength (len + S.leng
 
 getResponse :: (MonadResource m, MonadBaseControl IO m)
             => ConnRelease m
+            -> Maybe Int
             -> Request m
             -> Source m S8.ByteString
             -> m (Response (ResumableSource m S8.ByteString))
-getResponse connRelease req@(Request {..}) src1 = do
+getResponse connRelease timeout'' req@(Request {..}) src1 = do
     let timeout' =
-            case responseTimeout of
+            case timeout'' of
                 Nothing -> id
                 Just useconds -> \ma -> do
                     x <- timeout useconds ma
