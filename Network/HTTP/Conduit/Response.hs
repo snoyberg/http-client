@@ -42,7 +42,7 @@ import Data.Void (Void, absurd)
 
 import System.Timeout.Lifted (timeout)
 #if MIN_VERSION_conduit(1, 0, 0)
-import Data.Conduit.Internal (Sink (..))
+import Data.Conduit.Internal (ConduitM (..))
 #endif
 
 -- | If a request is a redirection (status code 3xx) this function will create
@@ -121,7 +121,7 @@ getResponse connRelease req@(Request {..}) src1 = do
                         Just y -> return y
     (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+
 #if MIN_VERSION_conduit(1, 0, 0)
-        Sink (checkHeaderLength 4096 $ unSink sinkHeaders')
+        ConduitM (checkHeaderLength 4096 $ unConduitM sinkHeaders')
 #else
         (checkHeaderLength 4096 sinkHeaders')
 #endif
