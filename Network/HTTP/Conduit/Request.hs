@@ -118,6 +118,7 @@ setUri req uri = do
         , queryString = S8.pack $ uriQuery uri
         }
   where
+    failUri :: Failure HttpException m => String -> m a
     failUri = failure . InvalidUrlException (show uri)
 
     parseScheme URI{uriScheme = scheme} =
