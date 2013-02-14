@@ -299,7 +299,7 @@ httpRaw req' m = do
             Just _ -> do
                 now' <- liftIO getCurrentTime
                 let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
-                return $ res {responseCookieJar = Just cookie_jar}
+                return $ res {responseCookieJar = cookie_jar}
             Nothing -> return res
   where
     try' :: MonadBaseControl IO m => m a -> m (Either IOException a)

@@ -111,7 +111,7 @@ data Request m = Request
     , redirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. 0 means follow
     -- no redirects. Default value: 10.
-    , checkStatus :: W.Status -> W.ResponseHeaders -> Maybe CookieJar -> Maybe SomeException
+    , checkStatus :: W.Status -> W.ResponseHeaders -> CookieJar -> Maybe SomeException
     -- ^ Check the status code. Note that this will run after all redirects are
     -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
     , responseTimeout :: Maybe Int
@@ -169,7 +169,7 @@ data Proxy = Proxy
     }
     deriving (Show, Read, Eq, Typeable)
 
-data HttpException = StatusCodeException W.Status W.ResponseHeaders (Maybe CookieJar)
+data HttpException = StatusCodeException W.Status W.ResponseHeaders CookieJar
                    | InvalidUrlException String String
                    | TooManyRedirects [Response L.ByteString]  -- ^ List of encountered responses containing redirects in reverse chronological order; including last redirect, which triggered the exception and was not followed.
                    | UnparseableRedirect (Response L.ByteString) -- ^ Response containing unparseable redirect.
@@ -191,7 +191,7 @@ data Response body = Response
     , responseVersion :: W.HttpVersion
     , responseHeaders :: W.ResponseHeaders
     , responseBody :: body
-    , responseCookieJar :: Maybe CookieJar
+    , responseCookieJar :: CookieJar
     }
     deriving (Show, Eq, Typeable)
 

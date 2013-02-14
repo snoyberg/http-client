@@ -151,9 +151,7 @@ main = withSocketsDo $ do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
                 response <- httpLbs (request {cookieJar = Just def}) manager
-                case responseCookieJar response of
-                    Just cj -> liftIO $ (length $ destroyCookieJar cj) @?= 1
-                    Nothing -> fail "We supplied a cookie jar so we should get one back"
+                liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
         it "Cookie header isn't touched when no cookie jar supplied" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
@@ -164,7 +162,7 @@ main = withSocketsDo $ do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
                 response <- httpLbs (request {cookieJar = Nothing}) manager
-                liftIO $ (responseCookieJar response) @?= Nothing
+                liftIO $ (responseCookieJar response) @?= def
     describe "manager" $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             clearSocketsList
