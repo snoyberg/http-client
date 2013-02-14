@@ -184,17 +184,13 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
-import Control.Exception.Lifted (throwIO)
+import Control.Exception.Lifted (throwIO, try, IOException)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
 
-import Control.Exception (fromException, toException)
 import qualified Data.Conduit as C
-import qualified Data.Conduit.Binary as CB
-import qualified Data.Conduit.Internal as CI
 import Data.Conduit.Blaze (builderToByteString)
-import Control.Exception.Lifted (try, IOException)
 
 import Data.Time.Clock
 
@@ -203,7 +199,7 @@ import Network.HTTP.Conduit.Response
 import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Cookies
-import Network.HTTP.Conduit.Internal (httpRedirect)
+import Network.HTTP.Conduit.Internal (httpRedirect, applyCheckStatus)
 import Network.HTTP.Conduit.Types
 
 -- | The most low-level function for initiating an HTTP request.
@@ -235,20 +231,8 @@ http req0 manager = do
         if redirectCount req0 == 0
             then httpRaw req0 manager
             else go (redirectCount req0) req0
-    case checkStatus req0 (responseStatus res) (responseHeaders res) (responseCookieJar res) of
-        Nothing -> return res
-        Just exc -> do
-            exc' <-
-                case fromException exc of
-                    Just (StatusCodeException s hdrs cookie_jar) -> do
-                        lbs <- (responseBody res) C.$$+- CB.take 1024
-                        return $ toException $ StatusCodeException s (hdrs ++
-                            [("X-Response-Body-Start", S.concat $ L.toChunks lbs)]) cookie_jar
-                    _ -> do
-                        let CI.ResumableSource _ final = (responseBody res)
-                        final
-                        return exc
-            liftIO $ throwIO exc'
+    applyCheckStatus (checkStatus req0) res
+    return res
   where
     go count req' = httpRedirect
       count

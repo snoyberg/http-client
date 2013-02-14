@@ -53,12 +53,19 @@ import System.Timeout.Lifted (timeout)
 -- specific request, that user has to re-implement the redirect-following logic
 -- themselves. An example of that might look like this:
 --
--- > myHttp req man = E.catch (runResourceT $ http req' man >> return [req'])
--- >                    (\ (StatusCodeException status headers cookie_jar) -> do
--- >                        l <- myHttp (fromJust $ nextRequest status headers cookie_jar) man
--- >                        return $ req' : l)
--- >     where req' = req { redirectCount = 0 }
--- >           nextRequest status headers cookie_jar = getRedirectedRequest req' headers cookie_jar $ W.statusCode status
+-- > myHttp req man = do
+-- >    (res, redirectRequests) <- (`runStateT` []) $
+-- >         'httpRedirect'
+-- >             9000
+-- >             (\req' -> do
+-- >                res <- http req'{redirectCount=0} man
+-- >                modify (\rqs -> req' : rqs)
+-- >                return (res, getRedirectedRequest req' (responseHeaders res) (responseCookieJar res) (W.statusCode (responseStatus res))
+-- >                )
+-- >             'lift'
+-- >             req
+-- >    applyCheckStatus (checkStatus req) res
+-- >    return redirectRequests
 getRedirectedRequest :: Request m -> W.ResponseHeaders -> Maybe CookieJar -> Int -> Maybe (Request m)
 getRedirectedRequest req hs cookie_jar code
     | 300 <= code && code < 400 = do
