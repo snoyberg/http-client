@@ -1,6 +1,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.Response
     ( Response (..)
     , getRedirectedRequest
@@ -42,6 +43,9 @@ import Network.HTTP.Conduit.Chunk
 import Data.Void (Void, absurd)
 
 import System.Timeout.Lifted (timeout)
+#if MIN_VERSION_conduit(1, 0, 0)
+import Data.Conduit.Internal (ConduitM (..))
+#endif
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -115,19 +119,25 @@ checkHeaderLength len (Leftover p i) = Leftover (checkHeaderLength (len + S.leng
 
 getResponse :: (MonadResource m, MonadBaseControl IO m)
             => ConnRelease m
+            -> Maybe Int
             -> Request m
             -> Source m S8.ByteString
             -> m (Response (ResumableSource m S8.ByteString))
-getResponse connRelease req@(Request {..}) src1 = do
+getResponse connRelease timeout'' req@(Request {..}) src1 = do
     let timeout' =
-            case responseTimeout of
+            case timeout'' of
                 Nothing -> id
                 Just useconds -> \ma -> do
                     x <- timeout useconds ma
                     case x of
                         Nothing -> liftIO $ throwIO ResponseTimeout
                         Just y -> return y
-    (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+ checkHeaderLength 4096 sinkHeaders'
+    (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+
+#if MIN_VERSION_conduit(1, 0, 0)
+        ConduitM (checkHeaderLength 4096 $ unConduitM sinkHeaders')
+#else
+        (checkHeaderLength 4096 sinkHeaders')
+#endif
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
     let hs' = map (first CI.mk) hs

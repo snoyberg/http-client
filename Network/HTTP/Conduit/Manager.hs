@@ -319,7 +319,7 @@ getSslConn :: MonadResource m
             -> m (ConnRelease m, ConnInfo, ManagedConn)
 getSslConn checkCert clientCerts man host' port' socksProxy' =
     getManagedConn man (ConnKey (T.pack host') port' True) $
-        (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc checkCert clientCerts)
+        (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc host' checkCert clientCerts)
   where
     desc = socketDesc host' port' "secured"
 
@@ -336,7 +336,7 @@ getSslProxyConn
             -> m (ConnRelease m, ConnInfo, ManagedConn)
 getSslProxyConn checkCert clientCerts thost tport man phost pport socksProxy' =
     getManagedConn man (ConnKey (T.pack phost) pport True) $
-        doConnect >>= sslClientConn desc checkCert clientCerts
+        doConnect >>= sslClientConn desc phost checkCert clientCerts
   where
     desc = socketDesc phost pport "secured-proxy"
     doConnect = do
