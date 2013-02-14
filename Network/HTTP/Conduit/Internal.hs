@@ -79,7 +79,7 @@ httpRedirect count0 http' lift' req0 = go count0 req0 []
 -- | Apply 'Request'\'s 'checkStatus' and throw resulting exception if any.
 applyCheckStatus
     :: (MonadResource m, MonadBaseControl IO m)
-    => (Status -> ResponseHeaders -> Maybe CookieJar -> Maybe SomeException)
+    => (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException)
     -> Response (C.ResumableSource m S.ByteString)
     -> m ()
 applyCheckStatus checkStatus' res =

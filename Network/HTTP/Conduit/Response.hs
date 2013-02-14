@@ -66,7 +66,7 @@ import System.Timeout.Lifted (timeout)
 -- >             req
 -- >    applyCheckStatus (checkStatus req) res
 -- >    return redirectRequests
-getRedirectedRequest :: Request m -> W.ResponseHeaders -> Maybe CookieJar -> Int -> Maybe (Request m)
+getRedirectedRequest :: Request m -> W.ResponseHeaders -> CookieJar -> Int -> Maybe (Request m)
 getRedirectedRequest req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
