@@ -135,7 +135,7 @@ data Request m = Request
     -- ^ A user-defined cookie jar.
     -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers
     -- in 'requestHeaders' will be sent raw, and 'responseCookieJar' will be
-    -- 'Nothing'.
+    -- empty.
     --
     -- Since 1.9.0
     }
@@ -240,7 +240,12 @@ instance Eq CookieJar where
 -- | Since 1.9
 instance Monoid CookieJar where
   mempty = def
-  (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sort $ a `mappend` b)
+  (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a `mappend` b)
+    where compare' c1 c2 =
+            -- inverse so that recent cookies are kept by nub over older
+            if cookie_creation_time c1 > cookie_creation_time c2
+                then LT
+                else GT
 
 -- | Since 1.1.2.
 instance Functor Response where
