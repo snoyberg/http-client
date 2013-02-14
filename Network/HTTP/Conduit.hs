@@ -49,10 +49,10 @@
 -- >
 -- > past :: UTCTime
 -- > past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
--- > 
+-- >
 -- > future :: UTCTime
 -- > future = UTCTime (ModifiedJulianDay 562000) (secondsToDiffTime 0)
--- > 
+-- >
 -- > cookie :: Cookie
 -- > cookie = Cookie { cookie_name = "password_hash"
 -- >                 , cookie_value = "abf472c35f8297fbcabf2911230001234fd2"
@@ -69,7 +69,7 @@
 -- >
 -- > main = withSocketsDo $ do
 -- >      request' <- parseUrl "http://example.com/secret-page"
--- >      let request = request' { cookieJar = createCookieJar [cookie] }
+-- >      let request = request' { cookieJar = Just $ createCookieJar [cookie] }
 -- >      E.catch (withManager $ httpLbs request)
 -- >              (\(StatusCodeException s _ _) ->
 -- >                if statusCode==403 then putStrLn "login failed" else return ())

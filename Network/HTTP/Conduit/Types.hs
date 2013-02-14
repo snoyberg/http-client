@@ -132,8 +132,10 @@ data Request m = Request
     --
     -- Since 1.8.6
     , cookieJar :: Maybe CookieJar
-    -- ^ A user-defined cookie jar to start the request chain off. If 'Nothing',
-    -- we won't touch the \'Cookie\' header.
+    -- ^ A user-defined cookie jar.
+    -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers
+    -- in 'requestHeaders' will be sent raw, and 'responseCookieJar' will be
+    -- 'Nothing'.
     --
     -- Since 1.9.0
     }
