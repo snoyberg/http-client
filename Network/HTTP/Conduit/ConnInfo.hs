@@ -42,7 +42,7 @@ import Data.Certificate.X509 (X509)
 
 import Crypto.Random.AESCtr (makeSystem)
 
-import Data.Conduit hiding (Source, Sink, Conduit)
+import Data.Conduit
 
 #if DEBUG
 import qualified Data.IntMap as IntMap
@@ -56,13 +56,13 @@ data ConnInfo = ConnInfo
     , connClose :: IO ()
     }
 
-connSink :: MonadResource m => ConnInfo -> Pipe l ByteString o r m r
+connSink :: MonadResource m => ConnInfo -> Sink ByteString m ()
 connSink ConnInfo { connWrite = write } =
     self
   where
-    self = awaitE >>= either return (\x -> liftIO (write x) >> self)
+    self = await >>= maybe (return ()) (\x -> liftIO (write x) >> self)
 
-connSource :: MonadResource m => ConnInfo -> Pipe l i ByteString u m ()
+connSource :: MonadResource m => ConnInfo -> Source m ByteString
 connSource ConnInfo { connRead = read' } =
     self
   where
@@ -120,12 +120,15 @@ socketConn _desc sock = do
             sClose sock
         }
 
-sslClientConn :: String -> ([X509] -> IO CertificateUsage) -> [(X509, Maybe PrivateKey)] -> Handle -> IO ConnInfo
-sslClientConn _desc onCerts clientCerts h = do
+sslClientConn :: String -> String -> ([X509] -> IO CertificateUsage) -> [(X509, Maybe PrivateKey)] -> Handle -> IO ConnInfo
+sslClientConn _desc host onCerts clientCerts h = do
 #if DEBUG
     i <- addSocket _desc
 #endif
-    let setCParams cparams = cparams { onCertificateRequest = const (return clientCerts) }
+    let setCParams cparams = cparams
+            { onCertificateRequest = const (return clientCerts)
+            , clientUseServerName = Just host
+            }
         tcp = updateClientParams setCParams $ defaultParamsClient
             { pConnectVersion = TLS10
             , pAllowedVersions = [ TLS10, TLS11, TLS12 ]

@@ -41,6 +41,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
+import Control.Monad.IO.Class (liftIO)
 import Control.Exception.Lifted (Exception, toException, throwIO)
 import Control.Failure (Failure (failure))
 import Codec.Binary.UTF8.String (encodeString)
@@ -52,6 +53,7 @@ import Network.HTTP.Conduit.Types (Request (..), RequestBody (..), ContentType, 
 import Network.HTTP.Conduit.Chunk (chunkIt)
 import Network.HTTP.Conduit.Util (readDec, (<>))
 import System.Timeout.Lifted (timeout)
+import Data.Time.Clock
 
 -- | Convert a URL into a 'Request'.
 --
@@ -116,6 +118,7 @@ setUri req uri = do
         , queryString = S8.pack $ uriQuery uri
         }
   where
+    failUri :: Failure HttpException m => String -> m a
     failUri = failure . InvalidUrlException (show uri)
 
     parseScheme URI{uriScheme = scheme} =
@@ -135,6 +138,25 @@ setUri req uri = do
             _ -> case sec of
                     False {- HTTP -} -> return 80
                     True {- HTTPS -} -> return 443
+
+instance Show (Request m) where
+    show x = unlines
+        [ "Request {"
+        , "  host                 = " ++ show (host x)
+        , "  port                 = " ++ show (port x)
+        , "  secure               = " ++ show (secure x)
+        , "  clientCertificates   = " ++ show (clientCertificates x)
+        , "  requestHeaders       = " ++ show (requestHeaders x)
+        , "  path                 = " ++ show (path x)
+        , "  queryString          = " ++ show (queryString x)
+        , "  requestBody          = " ++ show (requestBody x)
+        , "  method               = " ++ show (method x)
+        , "  proxy                = " ++ show (proxy x)
+        , "  rawBody              = " ++ show (rawBody x)
+        , "  redirectCount        = " ++ show (redirectCount x)
+        , "  responseTimeout      = " ++ show (responseTimeout x)
+        , "}"
+        ]
 
 instance Default (Request m) where
     def = Request
@@ -159,12 +181,19 @@ instance Default (Request m) where
         , responseTimeout = Just 5000000
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
-                Nothing -> f
+                Nothing -> fmap ((,) Nothing) f
                 Just timeout' -> do
-                    mres <- timeout (timeout' `div` 2) f
+                    before <- liftIO getCurrentTime
+                    mres <- timeout timeout' f
                     case mres of
                         Nothing -> throwIO exc
-                        Just res -> return res
+                        Just res -> do
+                            now <- liftIO getCurrentTime
+                            let timeSpentMicro = diffUTCTime now before * 1000000
+                                remainingTime = round $ fromIntegral timeout' - timeSpentMicro
+                            if remainingTime <= 0
+                                then throwIO exc
+                                else return (Just remainingTime, res)
         , cookieJar = Just def
         }
 

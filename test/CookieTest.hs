@@ -8,6 +8,7 @@ import Network.HTTP.Conduit.Cookies
 import Network.HTTP.Conduit.Types
 import qualified Network.HTTP.Conduit as HC
 import Data.ByteString.UTF8
+import Data.Monoid
 import Data.Maybe
 import Data.Time.Clock
 import Data.Time.Calendar
@@ -442,6 +443,13 @@ testReceiveSetCookieExistingHttpOnly = TestCase $ assertEqual "Existing http-onl
   default_time (cookie_expiry_time $ head $ destroyCookieJar $ receiveSetCookie default_set_cookie default_request default_time False $ createCookieJar [existing_cookie])
   where existing_cookie = default_cookie {cookie_http_only = True}
 
+testMonoidPreferRecent :: Test
+testMonoidPreferRecent = TestCase $ assertEqual "Monoid prefers more recent cookies"
+  (cct $ createCookieJar [c2]) (cct $ createCookieJar [c1] `mappend` createCookieJar [c2])
+  where c1 = default_cookie {cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)}
+        c2 = default_cookie {cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 2)}
+        cct cj = cookie_creation_time $ head $ destroyCookieJar cj
+
 ipParseTests :: Spec
 ipParseTests = do
     it "Valid IP" testValidIp
@@ -534,6 +542,10 @@ receivingTests = do
     it "Max-Age flag gets set correctly" testReceiveSetCookieMaxAge
     it "Max-Age is preferred over Expires" testReceiveSetCookiePreferMaxAge
 
+monoidTests :: Spec
+monoidTests = do
+    it "Monoid prefers more recent cookies" testMonoidPreferRecent
+
 cookieTest :: Spec
 cookieTest = do
     describe "ipParseTests" ipParseTests
@@ -545,3 +557,4 @@ cookieTest = do
     describe "evictionTests" evictionTests
     describe "sendingTests" sendingTests
     describe "receivingTests" receivingTests
+    describe "monoidTest" monoidTests

@@ -31,6 +31,7 @@
 --
 -- * Cookie
 -- * Content-Length
+-- * Transfer-Encoding
 --
 -- Note: In previous versions, the Host header would be set by this module in
 -- all cases. Starting from 1.6.1, if a Host header is present in
@@ -184,7 +185,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
-import Control.Exception.Lifted (throwIO, try, IOException)
+import Control.Exception.Lifted (throwIO, try, IOException, handle)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
@@ -219,6 +220,33 @@ import Network.HTTP.Conduit.Types
 -- You may also directly connect the returned 'C.Source'
 -- into a 'C.Sink', perhaps a file or another socket.
 --
+-- An important note: the response body returned by this function represents a
+-- live HTTP connection. As such, if you do not use the response body, an open
+-- socket will be retained until the containing @ResourceT@ block exits. If you
+-- do not need the response body, it is recommended that you explicitly shut
+-- down the connection immediately, using the pattern:
+--
+-- > responseBody res $$+- return ()
+--
+-- As a more thorough example, consider the following program. Without the
+-- explicit response body closing, the program will run out of file descriptors
+-- around the 1000th request (depending on the operating system limits).
+--
+-- > import Control.Monad          (replicateM_)
+-- > import Control.Monad.IO.Class (liftIO)
+-- > import Data.Conduit           (($$+-))
+-- > import Network                (withSocketsDo)
+-- > import Network.HTTP.Conduit
+-- >
+-- > main = withSocketsDo $ withManager $ \manager -> do
+-- >     req <- parseUrl "http://localhost/"
+-- >     mapM_ (worker manager req) [1..5000]
+-- >
+-- > worker manager req i = do
+-- >     res <- http req manager
+-- >     responseBody res $$+- return () -- The important line
+-- >     liftIO $ print (i, responseStatus res)
+--
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 http
@@ -226,7 +254,7 @@ http
     => Request m
     -> Manager
     -> m (Response (C.ResumableSource m S.ByteString))
-http req0 manager = do
+http req0 manager = wrapIOException $ do
     res <-
         if redirectCount req0 == 0
             then httpRaw req0 manager
@@ -255,7 +283,7 @@ httpRaw req' m = do
             now <- liftIO getCurrentTime
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
         Nothing -> return (req', def)
-    (connRelease, ci, isManaged) <- getConnectionWrapper
+    (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         req
         (responseTimeout req)
         (failedConnectionException req)
@@ -268,7 +296,7 @@ httpRaw req' m = do
     -- exceptions in both.
     ex <- try' $ do
         requestBuilder req C.$$ builderToByteString C.=$ connSink ci
-        getResponse connRelease req src
+        getResponse connRelease timeout' req src
 
     case (ex, isManaged) of
         -- Connection was reused, and might be been closed. Try again
@@ -307,7 +335,10 @@ httpRaw req' m = do
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 httpLbs :: (MonadBaseControl IO m, MonadResource m) => Request m -> Manager -> m (Response L.ByteString)
-httpLbs r = lbsResponse <=< http r
+httpLbs r = wrapIOException . (lbsResponse <=< http r)
+
+wrapIOException :: MonadBaseControl IO m => m a -> m a
+wrapIOException = handle $ throwIO . InternalIOException
 
 -- | Download the specified URL, following any redirects, and
 -- return the response body.
