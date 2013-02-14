@@ -264,7 +264,7 @@ httpRaw
      -> Manager
      -> m (Response (C.ResumableSource m S.ByteString))
 httpRaw req m = do
-    (connRelease, ci, isManaged) <- getConnectionWrapper
+    (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         req
         (responseTimeout req)
         (failedConnectionException req)
@@ -277,7 +277,7 @@ httpRaw req m = do
     -- exceptions in both.
     ex <- try' $ do
         requestBuilder req C.$$ builderToByteString C.=$ connSink ci
-        getResponse connRelease req src
+        getResponse connRelease timeout' req src
 
     case (ex, isManaged) of
         -- Connection was reused, and might be been closed. Try again

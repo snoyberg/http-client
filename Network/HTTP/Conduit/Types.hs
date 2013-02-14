@@ -115,14 +115,14 @@ data Request m = Request
                            => Maybe Int
                            -> HttpException
                            -> n (ConnRelease n, ConnInfo, ManagedConn)
-                           -> n (ConnRelease n, ConnInfo, ManagedConn)
+                           -> n (Maybe Int, (ConnRelease n, ConnInfo, ManagedConn))
     -- ^ Wraps the calls for getting new connections. This can be useful for
     -- instituting some kind of timeouts. The first argument is the value of
     -- @responseTimeout@. Second argument is the exception to be thrown on
     -- failure.
     --
     -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
-    -- institutes a timeout half of the length of @responseTimeout@.
+    -- institutes timeout, and returns remaining time for @responseTimeout@.
     --
     -- Since 1.8.6
     }
@@ -156,7 +156,7 @@ data Proxy = Proxy
     { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
-    deriving (Show, Read, Eq, Typeable)
+    deriving (Show, Read, Eq, Ord, Typeable)
 
 data HttpException = StatusCodeException W.Status W.ResponseHeaders
                    | InvalidUrlException String String
