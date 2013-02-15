@@ -96,6 +96,7 @@ module Network.HTTP.Conduit
     , redirectCount
     , checkStatus
     , responseTimeout
+    , getConnectionWrapper
       -- * Manager
     , Manager
     , newManager

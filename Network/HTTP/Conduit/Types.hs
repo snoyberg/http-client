@@ -124,7 +124,7 @@ data Request m = Request
     -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
     -- institutes timeout, and returns remaining time for @responseTimeout@.
     --
-    -- Since 1.8.6
+    -- Exported since 1.8.8
     }
 
 data ConnReuse = Reuse | DontReuse
