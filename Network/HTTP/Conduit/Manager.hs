@@ -7,6 +7,7 @@ module Network.HTTP.Conduit.Manager
     ( Manager
     , ManagerSettings (..)
     , ConnKey (..)
+    , ConnHost (..)
     , newManager
     , closeManager
     , getConn
@@ -47,8 +48,7 @@ import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
 import Control.DeepSeq (deepseq)
 
-import Network (connectTo, PortID (PortNumber), HostName)
-import Network.Socket (socketToHandle)
+import qualified Network.Socket as NS
 import Data.Certificate.X509 (X509, encodeCertificate)
 import Data.CertificateStore (CertificateStore)
 import System.Certificate.X509 (getSystemCertificateStore)
@@ -60,7 +60,7 @@ import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Types
 import Network.HTTP.Conduit.Util (hGetSome)
 import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
-import Network.Socks5 (SocksConf, socksConnectWith)
+import Network.Socks5 (SocksConf)
 import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
@@ -110,9 +110,15 @@ data NonEmptyList a =
     One !a !UTCTime |
     Cons !a !Int !UTCTime !(NonEmptyList a)
 
+-- | Hostname or resolved host address.
+data ConnHost =
+    HostName Text |
+    HostAddress NS.HostAddress
+    deriving (Eq, Show, Ord)
+
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
-data ConnKey = ConnKey !Text !Int !Bool
+data ConnKey = ConnKey !ConnHost !Int !Bool
     deriving (Eq, Show, Ord)
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe ConnInfo)
@@ -294,53 +300,47 @@ nonEmptyMapM_ f (One x _) = f x
 nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
 getSocketConn
-    :: MonadResource m
-    => Manager
+    :: Maybe NS.HostAddress
     -> String
     -> Int
     -> Maybe SocksConf -- ^ optional socks proxy
-    -> m (ConnRelease m, ConnInfo, ManagedConn)
-getSocketConn man host' port' socksProxy' =
-    getManagedConn man (ConnKey (T.pack host') port' False) $
-        getSocket host' port' socksProxy' >>= socketConn desc
+    -> IO ConnInfo
+getSocketConn hostAddress' host' port' socksProxy' =
+    getSocket hostAddress' host' port' socksProxy' >>= socketConn desc
   where
     desc = socketDesc host' port' "unsecured"
 
 socketDesc :: String -> Int -> String -> String
 socketDesc h p t = unwords [h, show p, t]
 
-getSslConn :: MonadResource m
-            => ([X509] -> IO CertificateUsage)
+getSslConn ::  ([X509] -> IO CertificateUsage)
             -> [(X509, Maybe PrivateKey)]
-            -> Manager
+            -> Maybe NS.HostAddress
             -> String -- ^ host
             -> Int -- ^ port
             -> Maybe SocksConf -- ^ optional socks proxy
-            -> m (ConnRelease m, ConnInfo, ManagedConn)
-getSslConn checkCert clientCerts man host' port' socksProxy' =
-    getManagedConn man (ConnKey (T.pack host') port' True) $
-        (connectionTo host' (PortNumber $ fromIntegral port') socksProxy' >>= sslClientConn desc host' checkCert clientCerts)
+            -> IO ConnInfo
+getSslConn checkCert clientCerts hostAddress' host' port' socksProxy' =
+    connectionTo hostAddress' host' port' socksProxy' >>= sslClientConn desc host' checkCert clientCerts
   where
     desc = socketDesc host' port' "secured"
 
 getSslProxyConn
-            :: MonadResource m
-            => ([X509] -> IO CertificateUsage)
+            :: ([X509] -> IO CertificateUsage)
             -> [(X509, Maybe PrivateKey)]
             -> S8.ByteString -- ^ Target host
             -> Int -- ^ Target port
-            -> Manager
+            -> Maybe NS.HostAddress
             -> String -- ^ Proxy host
             -> Int -- ^ Proxy port
             -> Maybe SocksConf -- ^ optional SOCKS proxy
-            -> m (ConnRelease m, ConnInfo, ManagedConn)
-getSslProxyConn checkCert clientCerts thost tport man phost pport socksProxy' =
-    getManagedConn man (ConnKey (T.pack phost) pport True) $
-        doConnect >>= sslClientConn desc phost checkCert clientCerts
+            -> IO ConnInfo
+getSslProxyConn checkCert clientCerts thost tport phostAddr phost pport socksProxy' =
+    doConnect >>= sslClientConn desc phost checkCert clientCerts
   where
     desc = socketDesc phost pport "secured-proxy"
     doConnect = do
-        h <- connectionTo phost (PortNumber $ fromIntegral pport) socksProxy'
+        h <- connectionTo phostAddr phost pport socksProxy'
         L.hPutStr h $ Blaze.toLazyByteString connectRequest
         hFlush h
         r <- hGetSome h 2048
@@ -423,10 +423,15 @@ getConn :: MonadResource m
         -> Manager
         -> m (ConnRelease m, ConnInfo, ManagedConn)
 getConn req m =
-    go m connhost connport (socksProxy req)
+    getManagedConn m (ConnKey connKeyHost connport (secure req)) $
+        go connaddr connhost connport (socksProxy req)
   where
     h = host req
     (useProxy, connhost, connport) = getConnDest req
+    (connaddr, connKeyHost) =
+        case (hostAddress req, useProxy, socksProxy req) of
+            (Just ha, False, Nothing) -> (Just ha, HostAddress ha)
+            _ -> (Nothing, HostName $ T.pack connhost)
     go =
         case (secure req, useProxy) of
             (False, _) -> getSocketConn
@@ -471,7 +476,6 @@ checkCerts man host' certs = do
                 Nothing -> Map.singleton encoded expire
                 Just m -> Map.insert encoded expire m
 
-connectionTo :: HostName -> PortID -> Maybe SocksConf -> IO Handle
-connectionTo host' port' Nothing = connectTo host' port'
-connectionTo host' port' (Just socksConf) =
-	socksConnectWith socksConf host' port' >>= flip socketToHandle ReadWriteMode
+connectionTo :: Maybe NS.HostAddress -> NS.HostName -> Int -> Maybe SocksConf -> IO Handle
+connectionTo hostAddress' host' port' socksConf' =
+    getSocket hostAddress' host' port' socksConf' >>= flip NS.socketToHandle ReadWriteMode

@@ -171,6 +171,7 @@ instance Default (Request m) where
         , method = "GET"
         , proxy = Nothing
         , socksProxy = Nothing
+        , hostAddress = Nothing
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10
