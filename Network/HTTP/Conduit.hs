@@ -91,6 +91,7 @@ module Network.HTTP.Conduit
     , requestBody
     , proxy
     , socksProxy
+    , hostAddress
     , rawBody
     , decompress
     , redirectCount

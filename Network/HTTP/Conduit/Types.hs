@@ -24,6 +24,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 
 import qualified Network.HTTP.Types as W
+import qualified Network.Socket as NS
 import Network.Socks5 (SocksConf)
 
 import Control.Exception (Exception, SomeException, IOException)
@@ -95,6 +96,8 @@ data Request m = Request
     -- ^ Optional HTTP proxy.
     , socksProxy :: Maybe SocksConf
     -- ^ Optional SOCKS proxy.
+    , hostAddress :: Maybe NS.HostAddress
+    -- ^ Optional resolved host address.
     , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.

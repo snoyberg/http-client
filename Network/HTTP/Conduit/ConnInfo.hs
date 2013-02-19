@@ -156,15 +156,28 @@ sslClientConn _desc host onCerts clientCerts h = do
             then recvD istate
             else return x
 
-getSocket :: String -> Int -> Maybe SocksConf -> IO NS.Socket
-getSocket host' port' (Just socksConf) = do
+getSocket :: Maybe NS.HostAddress -> String -> Int -> Maybe SocksConf -> IO NS.Socket
+getSocket _ host' port' (Just socksConf) = do
     socksConnectWith socksConf host' (PortNumber $ fromIntegral port')
-getSocket host' port' Nothing = do
+getSocket hostAddress' host' port' Nothing = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
                         }
-    addrs <- NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+    addrs <- case hostAddress' of
+        Nothing ->
+            NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+        Just ha ->
+            return
+                [NS.AddrInfo
+                 { NS.addrFlags = []
+                 , NS.addrFamily = NS.AF_INET
+                 , NS.addrSocketType = NS.Stream
+                 , NS.addrProtocol = 6 -- tcp
+                 , NS.addrAddress = NS.SockAddrInet (toEnum port') ha
+                 , NS.addrCanonName = Nothing
+                 }]
+
     firstSuccessful addrs $ \addr ->
         bracketOnError
             (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
