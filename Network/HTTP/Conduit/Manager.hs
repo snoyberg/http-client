@@ -112,8 +112,8 @@ data NonEmptyList a =
 
 -- | Hostname or resolved host address.
 data ConnHost =
-    HostName Text |
-    HostAddress NS.HostAddress
+    HostName !Text |
+    HostAddress !NS.HostAddress
     deriving (Eq, Show, Ord)
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
