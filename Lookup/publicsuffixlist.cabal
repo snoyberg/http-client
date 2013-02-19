@@ -1,5 +1,5 @@
 name:            publicsuffixlist
-version:         0.0.2
+version:         0.0.3
 license:         BSD3
 license-file:    LICENSE
 author:          Myles C. Maxfield <myles.maxfield@gmail.com>
@@ -18,6 +18,9 @@ library
                  , data-default
                  , bytestring >= 0.9
                  , text       >= 0.11
+                 , utf8-string
+                 , cereal
+                 , bytestring
     exposed-modules: Network.PublicSuffixList.Lookup
                    , Network.PublicSuffixList.DataStructure
                    , Network.PublicSuffixList.Internal.Types
@@ -32,6 +35,9 @@ Test-Suite test-public-suffix-list
                  , text     >= 0.11
                  , HUnit
                  , idna     >= 0.1.1   && < 1.0
+                 , utf8-string
+                 , cereal
+                 , bytestring
 
 source-repository head
   type:     git
