@@ -48,6 +48,10 @@ main = do
     hPutStrLn h "import Network.PublicSuffixList.Internal.Types"
     hPutStrLn h "import Network.PublicSuffixList.Internal.Internal"
     hPutStrLn h ""
+    hPutStrLn h "-- We could just put the raw data structure here, but if we do that, there will be lots of"
+    hPutStrLn h "-- static string literals, which makes GHC really slow when compiling. Instead, we can manually"
+    hPutStrLn h "-- serialize the datastructure ourself, so there's only one string literal."
+    hPutStrLn h ""
     hPutStrLn h "{-|"
     hPutStrLn h $ "The opaque data structure that 'isSuffix' can query. This data structure was generated at " ++ show current_time
     hPutStrLn h "-}"
