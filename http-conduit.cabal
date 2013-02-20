@@ -57,7 +57,7 @@ library
                  , regex-compat
                  , mtl
                  , deepseq
-                 , publicsuffixlist      >= 0.0.2   && < 1.0
+                 , publicsuffixlist      >= 0.0.3   && < 1.0
                  , array                 >= 0.3
                  , random
                  , filepath
@@ -127,7 +127,7 @@ test-suite test
                  , void
                  , deepseq
                  , mtl
-                 , publicsuffixlist >= 0.0.1 && < 1.0
+                 , publicsuffixlist
                  , array
                  , random
                  , filepath
