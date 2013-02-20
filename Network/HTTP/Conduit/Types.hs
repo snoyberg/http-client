@@ -197,10 +197,17 @@ instance Exception HttpException
 -- | A simple representation of the HTTP response created by 'lbsConsumer'.
 data Response body = Response
     { responseStatus :: W.Status
+    -- ^ Status code of the response.
     , responseVersion :: W.HttpVersion
+    -- ^ HTTP version used by the server.
     , responseHeaders :: W.ResponseHeaders
+    -- ^ Response headers sent by the server.
     , responseBody :: body
+    -- ^ Response body sent by the server.
     , responseCookieJar :: CookieJar
+    -- ^ Cookies set on the client after interacting with the server. If
+    -- cookies have been disabled by setting 'cookieJar' to @Nothing@, then
+    -- this will always be empty.
     }
     deriving (Show, Eq, Typeable)
 

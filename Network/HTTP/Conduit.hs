@@ -30,7 +30,9 @@
 -- be added to 'requestHeaders':
 --
 -- * Cookie
+--
 -- * Content-Length
+--
 -- * Transfer-Encoding
 --
 -- Note: In previous versions, the Host header would be set by this module in
@@ -134,6 +136,7 @@ module Network.HTTP.Conduit
     , checkStatus
     , responseTimeout
     , cookieJar
+    , getConnectionWrapper
       -- * Response
     , Response
     , responseStatus
@@ -141,7 +144,6 @@ module Network.HTTP.Conduit
     , responseHeaders
     , responseBody
     , responseCookieJar
-    , getConnectionWrapper
       -- * Manager
     , Manager
     , newManager
