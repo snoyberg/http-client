@@ -18,6 +18,7 @@ import           System.IO
 
 import           Network.PublicSuffixList.Create
 import           Network.PublicSuffixList.Internal.Types
+import           Network.PublicSuffixList.Internal.Internal
 
 
 generateDataStructure :: String -> IO (DataStructure, UTCTime)
@@ -29,15 +30,6 @@ generateDataStructure url = do
   current_time <- getCurrentTime
   putStrLn $ "Fetched Public Suffix List at " ++ show current_time
   return (out, current_time)
-
-putTree :: Ord k => Putter k -> Putter (Tree k)
-putTree p = putMapOf p (putTree p) . children
-
-putText :: Putter T.Text
-putText = putListOf putWord8 . BS.unpack . U8.fromString . T.unpack
-
-putDataStructure :: Putter DataStructure
-putDataStructure = putTwoOf (putTree putText) (putTree putText)
 
 main :: IO ()
 main = do
@@ -51,21 +43,10 @@ main = do
     hPutStrLn h ""
     hPutStrLn h "import qualified Data.ByteString      as BS"
     hPutStrLn h "import           Data.ByteString.Char8 ()"
-    hPutStrLn h "import qualified Data.ByteString.UTF8 as U8"
-    hPutStrLn h "import           Data.Functor"
     hPutStrLn h "import           Data.Serialize.Get hiding (getTreeOf)"
-    hPutStrLn h "import qualified Data.Text as T"
     hPutStrLn h ""
     hPutStrLn h "import Network.PublicSuffixList.Internal.Types"
-    hPutStrLn h ""
-    hPutStrLn h "getTreeOf :: Ord k => Get k -> Get (Tree k)"
-    hPutStrLn h "getTreeOf p = Node <$> getMapOf p (getTreeOf p)"
-    hPutStrLn h ""
-    hPutStrLn h "getText :: Get T.Text"
-    hPutStrLn h "getText = (T.pack . U8.toString . BS.pack) <$> getListOf getWord8"
-    hPutStrLn h ""
-    hPutStrLn h "getDataStructure :: Get DataStructure"
-    hPutStrLn h "getDataStructure = getTwoOf (getTreeOf getText) (getTreeOf getText)"
+    hPutStrLn h "import Network.PublicSuffixList.Internal.Internal"
     hPutStrLn h ""
     hPutStrLn h "{-|"
     hPutStrLn h $ "The opaque data structure that 'isSuffix' can query. This data structure was generated at " ++ show current_time

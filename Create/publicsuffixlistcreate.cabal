@@ -1,5 +1,5 @@
 name:            publicsuffixlistcreate
-version:         0.0.1
+version:         0.0.2
 license:         BSD3
 license-file:    LICENSE
 author:          Myles C. Maxfield <myles.maxfield@gmail.com>
@@ -23,6 +23,14 @@ library
                  , publicsuffixlist >= 0.0.2 && < 0.1.0
     exposed-modules: Network.PublicSuffixList.Create
     ghc-options:     -Wall
+
+Test-Suite test-public-suffix-list-create
+    type: exitcode-stdio-1.0
+    main-is: Test/PublicSuffixListCreate.hs
+    build-depends: base             >= 4 && < 5
+                 , publicsuffixlist >= 0.0.3 && < 0.1.0
+                 , HUnit
+                 , cereal
 
 source-repository head
   type:     git

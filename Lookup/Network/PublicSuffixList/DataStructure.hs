@@ -1,29 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
--- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-02-19 07:58:27.008984 UTC
+-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-02-20 02:16:07.7122 UTC
 
 module Network.PublicSuffixList.DataStructure (dataStructure) where
 
 import qualified Data.ByteString      as BS
 import           Data.ByteString.Char8 ()
-import qualified Data.ByteString.UTF8 as U8
-import           Data.Functor
 import           Data.Serialize.Get hiding (getTreeOf)
-import qualified Data.Text as T
 
 import Network.PublicSuffixList.Internal.Types
-
-getTreeOf :: Ord k => Get k -> Get (Tree k)
-getTreeOf p = Node <$> getMapOf p (getTreeOf p)
-
-getText :: Get T.Text
-getText = (T.pack . U8.toString . BS.pack) <$> getListOf getWord8
-
-getDataStructure :: Get DataStructure
-getDataStructure = getTwoOf (getTreeOf getText) (getTreeOf getText)
+import Network.PublicSuffixList.Internal.Internal
 
 {-|
-The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-02-19 07:58:27.008984 UTC
+The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-02-20 02:16:07.7122 UTC
 -}
 dataStructure :: DataStructure
 dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds

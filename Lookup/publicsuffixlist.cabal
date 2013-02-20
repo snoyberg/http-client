@@ -20,10 +20,10 @@ library
                  , text       >= 0.11
                  , utf8-string
                  , cereal
-                 , bytestring
     exposed-modules: Network.PublicSuffixList.Lookup
                    , Network.PublicSuffixList.DataStructure
                    , Network.PublicSuffixList.Internal.Types
+                   , Network.PublicSuffixList.Internal.Internal
     ghc-options:     -Wall
 
 Test-Suite test-public-suffix-list
