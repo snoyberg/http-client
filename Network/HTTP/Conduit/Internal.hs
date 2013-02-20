@@ -25,7 +25,6 @@ import qualified Data.ByteString.Char8 as S8
 
 import Control.Exception (SomeException, toException, fromException)
 import Control.Exception.Lifted (throwIO)
-import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
 
 import qualified Data.Conduit as C
@@ -73,15 +72,15 @@ httpRedirect count0 http' lift' req0 = go count0 req0 []
                 go (count - 1) req (res:ress)
             Nothing -> return res
 
--- | Apply 'Request'\'s 'checkStatus' and throw resulting exception if any.
+-- | Apply 'Request'\'s 'checkStatus' and return resulting exception if any.
 applyCheckStatus
     :: (MonadResource m, MonadBaseControl IO m)
     => (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException)
     -> Response (C.ResumableSource m S.ByteString)
-    -> m ()
+    -> m (Maybe SomeException)
 applyCheckStatus checkStatus' res =
     case checkStatus' (responseStatus res) (responseHeaders res) (responseCookieJar res) of
-        Nothing -> return ()
+        Nothing -> return Nothing
         Just exc -> do
             exc' <-
                 case fromException exc of
@@ -93,7 +92,7 @@ applyCheckStatus checkStatus' res =
                         let CI.ResumableSource _ final = (responseBody res)
                         final
                         return exc
-            liftIO $ throwIO exc'
+            return (Just exc')
   where
 #if MIN_VERSION_bytestring(0,10,0)
     toStrict' = L.toStrict
