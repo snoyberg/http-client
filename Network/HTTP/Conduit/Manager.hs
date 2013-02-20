@@ -38,7 +38,7 @@ import qualified Data.Text as T
 
 import Control.Monad.Trans.Control (MonadBaseControl)
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Exception (mask_, SomeException, catch)
+import Control.Exception (mask_, SomeException, catch, throwIO, fromException)
 import Control.Monad.Trans.Resource
     ( ResourceT, runResourceT, MonadResource
     , MonadThrow, MonadUnsafeIO
@@ -59,11 +59,12 @@ import Network.TLS.Extra (certificateVerifyChain, certificateVerifyDomain)
 import Network.HTTP.Conduit.ConnInfo
 import Network.HTTP.Conduit.Types
 import Network.HTTP.Conduit.Util (hGetSome)
-import Network.HTTP.Conduit.Parser (parserHeadersFromByteString)
+import Network.HTTP.Conduit.Parser (sinkHeaders)
 import Network.Socks5 (SocksConf)
 import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
+import Data.Conduit (($$), yield, runException)
 
 -- | Settings for a @Manager@. Please use the 'def' function and then modify
 -- individual settings.
@@ -344,20 +345,22 @@ getSslProxyConn checkCert clientCerts thost tport phostAddr phost pport socksPro
         L.hPutStr h $ Blaze.toLazyByteString connectRequest
         hFlush h
         r <- hGetSome h 2048
-        res <- parserHeadersFromByteString r
-        case res of
+        case runException $ yield r $$ sinkHeaders of
             Right ((_, 200, _), _) -> return h
-            Right ((_, _, msg), _) -> hClose h >> proxyError (S8.unpack msg)
-            Left s -> hClose h >> proxyError s
+            Right ((_, _, msg), _) -> hClose h >> proxyError (Left msg)
+            Left s -> do
+                hClose h
+                proxyError $
+                    case fromException s of
+                        Just he -> Right he
+                        Nothing -> Left $ S8.pack $ show s
 
     connectRequest =
         Blaze.fromByteString "CONNECT "
             `mappend` Blaze.fromByteString thost
             `mappend` Blaze.fromByteString (S8.pack (':' : show tport))
             `mappend` Blaze.fromByteString " HTTP/1.1\r\n\r\n"
-    proxyError s =
-        error $ "Proxy failed to CONNECT to '"
-                ++ S8.unpack thost ++ ":" ++ show tport ++ "' : " ++ s
+    proxyError s = throwIO $ ProxyConnectException thost tport s
 
 -- | This function needs to acquire a @ConnInfo@- either from the @Manager@ or
 -- via I\/O, and register it with the @ResourceT@ so it is guaranteed to be

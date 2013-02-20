@@ -6,7 +6,7 @@ author:          Michael Snoyman <michael@snoyman.com>
 maintainer:      Michael Snoyman <michael@snoyman.com>
 synopsis:        HTTP client package with conduit interface and HTTPS support.
 description:
-    This package uses attoparsec for parsing the actual contents of the HTTP connection. It also provides higher-level functions which allow you to avoid direct usage of conduits. See <http://www.yesodweb.com/book/http-conduit> for more information.
+    This package uses conduit for parsing the actual contents of the HTTP connection. It also provides higher-level functions which allow you to avoid directly dealing with streaming data. See <http://www.yesodweb.com/book/http-conduit> for more information.
     .
     "Network.HTTP.Conduit.Browser" module has been moved to <http://hackage.haskell.org/package/http-conduit-browser/>
 category:        Web, Conduit
@@ -31,8 +31,6 @@ library
                  , conduit               >= 0.5.5   && < 1.1
                  , zlib-conduit          >= 0.5     && < 1.1
                  , blaze-builder-conduit >= 0.5
-                 , attoparsec-conduit    >= 0.5
-                 , attoparsec            >= 0.8.0.2
                  , utf8-string           >= 0.3.4
                  , blaze-builder         >= 0.2.1
                  , http-types            >= 0.7
@@ -96,8 +94,6 @@ test-suite test
                  , conduit
                  , zlib-conduit
                  , blaze-builder-conduit
-                 , attoparsec-conduit
-                 , attoparsec
                  , utf8-string
                  , blaze-builder
                  , http-types

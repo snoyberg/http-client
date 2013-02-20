@@ -9,9 +9,8 @@ module Network.HTTP.Conduit.Response
     , lbsResponse
     ) where
 
-import Control.Applicative ((<$>), (<*>))
 import Control.Arrow (first)
-import Control.Monad (liftM, unless, when)
+import Control.Monad (liftM)
 
 import Control.Exception (throwIO)
 import Control.Monad.IO.Class (liftIO)
@@ -39,6 +38,7 @@ import Network.HTTP.Conduit.Manager
 import Network.HTTP.Conduit.Request
 import Network.HTTP.Conduit.Util
 import Network.HTTP.Conduit.Chunk
+import Network.HTTP.Conduit.Parser (sinkHeaders)
 
 import Data.Void (Void, absurd)
 
@@ -134,9 +134,9 @@ getResponse connRelease timeout'' req@(Request {..}) src1 = do
                         Just y -> return y
     (src2, ((vbs, sc, sm), hs)) <- timeout' $ src1 $$+
 #if MIN_VERSION_conduit(1, 0, 0)
-        ConduitM (checkHeaderLength 4096 $ unConduitM sinkHeaders')
+        ConduitM (checkHeaderLength 4096 $ unConduitM sinkHeaders)
 #else
-        (checkHeaderLength 4096 sinkHeaders')
+        (checkHeaderLength 4096 sinkHeaders)
 #endif
     let version = if vbs == "1.1" then W.http11 else W.http10
     let s = W.Status sc sm
@@ -172,73 +172,3 @@ getResponse connRelease timeout'' req@(Request {..}) src1 = do
   where
     fmapResume f (ResumableSource src m) = ResumableSource (f src) m
     addCleanup' f (ResumableSource src m) = ResumableSource (addCleanup f src) (m >> f False)
-
--- | New version of @sinkHeaders@ that doesn't use attoparsec. Should create
--- more meaningful exceptions.
---
--- Since 1.8.7
-sinkHeaders' :: (MonadThrow m, MonadResource m) => Sink S.ByteString m (Status, [Header])
-sinkHeaders' = do
-    status <- getStatusLine
-    headers <- parseHeaders id
-    return (status, headers)
-  where
-    getStatusLine = do
-        status@(_, code, _) <- sinkLine >>= parseStatus
-        if code == 100
-            then newline ExpectedBlankAfter100Continue >> getStatusLine
-            else return status
-
-    newline exc = do
-        line <- sinkLine
-        unless (S.null line) $ monadThrow exc
-
-    sinkLine = do
-        bs <- fmap (killCR . S.concat) $ CB.takeWhile (/= charLF) =$ CL.consume
-        CB.drop 1
-        return bs
-    charLF = 10
-    charCR = 13
-    charSpace = 32
-    charColon = 58
-    killCR bs
-        | S.null bs = bs
-        | S.last bs == charCR = S.init bs
-        | otherwise = bs
-
-    parseStatus :: MonadThrow m => S.ByteString -> m Status
-    parseStatus bs = do
-        let (ver, bs2) = S.breakByte charSpace bs
-            (code, bs3) = S.breakByte charSpace $ S.dropWhile (== charSpace) bs2
-            msg = S.dropWhile (== charSpace) bs3
-        case (,) <$> parseVersion ver <*> parseCode code of
-            Just (ver', code') -> return (ver', code', msg)
-            _ -> monadThrow $ InvalidStatusLine bs
-
-    stripPrefixBS x y
-        | x `S.isPrefixOf` y = Just $ S.drop (S.length x) y
-        | otherwise = Nothing
-    parseVersion = stripPrefixBS "HTTP/"
-    parseCode bs =
-        case S8.readInt bs of
-            Just (i, "") -> Just i
-            _ -> Nothing
-
-    parseHeaders front = do
-        line <- sinkLine
-        if S.null line
-            then return $ front []
-            else do
-                header <- parseHeader line
-                parseHeaders $ front . (header:)
-
-    parseHeader :: MonadThrow m => S.ByteString -> m Header
-    parseHeader bs = do
-        let (key, bs2) = S.breakByte charColon bs
-        when (S.null bs2) $ monadThrow $ InvalidHeader bs
-        return (strip key, strip $ S.drop 1 bs2)
-
-    strip = S.dropWhile (== charSpace) . fst . S.spanEnd (== charSpace)
-
-type Header = (S.ByteString, S.ByteString)
-type Status = (S.ByteString, Int, S.ByteString)

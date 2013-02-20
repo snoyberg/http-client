@@ -2,122 +2,87 @@
 {-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Conduit.Parser
     ( sinkHeaders
-    , newline
-    , parserHeadersFromByteString
-    , parseChunkHeader
     ) where
 
 import Prelude hiding (take, takeWhile)
 import Control.Applicative
-import Data.Word (Word8)
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 
-import Data.Attoparsec
-
-import Data.Conduit.Attoparsec (sinkParser)
-import Data.Conduit (Sink, MonadResource, MonadThrow)
-import Control.Monad (when)
+import Data.Conduit (Sink, MonadThrow (monadThrow), (=$))
+import Control.Monad (when, unless)
+import Network.HTTP.Conduit.Types (HttpException (..))
+import qualified Data.Conduit.Binary as CB
+import qualified Data.Conduit.List as CL
 
 
 type Header = (S.ByteString, S.ByteString)
-
-parseHeader :: Parser Header
-parseHeader = do
-    k <- takeWhile1 notNewlineColon
-    _ <- word8 58 -- colon
-    skipWhile isSpace
-    v <- takeWhile notNewline
-    newline
-    return (k, v)
-
-notNewlineColon, isSpace, isNumber, notNewline :: Word8 -> Bool
-
-notNewlineColon 10 = False -- LF
-notNewlineColon 13 = False -- CR
-notNewlineColon 58 = False -- colon
-notNewlineColon _  = True
-
-isSpace 32 = True
-isSpace _  = False
-
-isNumber i = 0x30 <= i && i <= 0x39
-
-notNewline 10 = False
-notNewline 13 = False
-notNewline _  = True
-
-newline :: Parser ()
-newline =
-    lf <|> (cr >> lf)
-  where
-    word8' x = word8 x >> return ()
-    lf = word8' 10
-    cr = word8' 13
-
-parseHeaders :: Parser (Status, [Header])
-parseHeaders = do
-    s <- parseStatus <?> "HTTP status line"
-    h <- manyTill parseHeader newline <?> "Response headers"
-    return (s, h)
-
-sinkHeaders :: (MonadThrow m, MonadResource m) => Sink S.ByteString m (Status, [Header])
-sinkHeaders = sinkParser parseHeaders
-
-
-parserHeadersFromByteString :: Monad m => S.ByteString -> m (Either String (Status, [Header]))
-parserHeadersFromByteString s = return $ parseOnly parseHeaders s
-
-
 type Status = (S.ByteString, Int, S.ByteString)
 
-parseStatus :: Parser Status
-parseStatus = do
-    end <- atEnd
-    when end $ fail "EOF reached"
-    _ <- manyTill (take 1 >> return ()) (try $ string "HTTP/") <?> "HTTP/"
-    ver <- takeWhile1 $ not . isSpace
-    _ <- word8 32 -- space
-    statCode <- takeWhile1 isNumber
-    statCode' <-
-        case reads $ S8.unpack statCode of
-            [] -> fail $ "Invalid status code: " ++ S8.unpack statCode
-            (x, _):_ -> return x
-    statMsg <- try (word8 32 >> takeWhile notNewline) <|> return ""
-    newline
-    if (statCode == "100")
-        then newline >> parseStatus
-        else return (ver, statCode', statMsg)
-
-parseChunkHeader :: Parser Int
-parseChunkHeader = do
-    len <- hexs
-    skipWhile isSpace
-    newline <|> attribs
-    return len
-
-attribs :: Parser ()
-attribs = do
-    _ <- word8 59 -- colon
-    skipWhile notNewline
-    newline
-
-hexs :: Parser Int
-hexs = do
-    ws <- many1 hex
-    return $ foldl1 (\a b -> a * 16 + b) $ map fromIntegral ws
-
-hex :: Parser Word8
-hex =
-    (digit <|> upper <|> lower) <?> "Hexadecimal digit"
+-- | New version of @sinkHeaders@ that doesn't use attoparsec. Should create
+-- more meaningful exceptions.
+--
+-- Since 1.8.7
+sinkHeaders :: (MonadThrow m) => Sink S.ByteString m (Status, [Header])
+sinkHeaders = do
+    status <- getStatusLine
+    headers <- parseHeaders id
+    return (status, headers)
   where
-    digit = do
-        d <- satisfy $ \w -> (w >= 48 && w <= 57)
-        return $ d - 48
-    upper = do
-        d <- satisfy $ \w -> (w >= 65 && w <= 70)
-        return $ d - 55
-    lower = do
-        d <- satisfy $ \w -> (w >= 97 && w <= 102)
-        return $ d - 87
+    getStatusLine = do
+        status@(_, code, _) <- sinkLine >>= parseStatus
+        if code == 100
+            then newline ExpectedBlankAfter100Continue >> getStatusLine
+            else return status
+
+    newline exc = do
+        line <- sinkLine
+        unless (S.null line) $ monadThrow exc
+
+    sinkLine = do
+        bs <- fmap (killCR . S.concat) $ CB.takeWhile (/= charLF) =$ CL.consume
+        CB.drop 1
+        return bs
+    charLF = 10
+    charCR = 13
+    charSpace = 32
+    charColon = 58
+    killCR bs
+        | S.null bs = bs
+        | S.last bs == charCR = S.init bs
+        | otherwise = bs
+
+    parseStatus :: MonadThrow m => S.ByteString -> m Status
+    parseStatus bs = do
+        let (ver, bs2) = S.breakByte charSpace bs
+            (code, bs3) = S.breakByte charSpace $ S.dropWhile (== charSpace) bs2
+            msg = S.dropWhile (== charSpace) bs3
+        case (,) <$> parseVersion ver <*> parseCode code of
+            Just (ver', code') -> return (ver', code', msg)
+            _ -> monadThrow $ InvalidStatusLine bs
+
+    stripPrefixBS x y
+        | x `S.isPrefixOf` y = Just $ S.drop (S.length x) y
+        | otherwise = Nothing
+    parseVersion = stripPrefixBS "HTTP/"
+    parseCode bs =
+        case S8.readInt bs of
+            Just (i, "") -> Just i
+            _ -> Nothing
+
+    parseHeaders front = do
+        line <- sinkLine
+        if S.null line
+            then return $ front []
+            else do
+                header <- parseHeader line
+                parseHeaders $ front . (header:)
+
+    parseHeader :: MonadThrow m => S.ByteString -> m Header
+    parseHeader bs = do
+        let (key, bs2) = S.breakByte charColon bs
+        when (S.null bs2) $ monadThrow $ InvalidHeader bs
+        return (strip key, strip $ S.drop 1 bs2)
+
+    strip = S.dropWhile (== charSpace) . fst . S.spanEnd (== charSpace)

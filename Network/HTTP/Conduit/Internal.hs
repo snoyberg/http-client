@@ -3,8 +3,7 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE CPP #-}
 module Network.HTTP.Conduit.Internal
-    ( module Network.HTTP.Conduit.Parser
-    , getUri
+    ( getUri
     , setUri
     , setUriRelative
       -- * Redirect loop
@@ -19,8 +18,6 @@ module Network.HTTP.Conduit.Internal
     , computeCookieString
     , evictExpiredCookies
     ) where
-
-import Network.HTTP.Conduit.Parser
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
