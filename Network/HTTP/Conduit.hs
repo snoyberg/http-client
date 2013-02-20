@@ -263,8 +263,7 @@ http req0 manager = wrapIOException $ do
         if redirectCount req0 == 0
             then httpRaw req0 manager
             else go (redirectCount req0) req0
-    applyCheckStatus (checkStatus req0) res
-    return res
+    maybe (return res) throwIO =<< applyCheckStatus (checkStatus req0) res
   where
     go count req' = httpRedirect
       count
