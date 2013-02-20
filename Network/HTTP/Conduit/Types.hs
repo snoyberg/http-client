@@ -98,6 +98,8 @@ data Request m = Request
     -- ^ Optional SOCKS proxy.
     , hostAddress :: Maybe NS.HostAddress
     -- ^ Optional resolved host address.
+    --
+    -- Since 1.8.9
     , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.
