@@ -127,6 +127,7 @@ module Network.HTTP.Conduit
     , requestBody
     , proxy
     , socksProxy
+    , hostAddress
     , rawBody
     , decompress
     , redirectCount
@@ -140,6 +141,7 @@ module Network.HTTP.Conduit
     , responseHeaders
     , responseBody
     , responseCookieJar
+    , getConnectionWrapper
       -- * Manager
     , Manager
     , newManager

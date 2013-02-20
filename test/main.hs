@@ -19,6 +19,7 @@ import qualified Control.Exception as E (catch)
 import Network.HTTP.Conduit.ConnInfo
 import Network (withSocketsDo)
 import Network.Socket (sClose)
+import qualified Network.BSD
 import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
 import qualified Data.Conduit.Network
@@ -66,7 +67,10 @@ cookie_jar = createCookieJar [cookie]
 app :: Application
 app req =
     case pathInfo req of
-        [] -> return $ responseLBS status200 [] "homepage"
+        [] ->
+            if maybe False ("example.com:" `S.isPrefixOf`) $ lookup "host" $ Wai.requestHeaders req
+                then return $ responseLBS status200 [] "homepage for example.com"
+                else return $ responseLBS status200 [] "homepage"
         ["cookies"] -> return $ responseLBS status200 [tastyCookie] "cookies"
         ["cookie_redir1"] -> return $ responseLBS status303 [tastyCookie, (hLocation, "/checkcookie")] ""
         ["checkcookie"] -> return $ case lookup hCookie $ Wai.requestHeaders req of
@@ -272,6 +276,14 @@ main = withSocketsDo $ do
                 res1 <- httpLbs req manager
                 res2 <- httpLbs req manager
                 liftIO $ res1 @?= res2
+
+    describe "hostAddress" $ do
+        it "overrides host" $ withApp app $ \port -> do
+            entry <- Network.BSD.getHostByName "127.0.0.1"
+            req' <- parseUrl $ "http://example.com:" ++ show port
+            let req = req' { hostAddress = Just $ Network.BSD.hostAddress entry }
+            res <- withManager $ httpLbs req
+            responseBody res @?= "homepage for example.com"
 
 withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
 withCApp app' f = do

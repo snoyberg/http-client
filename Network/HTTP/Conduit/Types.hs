@@ -30,6 +30,7 @@ import Data.Default
 import qualified Data.List as DL
 
 import qualified Network.HTTP.Types as W
+import qualified Network.Socket as NS
 import Network.Socks5 (SocksConf)
 
 import Control.Exception (Exception, SomeException, IOException)
@@ -101,6 +102,10 @@ data Request m = Request
     -- ^ Optional HTTP proxy.
     , socksProxy :: Maybe SocksConf
     -- ^ Optional SOCKS proxy.
+    , hostAddress :: Maybe NS.HostAddress
+    -- ^ Optional resolved host address.
+    --
+    -- Since 1.8.9
     , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.
@@ -130,7 +135,7 @@ data Request m = Request
     -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
     -- institutes timeout, and returns remaining time for @responseTimeout@.
     --
-    -- Since 1.8.6
+    -- Since 1.8.8
     , cookieJar :: Maybe CookieJar
     -- ^ A user-defined cookie jar.
     -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers
