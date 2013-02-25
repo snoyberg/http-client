@@ -256,15 +256,15 @@ requestBuilder
     => Request m
     -> C.Source m Builder
 requestBuilder req =
-    CL.sourceList [builder] `mappend` bodySource
+    bodySource
   where
     (contentLength, bodySource) =
         case requestBody req of
-            RequestBodyLBS lbs -> (Just $ L.length lbs, C.yield $ fromLazyByteString lbs)
-            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, C.yield $ fromByteString bs)
-            RequestBodyBuilder i b -> (Just $ i, C.yield b)
-            RequestBodySource i source -> (Just i, source)
-            RequestBodySourceChunked source -> (Nothing, source C.$= chunkIt)
+            RequestBodyLBS lbs -> (Just $ L.length lbs, C.yield $ builder `mappend` fromLazyByteString lbs)
+            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, C.yield $ builder `mappend` fromByteString bs)
+            RequestBodyBuilder i b -> (Just $ i, C.yield $ builder `mappend` b)
+            RequestBodySource i source -> (Just i, C.yield builder >> source)
+            RequestBodySourceChunked source -> (Nothing, C.yield builder >> (source C.$= chunkIt))
 
     hh
         | port req == 80 && not (secure req) = host req
