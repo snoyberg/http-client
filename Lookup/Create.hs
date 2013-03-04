@@ -66,7 +66,7 @@ main = do
     hPutStrLn h "#if defined(DEBIAN)"
     hPutStrLn h "{-# NOINLINE dataStructure #-}"
     hPutStrLn h "dataStructure :: DataStructure"
-    hPutStrLn h "dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile \"DEBIAN\" C.$$ PSLC.sink"
+    hPutStrLn h "dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile DEBIAN C.$$ PSLC.sink"
     hPutStrLn h "#else"
     hPutStrLn h "dataStructure :: DataStructure"
     hPutStrLn h "dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds"

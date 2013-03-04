@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 
--- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-03-04 05:08:13.014703 UTC
+-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-03-04 05:13:26.933782 UTC
 
 module Network.PublicSuffixList.DataStructure (dataStructure) where
 
@@ -24,12 +24,12 @@ import System.IO.Unsafe (unsafePerformIO)
 -- serialize the datastructure ourself, so there's only one string literal.
 
 {-|
-The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-03-04 05:08:13.014703 UTC
+The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-03-04 05:13:26.933782 UTC
 -}
 #if defined(DEBIAN)
 {-# NOINLINE dataStructure #-}
 dataStructure :: DataStructure
-dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile "DEBIAN" C.$$ PSLC.sink
+dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile DEBIAN C.$$ PSLC.sink
 #else
 dataStructure :: DataStructure
 dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds
