@@ -12,6 +12,11 @@ cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        https://github.com/litherum/publicsuffixlist
 
+flag create
+  default: False
+flag debian
+  default: False
+
 library
     build-depends: base       >= 4       && < 5
                  , containers
@@ -20,11 +25,23 @@ library
                  , text       >= 0.11
                  , utf8-string
                  , cereal
+    if flag(create)
+        build-depends: idna             >= 0.1.2 && < 1.0
+                     , conduit          >= 1.0.0 && < 2.0.0
     exposed-modules: Network.PublicSuffixList.Lookup
                    , Network.PublicSuffixList.DataStructure
                    , Network.PublicSuffixList.Internal.Types
                    , Network.PublicSuffixList.Internal.Internal
+    if flag(create)
+        exposed-modules: Network.PublicSuffixList.Create
+    else
+        other-modules: Network.PublicSuffixList.Create
     ghc-options:     -Wall
+    if flag(create)
+      cpp-options: -DCREATE
+    if flag(debian)
+      cpp-options -DDEBIAN=/tmp/publicsuffix
+
 
 Test-Suite test-public-suffix-list
     type: exitcode-stdio-1.0

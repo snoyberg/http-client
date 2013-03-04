@@ -34,8 +34,9 @@ generateDataStructure url = do
 main :: IO ()
 main = do
   (ds, current_time) <- generateDataStructure "http://mxr.mozilla.org/mozilla-central/source/netwerk/dns/effective_tld_names.dat?raw=1"
-  withFile "../Lookup/Network/PublicSuffixList/DataStructure.hs" WriteMode $ \ h -> do
+  withFile "Network/PublicSuffixList/DataStructure.hs" WriteMode $ \ h -> do
     hPutStrLn h "{-# LANGUAGE OverloadedStrings #-}"
+    hPutStrLn h "{-# LANGUAGE CPP #-}"
     hPutStrLn h ""
     hPutStrLn h $ "-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at " ++ show current_time
     hPutStrLn h ""
@@ -47,6 +48,11 @@ main = do
     hPutStrLn h ""
     hPutStrLn h "import Network.PublicSuffixList.Internal.Types"
     hPutStrLn h "import Network.PublicSuffixList.Internal.Internal"
+    hPutStrLn h "#if defined(DEBIAN)"
+    hPutStrLn h "import qualified Network.PublicSuffixList.Create as PSLC"
+    hPutStrLn h "import qualified Data.Conduit as C"
+    hPutStrLn h "import System.IO.Unsafe (unsafePerformIO)"
+    hPutStrLn h "#endif"
     hPutStrLn h ""
     hPutStrLn h "-- We could just put the raw data structure here, but if we do that, there will be lots of"
     hPutStrLn h "-- static string literals, which makes GHC really slow when compiling. Instead, we can manually"
@@ -55,8 +61,15 @@ main = do
     hPutStrLn h "{-|"
     hPutStrLn h $ "The opaque data structure that 'isSuffix' can query. This data structure was generated at " ++ show current_time
     hPutStrLn h "-}"
+    hPutStrLn h "#if defined(DEBIAN)"
+    hPutStrLn h "{-# NOINLINE dataStructure #-}"
+    hPutStrLn h "dataStructure :: Int -> DataStructure"
+    hPutStrLn h "dataStructure _ = unsafePerformIO $ sourceFile DEBIAN C.$$ PSLC.sink"
+    hPutStrLn h "#else"
     hPutStrLn h "dataStructure :: DataStructure"
     hPutStrLn h "dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds"
     hPutStrLn h ""
     hPutStrLn h "serializedDataStructure :: BS.ByteString"
     hPutStrLn h $ "serializedDataStructure = " ++ (show $ runPut $ putDataStructure ds)
+    hPutStrLn h ""
+    hPutStrLn h "#endif"
