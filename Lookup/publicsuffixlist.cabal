@@ -40,7 +40,7 @@ library
     if flag(create)
       cpp-options: -DCREATE
     if flag(debian)
-      cpp-options -DDEBIAN=/tmp/publicsuffix
+      cpp-options: -DDEBIAN=/tmp/publicsuffix
 
 
 Test-Suite test-public-suffix-list
