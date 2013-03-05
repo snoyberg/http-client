@@ -11,6 +11,7 @@ stability:       Experimental
 cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        https://github.com/litherum/publicsuffixlist
+extra-source-files: effective_tld_names.dat
 
 flag create
   default: False
