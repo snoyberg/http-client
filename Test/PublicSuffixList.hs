@@ -2,12 +2,17 @@
 
 import           Data.Char
 import           Data.Maybe
-import qualified Data.Text            as T
+import           Data.Serialize.Get hiding (getTreeOf)
+import           Data.Serialize.Put
+import qualified Data.Text                              as T
 import           Debug.Trace
-import qualified Network.PublicSuffixList.Lookup as L
+import           Network.PublicSuffixList.DataStructure
+import qualified Network.PublicSuffixList.Lookup        as L
+import           Network.PublicSuffixList.Serialize
 import           System.Exit
 import           Test.HUnit
 import           Text.IDNA
+
 
 isSuffix' :: T.Text -> Bool
 isSuffix' = L.isSuffix . T.intercalate "." . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')
@@ -78,8 +83,12 @@ hunittests = TestList [
   TestCase $ assertEqual "60" False $ isSuffix' "www.test.k12.ak.us"
   ]
 
+testSerializationRoundTrip = TestCase $ assertEqual "Round Trip" dataStructure ds
+  where Right ds = runGet getDataStructure serializedDataStructure
+        serializedDataStructure = runPut $ putDataStructure dataStructure
+
 main = do
-  counts <- runTestTT hunittests
+  counts <- runTestTT $ TestList [TestLabel "Mozilla Tests" hunittests, TestLabel "Round Trip" testSerializationRoundTrip]
   if errors counts == 0 && failures counts == 0
     then exitSuccess
     else exitFailure
