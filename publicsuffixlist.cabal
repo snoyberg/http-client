@@ -14,7 +14,7 @@ homepage:        https://github.com/litherum/publicsuffixlist
 
 flag create
   default: False
-flag debian
+flag runtimelist
   default: False
 
 library
@@ -39,8 +39,8 @@ library
     ghc-options:     -Wall
     if flag(create)
       cpp-options: -DCREATE
-    if flag(debian)
-      cpp-options: -DDEBIAN="/usr/share/publicsuffix/effective_tld_names.dat"
+    if flag(runtimelist)
+      cpp-options: -DRUNTIMELIST="/usr/share/publicsuffix/effective_tld_names.dat"
 
 
 Test-Suite test-public-suffix-list

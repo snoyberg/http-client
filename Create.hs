@@ -5,6 +5,9 @@ be used with the isSuffix function in Network.PublicSuffixList.Lookup. It then
 generates a source file with the contents of this data structure so that
 applications can link against this source file and get knowledget of public suffixes
 without doing anything at runtime.
+
+Run this script like so:
+$ runhaskell -DCREATE Create.hs
 -}
 
 import qualified Data.ByteString      as BS
@@ -45,7 +48,7 @@ main = do
     hPutStrLn h "import           Data.ByteString.Char8 ()"
     hPutStrLn h ""
     hPutStrLn h "import Network.PublicSuffixList.Internal.Types"
-    hPutStrLn h "#if !defined(DEBIAN)"
+    hPutStrLn h "#if !defined(RUNTIMELIST)"
     hPutStrLn h "import qualified Data.ByteString      as BS"
     hPutStrLn h "import           Data.Serialize.Get hiding (getTreeOf)"
     hPutStrLn h "import Network.PublicSuffixList.Internal.Internal"
@@ -63,10 +66,10 @@ main = do
     hPutStrLn h "{-|"
     hPutStrLn h $ "The opaque data structure that 'isSuffix' can query. This data structure was generated at " ++ show current_time
     hPutStrLn h "-}"
-    hPutStrLn h "#if defined(DEBIAN)"
+    hPutStrLn h "#if defined(RUNTIMELIST)"
     hPutStrLn h "{-# NOINLINE dataStructure #-}"
     hPutStrLn h "dataStructure :: DataStructure"
-    hPutStrLn h "dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile DEBIAN C.$$ PSLC.sink"
+    hPutStrLn h "dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile RUNTIMELIST C.$$ PSLC.sink"
     hPutStrLn h "#else"
     hPutStrLn h "dataStructure :: DataStructure"
     hPutStrLn h "dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds"
