@@ -35,8 +35,6 @@ library
                  , Network.PublicSuffixList.Serialize
     if flag(create)
         exposed-modules: Network.PublicSuffixList.Create
-    else
-        other-modules: Network.PublicSuffixList.Create
     ghc-options:     -Wall
     if flag(create)
       cpp-options: -DCREATE
