@@ -10,13 +10,14 @@ Run this script like so:
 $ runhaskell -DCREATE Create.hs
 -}
 
-import qualified Data.ByteString      as BS
-import qualified Data.ByteString.UTF8 as U8
-import qualified Data.Conduit         as C
+import qualified Data.ByteString        as BS
+import qualified Data.ByteString.UTF8   as U8
+import qualified Data.Conduit           as C
 import           Data.Serialize.Put
-import qualified Data.Text            as T
+import qualified Data.Text              as T
 import           Data.Time.Clock
-import qualified Network.HTTP.Conduit as HC
+import qualified Network.HTTP.Conduit   as HC
+import           Data.Conduit.Binary (conduitFile)
 import           System.IO
 
 import           Network.PublicSuffixList.Create
@@ -29,7 +30,7 @@ generateDataStructure url = do
   req <- HC.parseUrl url
   out <- HC.withManager $ \ manager -> do
     res <- HC.http req manager
-    HC.responseBody res C.$$+- sink
+    HC.responseBody res C.$$+- conduitFile "effective_tld_names.dat" C.=$ sink
   current_time <- getCurrentTime
   putStrLn $ "Fetched Public Suffix List at " ++ show current_time
   return (out, current_time)
