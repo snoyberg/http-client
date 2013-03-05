@@ -30,8 +30,8 @@ library
                      , conduit          >= 1.0.0 && < 2.0.0
     exposed-modules: Network.PublicSuffixList.Lookup
                    , Network.PublicSuffixList.DataStructure
-                   , Network.PublicSuffixList.Internal.Types
-                   , Network.PublicSuffixList.Internal.Internal
+    other-modules: Network.PublicSuffixList.Types
+                 , Network.PublicSuffixList.Serialize
     if flag(create)
         exposed-modules: Network.PublicSuffixList.Create
     else

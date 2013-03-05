@@ -38,7 +38,7 @@ import qualified Data.Text            as T
 import           Data.Typeable
 import           Text.IDNA
 
-import           Network.PublicSuffixList.Internal.Types
+import           Network.PublicSuffixList.Types
 
 data PublicSuffixListException = PublicSuffixListException
   deriving (Show, Typeable)

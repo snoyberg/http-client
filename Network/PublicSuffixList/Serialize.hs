@@ -1,4 +1,4 @@
-module Network.PublicSuffixList.Internal.Internal (getDataStructure, putDataStructure) where
+module Network.PublicSuffixList.Serialize (getDataStructure, putDataStructure) where
 
 import qualified Data.ByteString      as BS
 import qualified Data.ByteString.UTF8 as U8
@@ -7,7 +7,7 @@ import           Data.Serialize.Get hiding (getTreeOf)
 import           Data.Serialize.Put
 import qualified Data.Text            as T
 
-import Network.PublicSuffixList.Internal.Types
+import Network.PublicSuffixList.Types
 
 getTreeOf :: Ord k => Get k -> Get (Tree k)
 getTreeOf p = Node <$> getMapOf p (getTreeOf p)

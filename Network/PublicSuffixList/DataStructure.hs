@@ -1,17 +1,17 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 
--- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-03-05 05:54:51.695993 UTC
+-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-03-05 06:10:18.425886 UTC
 
 module Network.PublicSuffixList.DataStructure (dataStructure) where
 
 import           Data.ByteString.Char8 ()
 
-import Network.PublicSuffixList.Internal.Types
+import Network.PublicSuffixList.Types
 #if !defined(RUNTIMELIST)
 import qualified Data.ByteString      as BS
 import           Data.Serialize.Get hiding (getTreeOf)
-import Network.PublicSuffixList.Internal.Internal
+import Network.PublicSuffixList.Serialize
 #else
 import qualified Network.PublicSuffixList.Create as PSLC
 import qualified Data.Conduit as C
@@ -24,7 +24,7 @@ import System.IO.Unsafe (unsafePerformIO)
 -- serialize the datastructure ourself, so there's only one string literal.
 
 {-|
-The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-03-05 05:54:51.695993 UTC
+The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-03-05 06:10:18.425886 UTC
 -}
 #if defined(RUNTIMELIST)
 {-# NOINLINE dataStructure #-}

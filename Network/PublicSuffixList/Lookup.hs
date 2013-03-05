@@ -5,7 +5,7 @@ import qualified Data.Map          as M
 import qualified Data.Text         as T
 
 import qualified Network.PublicSuffixList.DataStructure as DS
-import           Network.PublicSuffixList.Internal.Types
+import           Network.PublicSuffixList.Types
 
 data LookupResult = Inside | AtLeaf | OffEnd
   deriving (Eq)

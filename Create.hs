@@ -20,8 +20,8 @@ import qualified Network.HTTP.Conduit as HC
 import           System.IO
 
 import           Network.PublicSuffixList.Create
-import           Network.PublicSuffixList.Internal.Types
-import           Network.PublicSuffixList.Internal.Internal
+import           Network.PublicSuffixList.Types
+import           Network.PublicSuffixList.Serialize
 
 
 generateDataStructure :: String -> IO (DataStructure, UTCTime)
@@ -47,11 +47,11 @@ main = do
     hPutStrLn h ""
     hPutStrLn h "import           Data.ByteString.Char8 ()"
     hPutStrLn h ""
-    hPutStrLn h "import Network.PublicSuffixList.Internal.Types"
+    hPutStrLn h "import Network.PublicSuffixList.Types"
     hPutStrLn h "#if !defined(RUNTIMELIST)"
     hPutStrLn h "import qualified Data.ByteString      as BS"
     hPutStrLn h "import           Data.Serialize.Get hiding (getTreeOf)"
-    hPutStrLn h "import Network.PublicSuffixList.Internal.Internal"
+    hPutStrLn h "import Network.PublicSuffixList.Serialize"
     hPutStrLn h "#else"
     hPutStrLn h "import qualified Network.PublicSuffixList.Create as PSLC"
     hPutStrLn h "import qualified Data.Conduit as C"
@@ -66,12 +66,11 @@ main = do
     hPutStrLn h "{-|"
     hPutStrLn h $ "The opaque data structure that 'isSuffix' can query. This data structure was generated at " ++ show current_time
     hPutStrLn h "-}"
+    hPutStrLn h "dataStructure :: DataStructure"
     hPutStrLn h "#if defined(RUNTIMELIST)"
     hPutStrLn h "{-# NOINLINE dataStructure #-}"
-    hPutStrLn h "dataStructure :: DataStructure"
     hPutStrLn h "dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile RUNTIMELIST C.$$ PSLC.sink"
     hPutStrLn h "#else"
-    hPutStrLn h "dataStructure :: DataStructure"
     hPutStrLn h "dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds"
     hPutStrLn h ""
     hPutStrLn h "serializedDataStructure :: BS.ByteString"
