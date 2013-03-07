@@ -32,7 +32,6 @@ import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString)
 import Blaze.ByteString.Builder.Char8 (fromChar)
 
 import qualified Data.Conduit as C
-import qualified Data.Conduit.List as CL
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8

@@ -191,6 +191,7 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders CookieJar
                    | InvalidHeader S.ByteString
                    | InternalIOException IOException
                    | ProxyConnectException S.ByteString Int (Either S.ByteString HttpException) -- ^ host/port
+                   | NoResponseDataReceived
     deriving (Show, Typeable)
 instance Exception HttpException
 

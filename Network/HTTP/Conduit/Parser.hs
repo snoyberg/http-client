@@ -31,6 +31,13 @@ sinkHeaders = do
     return (status, headers)
   where
     getStatusLine = do
+        -- Ensure that there is some data coming in. If not, we want to signal
+        -- this as a connection problem and not a protocol problem.
+        mx <- CL.peek
+        case mx of
+            Nothing -> monadThrow NoResponseDataReceived
+            Just _ -> return ()
+
         status@(_, code, _) <- sinkLine >>= parseStatus
         if code == 100
             then newline ExpectedBlankAfter100Continue >> getStatusLine

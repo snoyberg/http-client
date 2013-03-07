@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- | This module contains everything you need to initiate HTTP connections.  If
 -- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
 -- want raw power, 'http' is the underlying workhorse of this package. Some
@@ -189,7 +190,7 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
-import Control.Exception.Lifted (throwIO, try, IOException, handle)
+import Control.Exception.Lifted (throwIO, try, IOException, handle, fromException)
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
@@ -297,17 +298,18 @@ httpRaw req' m = do
     -- not on calling @getResponse@. However, some servers seem to close
     -- connections after accepting the request headers, so we need to check for
     -- exceptions in both.
-    ex <- try' $ do
+    ex <- try $ do
         requestBuilder req C.$$ builderToByteString C.=$ connSink ci
+
         getResponse connRelease timeout' req src
 
     case (ex, isManaged) of
-        -- Connection was reused, and might be been closed. Try again
-        (Left _, Reused) -> do
+        -- Connection was reused, and might have been closed. Try again
+        (Left e, Reused) | isRetryableException e -> do
             connRelease DontReuse
             http req m
-        -- Not reused, so this is a real exception
-        (Left e, Fresh) -> liftIO $ throwIO e
+        -- Not reused, or a non-retry, so this is a real exception
+        (Left e, _) -> liftIO $ throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the response body, just throw them as normal.
         (Right res, _) -> case cookieJar req' of
@@ -317,8 +319,23 @@ httpRaw req' m = do
                 return $ res {responseCookieJar = cookie_jar}
             Nothing -> return res
   where
-    try' :: MonadBaseControl IO m => m a -> m (Either IOException a)
-    try' = try
+
+    -- Exceptions for which we should retry our request if we were reusing an
+    -- already open connection. In the case of IOExceptions, for example, we
+    -- assume that the connection was closed on the server and therefore open a
+    -- new one.
+    isRetryableException e =
+        case fromException e of
+            Just (_ :: IOException) -> True
+            _ ->
+                case fromException e of
+                    -- Note: Some servers will timeout connections by accepting
+                    -- the incoming packets for the new request, but closing
+                    -- the connection as soon as we try to read. To make sure
+                    -- we open a new connection under these circumstances, we
+                    -- check for the NoResponseDataReceived exception.
+                    Just NoResponseDataReceived -> True
+                    _ -> False
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
