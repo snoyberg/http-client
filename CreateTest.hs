@@ -96,7 +96,7 @@ populateFile url filename = withFile filename WriteMode $ \ h -> do
   current_time <- getCurrentTime
   putStrLn $ "Fetched Public Suffix List at " ++ show current_time
   mapM_ (hPutStrLn h) header
-  hPutStrLn h $ "-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at " ++ show current_time
+  hPutStrLn h $ "-- DO NOT MODIFY! This file has been automatically generated from the CreateTest.hs script at " ++ show current_time
   mapM_ (hPutStrLn h) header2
   req <- HC.parseUrl url
   HC.withManager $ \ manager -> do
