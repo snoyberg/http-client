@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 
--- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-03-05 06:23:57.791996 UTC
+-- DO NOT MODIFY! This file has been automatically generated from the Create.hs script at 2013-03-07 09:29:19.461813 UTC
 
 module Network.PublicSuffixList.DataStructure (dataStructure) where
 
@@ -24,7 +24,7 @@ import System.IO.Unsafe (unsafePerformIO)
 -- serialize the datastructure ourself, so there's only one string literal.
 
 {-|
-The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-03-05 06:23:57.791996 UTC
+The opaque data structure that 'isSuffix' can query. This data structure was generated at 2013-03-07 09:29:19.461813 UTC
 -}
 dataStructure :: DataStructure
 #if defined(RUNTIMELIST)

@@ -3,10 +3,6 @@
 {-# LANGUAGE NoMonomorphismRestriction #-}
 {-# LANGUAGE CPP #-}
 
-#if !defined(CREATE)
-module Network.PublicSuffixList.Create () where
-#else
-
 {-|
 This script parses the public suffix list, and constructs a data structure which can
 be used with the isSuffix function in Lookup.hs. It exports a GSink which produces
@@ -74,4 +70,3 @@ Generate the opaque 'DataStructure'
 sink :: C.MonadThrow m => C.Sink BS.ByteString m DataStructure
 sink = CT.decode CT.utf8 C.=$ CT.lines C.=$ CL.fold foldingFunction def
 
-#endif

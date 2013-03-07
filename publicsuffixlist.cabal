@@ -36,8 +36,6 @@ library
     if flag(create)
         exposed-modules: Network.PublicSuffixList.Create
     ghc-options:     -Wall
-    if flag(create)
-      cpp-options: -DCREATE
     if flag(runtimelist)
       cpp-options: -DRUNTIMELIST="/usr/share/publicsuffix/effective_tld_names.dat"
 

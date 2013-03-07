@@ -16,7 +16,7 @@ import           Text.IDNA
 
 isSuffix' :: T.Text -> Bool
 isSuffix' = L.isSuffix . T.intercalate "." . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')
--- DO NOT MODIFY! This file has been automatically generated from the CreateTest.hs script at 2013-03-07 09:22:38.613413 UTC
+-- DO NOT MODIFY! This file has been automatically generated from the CreateTest.hs script at 2013-03-07 09:29:25.521664 UTC
 hunittests :: Test
 hunittests = TestList [
   TestCase $ assertEqual "0" True $ isSuffix' "COM",

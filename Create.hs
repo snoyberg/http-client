@@ -5,9 +5,6 @@ be used with the isSuffix function in Network.PublicSuffixList.Lookup. It then
 generates a source file with the contents of this data structure so that
 applications can link against this source file and get knowledget of public suffixes
 without doing anything at runtime.
-
-Run this script like so:
-$ runhaskell -DCREATE Create.hs
 -}
 
 import qualified Data.ByteString        as BS
