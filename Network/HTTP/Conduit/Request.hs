@@ -25,6 +25,7 @@ module Network.HTTP.Conduit.Request
 
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
+import Data.String (IsString(..))
 
 import Data.Default (Default (def))
 
@@ -196,6 +197,12 @@ instance Default (Request m) where
                                 else return (Just remainingTime, res)
         , cookieJar = Just def
         }
+
+instance IsString (Request m) where
+    fromString s =
+        case parseUrl s of
+            Left e -> error $ show (e :: HttpException)
+            Right r -> r
 
 -- | Always decompress a compressed stream.
 alwaysDecompress :: ContentType -> Bool
