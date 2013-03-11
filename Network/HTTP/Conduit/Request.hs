@@ -42,7 +42,7 @@ import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
 import Control.Monad.IO.Class (liftIO)
-import Control.Exception.Lifted (Exception, toException, throwIO)
+import Control.Exception.Lifted (Exception, toException, throw, throwIO)
 import Control.Failure (Failure (failure))
 import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
@@ -201,7 +201,7 @@ instance Default (Request m) where
 instance IsString (Request m) where
     fromString s =
         case parseUrl s of
-            Left e -> error $ show (e :: HttpException)
+            Left e -> throw (e :: HttpException)
             Right r -> r
 
 -- | Always decompress a compressed stream.
