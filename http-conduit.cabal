@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         1.9.2
+version:         1.9.2.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -36,7 +36,7 @@ library
                  , http-types            >= 0.7
                  , mime-types            >= 0.1
                  , cprng-aes             >= 0.2
-                 , tls                   >= 1.0.0
+                 , tls                   >= 1.1.0
                  , tls-extra             >= 0.5.0
                  , monad-control         >= 0.3
                  , containers            >= 0.2
