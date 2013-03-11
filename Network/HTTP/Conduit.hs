@@ -190,7 +190,8 @@ import qualified Data.ByteString.Lazy as L
 import qualified Network.HTTP.Types as W
 import Data.Default (def)
 
-import Control.Exception.Lifted (throwIO, try, IOException, handle, fromException)
+import Control.Exception.Lifted (throwIO, try, IOException, handle, fromException, toException)
+import qualified Network.TLS as TLS
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
@@ -358,7 +359,22 @@ httpLbs :: (MonadBaseControl IO m, MonadResource m) => Request m -> Manager -> m
 httpLbs r = wrapIOException . (lbsResponse <=< http r)
 
 wrapIOException :: MonadBaseControl IO m => m a -> m a
-wrapIOException = handle $ throwIO . InternalIOException
+wrapIOException =
+    handle $ throwIO . wrapper
+  where
+    wrapper se =
+        case fromException se of
+            Just e -> toException $ InternalIOException e
+            Nothing ->
+                case fromException se of
+                    Just TLS.Terminated{} -> toException $ TlsException se
+                    Nothing ->
+                        case fromException se of
+                            Just TLS.HandshakeFailed{} -> toException $ TlsException se
+                            Nothing ->
+                                case fromException se of
+                                    Just TLS.ConnectionNotEstablished -> toException $ TlsException se
+                                    Nothing -> se
 
 -- | Download the specified URL, following any redirects, and
 -- return the response body.
