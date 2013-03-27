@@ -156,6 +156,7 @@ module Network.HTTP.Conduit
     , managerConnCount
     , managerCheckCerts
     , managerCertStore
+    , managerResponseTimeout
       -- *** Defaults
     , defaultCheckCerts
       -- * Cookies
@@ -290,7 +291,7 @@ httpRaw req' m = do
         Nothing -> return (req', def)
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         req
-        (responseTimeout req)
+        (responseTimeout' req)
         (failedConnectionException req)
         (getConn req m)
     let src = connSource ci
@@ -320,6 +321,12 @@ httpRaw req' m = do
                 return $ res {responseCookieJar = cookie_jar}
             Nothing -> return res
   where
+
+    responseTimeout' req
+        | rt == useDefaultTimeout = mResponseTimeout m
+        | otherwise = rt
+      where
+        rt = responseTimeout req
 
     -- Exceptions for which we should retry our request if we were reusing an
     -- already open connection. In the case of IOExceptions, for example, we

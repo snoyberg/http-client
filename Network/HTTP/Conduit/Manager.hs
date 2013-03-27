@@ -5,6 +5,7 @@
 {-# LANGUAGE BangPatterns #-}
 module Network.HTTP.Conduit.Manager
     ( Manager
+    , mResponseTimeout
     , ManagerSettings (..)
     , ConnKey (..)
     , ConnHost (..)
@@ -75,6 +76,13 @@ data ManagerSettings = ManagerSettings
       -- ^ Check if the server certificate is valid. Only relevant for HTTPS.
     , managerCertStore :: IO CertificateStore
       -- ^ Load up the certificate store. By default uses the system store.
+    , managerResponseTimeout :: Maybe Int
+      -- ^ Default timeout (in microseconds) to be applied to requests which do
+      -- not provide a timeout value.
+      --
+      -- Default is 5 seconds
+      --
+      -- Since 1.9.3
     }
 
 type X509Encoded = L.ByteString
@@ -84,6 +92,7 @@ instance Default ManagerSettings where
         { managerConnCount = 10
         , managerCheckCerts = defaultCheckCerts
         , managerCertStore = getSystemCertificateStore
+        , managerResponseTimeout = Just 5000000
         }
 
 -- | Check certificates using the operating system's certificate checker.
@@ -105,6 +114,8 @@ data Manager = Manager
     , mCertCache :: !(I.IORef (Map.Map S8.ByteString (Map.Map X509Encoded UTCTime)))
     -- ^ Cache of validated certificates. The @UTCTime@ gives the expiration
     -- time for the validity of the certificate. The @Ascii@ is the hostname.
+    , mResponseTimeout :: !(Maybe Int)
+    -- ^ Copied from 'managerResponseTimeout'
     }
 
 data NonEmptyList a =
@@ -174,7 +185,13 @@ newManager ms = do
     mapRef <- I.newIORef (Just Map.empty)
     certCache <- I.newIORef Map.empty
     _ <- forkIO $ reap mapRef certCache
-    return $ Manager mapRef (managerConnCount ms) (\x y -> getCertStore >>= \cs -> managerCheckCerts ms cs x y) certCache
+    return Manager
+        { mConns = mapRef
+        , mMaxConns = managerConnCount ms
+        , mCheckCerts = \x y -> getCertStore >>= \cs -> managerCheckCerts ms cs x y
+        , mCertCache = certCache
+        , mResponseTimeout = managerResponseTimeout ms
+        }
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))

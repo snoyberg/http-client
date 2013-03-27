@@ -21,6 +21,7 @@ module Network.HTTP.Conduit.Request
     , urlEncodedBody
     , needsGunzip
     , requestBuilder
+    , useDefaultTimeout
     ) where
 
 import Data.Maybe (fromMaybe, isJust)
@@ -157,6 +158,13 @@ instance Show (Request m) where
         , "}"
         ]
 
+-- | Magic value to be placed in a 'Request' to indicate that we should use the
+-- timeout value in the @Manager@.
+--
+-- Since 1.9.3
+useDefaultTimeout :: Maybe Int
+useDefaultTimeout = Just (-3425)
+
 instance Default (Request m) where
     def = Request
         { host = "localhost"
@@ -178,7 +186,7 @@ instance Default (Request m) where
             if 200 <= sci && sci < 300
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs cookie_jar
-        , responseTimeout = Just 5000000
+        , responseTimeout = useDefaultTimeout
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
                 Nothing -> fmap ((,) Nothing) f

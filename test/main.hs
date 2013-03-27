@@ -285,6 +285,18 @@ main = withSocketsDo $ do
             res <- withManager $ httpLbs req
             responseBody res @?= "homepage for example.com"
 
+    describe "managerResponseTimeout" $ do
+        it "works" $ withApp app $ \port -> do
+            req1 <- parseUrl $ "http://localhost:" ++ show port
+            let req2 = req1 { responseTimeout = Just 5000000 }
+            withManagerSettings def { managerResponseTimeout = Just 1 } $ \man -> do
+                eres1 <- try $ httpLbs req1 man
+                case eres1 of
+                    Left (FailedConnectionException _ _) -> return ()
+                    _ -> error "Did not time out"
+                _ <- httpLbs req2 man
+                return ()
+
 withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
     port <- getPort
