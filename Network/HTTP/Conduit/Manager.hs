@@ -303,8 +303,12 @@ withManagerSettings s f = runResourceT $ do
     (_, manager) <- allocate (newManager s) closeManager
     f manager
 
--- | Close all connections in a 'Manager'. Afterwards, the
--- 'Manager' can be reused if desired.
+-- | Close all connections in a 'Manager'. Afterwards, the 'Manager'
+-- can be reused if desired.
+--
+-- Note that this doesn't affect currently in-flight connections,
+-- meaning you can safely use it without hurting any queries you may
+-- have concurrently running.
 closeManager :: Manager -> IO ()
 closeManager manager = mask_ $ do
     m <- I.atomicModifyIORef (mConns manager) $ \x -> (Nothing, x)
