@@ -332,8 +332,9 @@ httpRaw req' m = do
     -- already open connection. In the case of IOExceptions, for example, we
     -- assume that the connection was closed on the server and therefore open a
     -- new one.
-    isRetryableException e =
-        case fromException e of
+    isRetryableException e
+        | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF = True
+        | otherwise = case fromException e of
             Just (_ :: IOException) -> True
             _ ->
                 case fromException e of
