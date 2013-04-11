@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.PublicSuffixList.Lookup (effectiveTLDPlusOne, effectiveTLDPlusOne', isSuffix, isSuffix') where
 
-import qualified Data.List         as L
 import qualified Data.Map          as M
 import           Data.Maybe (isNothing)
 import qualified Data.Text         as T
@@ -9,7 +8,14 @@ import qualified Data.Text         as T
 import qualified Network.PublicSuffixList.DataStructure as DS
 import           Network.PublicSuffixList.Types
 
-data LookupResult = Inside | AtLeaf | OffEnd T.Text
+{-|
+OffEnd's Bool argument represents whether we fell off a
+leaf or whether we fell off a non-leaf. True means that
+we fell off a leaf. Its Text argument is the component
+that pushed us off the end, along with all the components
+to the right of that one, interspersed with "."s
+-}
+data LookupResult = Inside | AtLeaf | OffEnd Bool T.Text
   deriving (Eq)
 
 {-|
@@ -34,28 +40,38 @@ though that package doesn't always map strings to lowercase)
 effectiveTLDPlusOne' :: DataStructure -> T.Text -> Maybe T.Text
 effectiveTLDPlusOne' dataStructure s
   -- Any TLD is a suffix
-  | length ps == 1 = Nothing
-  -- Only match against the exception rules if we have a full match
-  | exceptionResult == AtLeaf = Just s
-  | otherwise = case rulesResult of
-  -- If we have a subdomain on an existing rule, we're not a suffix
-      OffEnd x -> Just x
-  -- Otherwise, we're a suffix of a suffix, which is a suffix
-      _ -> Nothing
-  where ps = reverse $ T.split (== '.') s
+  | length ss == 1 = Nothing
+  | otherwise = output rulesResult exceptionResult
+  where ss = T.splitOn "." s
+        ps = reverse ss
         exceptionResult = recurse ps [] $ snd dataStructure
         rulesResult = recurse ps [] $ fst dataStructure
-        getNext :: Tree T.Text -> T.Text -> Maybe (Tree T.Text)
+        -- If we fell off, did we do it at a leaf? Otherwise, what's the
+        -- subtree that we're at
+        getNext :: Tree T.Text -> T.Text -> Either Bool (Tree T.Text)
         getNext t s' = case M.lookup s' $ children t of
-          Nothing -> M.lookup "*" $ children t
-          j -> j
+          Nothing -> Left (M.null $ children t)
+          Just t' -> Right t'
+        getNextWithStar t s' = case getNext t s' of
+          Left _ -> getNext t "*"
+          r -> r
         recurse :: [T.Text] -> [T.Text] -> Tree T.Text -> LookupResult
         recurse [] _ t
           | M.null $ children t = AtLeaf
           | otherwise = Inside
-        recurse (c : cs) prev t = case getNext t c of
-          Nothing -> OffEnd $ T.concat $ L.intersperse (T.pack ".") (c : prev)
-          Just t' -> recurse cs (c : prev) t'
+        recurse (c : cs) prev t = case getNextWithStar t c of
+          Left b -> OffEnd b $ T.intercalate "." (c : prev)
+          Right t' -> recurse cs (c : prev) t'
+        -- Only match against the exception rules if we have a full match
+        output _ AtLeaf = Just s
+        output _ (OffEnd True x) = Just $ T.intercalate "." $ tail $ T.splitOn "." x
+        -- If we have a subdomain on an existing rule, we're not a suffix
+        output (OffEnd _ x) _
+          -- A single level domain can never be a eTLD+1
+          | isNothing $ T.find (== '.') x = Just $ T.intercalate "." $ drop (length ss - 2) ss
+          | otherwise = Just x
+        -- Otherwise, we're a suffix of a suffix, which is a suffix
+        output _ _ = Nothing
 
 -- | >>> effectiveTLDPlusOne = effectiveTLDPlusOne' Network.PublicSuffixList.DataStructure.dataStructure
 effectiveTLDPlusOne :: T.Text -> Maybe T.Text

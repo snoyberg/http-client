@@ -29,8 +29,8 @@ header = [ "{-# LANGUAGE OverloadedStrings #-}"
          , "import           Text.IDNA"
          , ""
          , ""
-         , "isSuffix' :: T.Text -> Bool"
-         , "isSuffix' = L.isSuffix . T.intercalate \".\" . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')"
+         , "effectiveTLDPlusOne' :: T.Text -> Maybe T.Text"
+         , "effectiveTLDPlusOne' = L.effectiveTLDPlusOne . T.intercalate \".\" . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')"
          ]
 
 header2 :: [String]
@@ -67,12 +67,15 @@ startswithdot :: String -> Bool
 startswithdot = matchTest regex
   where regex = makeRegex "^checkPublicSuffix\\('\\.(.+)', (.+)\\);$" :: Regex
 
-input :: String -> (String, Bool)
-input s = (l, head r /= '\'')
+input :: String -> (String, Maybe String)
+input s = (l, m)
   where regex = makeRegex "^checkPublicSuffix\\('(.+)', (.+)\\);$" :: Regex
         matches = head $ matchAllText regex s
         l = fst $ matches ! 1
         r = fst $ matches ! 2
+        m
+          | head r == '\'' = Just $ tail $ init r
+          | otherwise = Nothing
 
 counter :: (Monad m, Num t1) => C.Conduit t m (t, t1)
 counter = counterHelper 0
@@ -88,8 +91,8 @@ intersperse i = C.await >>= \ x -> case x of
           Nothing -> return ()
           Just a -> C.yield i >> C.yield a >> intersperseHelper
 
-output :: Show t1 => ((String, Bool), t1) -> String
-output ((s, b), c) = "  TestCase $ assertEqual \"" ++ (show c) ++ "\" " ++ (show b) ++ " $ isSuffix' \"" ++ s ++ "\""
+output :: (Show t1, Show t2) => ((String, t1), t2) -> String
+output ((s, b), c) = "  TestCase $ assertEqual \"" ++ (show c) ++ "\" (" ++ (show b) ++ ") $ effectiveTLDPlusOne' \"" ++ s ++ "\""
 
 populateFile :: String -> String -> IO ()
 populateFile url filename = withFile filename WriteMode $ \ h -> do
