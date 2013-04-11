@@ -52,7 +52,9 @@ effectiveTLDPlusOne' dataStructure s
         getNext t s' = case M.lookup s' $ children t of
           Nothing -> Left (M.null $ children t)
           Just t' -> Right t'
+        -- Look up the component we're looking for...
         getNextWithStar t s' = case getNext t s' of
+          -- and if that fails, look up "*"
           Left _ -> getNext t "*"
           r -> r
         recurse :: [T.Text] -> [T.Text] -> Tree T.Text -> LookupResult
