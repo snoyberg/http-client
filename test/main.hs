@@ -11,7 +11,7 @@ import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, set
 import Network.HTTP.Conduit hiding (port)
 import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Conduit.MultipartFormData
-import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar)
+import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar, threadDelay)
 import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException, bracket, onException, IOException)
 import qualified Data.IORef as I
@@ -24,7 +24,7 @@ import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Conduit (($$), yield, Flush (Chunk), runResourceT, await)
+import Data.Conduit (($$), yield, Flush (Chunk, Flush), runResourceT, await)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -82,6 +82,10 @@ app req =
                     [(hLocation, S.append "/infredir/" $ S8.pack $ show $ i+1)]
                     (L8.pack $ show i)
         ["dump_cookies"] -> return $ responseLBS status200 [] $ L.fromChunks $ return $ maybe "" id $ lookup hCookie $ Wai.requestHeaders req
+        ["delayed"] -> return $ ResponseSource status200 [("foo", "bar")] $ do
+            yield Flush
+            liftIO $ threadDelay 30000000
+            yield $ Chunk $ fromByteString "Hello World!"
         _ -> return $ responseLBS status404 [] "not found"
 
     where tastyCookie = (mk (fromString "Set-Cookie"), fromString "flavor=chocolate-chip;")
@@ -295,6 +299,14 @@ main = withSocketsDo $ do
                     Left (FailedConnectionException _ _) -> return ()
                     _ -> error "Did not time out"
                 _ <- httpLbs req2 man
+                return ()
+
+    describe "delayed body" $ do
+        it "works" $ withApp app $ \port -> do
+            req <- parseUrl $ "http://localhost:" ++ show port ++ "/delayed"
+            withManager $ \man -> do
+                res <- http req man
+                error $ show $ fmap (const ()) res
                 return ()
 
 withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
