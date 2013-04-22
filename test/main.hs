@@ -305,8 +305,7 @@ main = withSocketsDo $ do
         it "works" $ withApp app $ \port -> do
             req <- parseUrl $ "http://localhost:" ++ show port ++ "/delayed"
             withManager $ \man -> do
-                res <- http req man
-                error $ show $ fmap (const ()) res
+                _ <- http req man
                 return ()
 
 withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
