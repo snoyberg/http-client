@@ -16,6 +16,7 @@ module Network.HTTP.Conduit.Types
     ) where
 
 import Data.Int (Int64)
+import Data.Word (Word64)
 import Data.Typeable (Typeable)
 
 import Blaze.ByteString.Builder
@@ -193,6 +194,10 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders CookieJar
                    | ProxyConnectException S.ByteString Int (Either S.ByteString HttpException) -- ^ host/port
                    | NoResponseDataReceived
                    | TlsException SomeException
+                   | ResponseBodyTooShort Word64 Word64
+                   -- ^ Expected size/actual size.
+                   --
+                   -- Since 1.9.4
     deriving (Show, Typeable)
 instance Exception HttpException
 

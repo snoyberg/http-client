@@ -13,7 +13,7 @@ import Control.Arrow (first)
 import Control.Monad (liftM)
 
 import Control.Exception (throwIO)
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
@@ -23,10 +23,9 @@ import qualified Data.CaseInsensitive as CI
 
 import Data.Default (def)
 
-import Data.Conduit hiding (Conduit)
+import Data.Conduit
 import Data.Conduit.Internal (ResumableSource (..), Pipe (..))
 import qualified Data.Conduit.Zlib as CZ
-import qualified Data.Conduit.Binary as CB
 import qualified Data.Conduit.List as CL
 
 import qualified Network.HTTP.Types as W
@@ -160,7 +159,7 @@ getResponse connRelease timeout'' req@(Request {..}) src1 = do
                             then fmapResume ($= chunkedConduit rawBody) src2
                             else
                                 case mcl of
-                                    Just len -> fmapResume ($= CB.isolate len) src2
+                                    Just len -> fmapResume ($= requireLength len) src2
                                     Nothing  -> src2
                 let src4 =
                         if needsGunzip req hs'
@@ -172,3 +171,27 @@ getResponse connRelease timeout'' req@(Request {..}) src1 = do
   where
     fmapResume f (ResumableSource src m) = ResumableSource (f src) m
     addCleanup' f (ResumableSource src m) = ResumableSource (addCleanup f src) (m >> f False)
+
+-- | Ensure that the stream has exactly the given length.
+requireLength :: MonadIO m => Int -> Conduit S.ByteString m S.ByteString
+requireLength total =
+    loop total
+  where
+    loop 0 = return ()
+    loop i =
+        await >>= maybe
+            (liftIO $ throwIO $ ResponseBodyTooShort
+                (fromIntegral total)
+                (fromIntegral $ total - i))
+            go
+      where
+        go bs =
+            case compare i l of
+                EQ -> yield bs
+                LT -> do
+                    let (x, y) = S.splitAt i bs
+                    leftover y
+                    yield x
+                GT -> yield bs >> loop (i - l)
+          where
+            l = S.length bs

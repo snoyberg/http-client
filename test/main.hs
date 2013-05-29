@@ -243,6 +243,14 @@ main = withSocketsDo $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
                     responseBody res `shouldBe` "foo"
 
+    describe "response body too short" $ do
+        it "throws an exception" $ wrongLength $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            withManager $ \manager -> do
+                eres <- try $ httpLbs req manager
+                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+                 `shouldBe` Left (show $ ResponseBodyTooShort 50 18)
+
     describe "redirect" $ do
         it "ignores large response bodies" $ do
             let app' port req =
@@ -377,3 +385,13 @@ noStatusMessage =
     withCApp $ \app' -> src $$ appSink app'
   where
     src = yield "HTTP/1.0 200\r\nContent-Length: 3\r\n\r\nfoo: barbazbin"
+
+wrongLength :: (Int -> IO ()) -> IO ()
+wrongLength =
+    withCApp $ \app' -> do
+        _ <- appSource app' $$ await
+        src $$ appSink app'
+  where
+    src = do
+        yield "HTTP/1.0 200 OK\r\nContent-Length: 50\r\n\r\n"
+        yield "Not quite 50 bytes"
