@@ -17,6 +17,8 @@ import qualified Data.Conduit.Binary as CB
 
 import Control.Monad (when, unless)
 import Control.Exception (assert)
+import Data.Maybe (fromMaybe)
+import Network.HTTP.Conduit.Types (HttpException (InvalidChunkHeaders))
 
 chunkedConduit :: MonadThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy
@@ -30,13 +32,20 @@ chunkedConduit sendHeaders = do
         chunkedConduit sendHeaders
   where
     getLen =
-        start 0
+        start Nothing
       where
-        start i = await >>= maybe (return i) (go i)
+        start i = await >>= maybe (returnLen i) (go' i)
+
+        returnLen Nothing = monadThrow InvalidChunkHeaders
+        returnLen (Just i) = return i
+
+        go' i bs
+            | S.null bs = start i
+            | otherwise = go (fromMaybe 0 i) bs
 
         go i bs =
             case S.uncons bs of
-                Nothing -> start i
+                Nothing -> start $ Just i
                 Just (w, bs') ->
                     case toI w of
                         Just i' -> go (i * 16 + i') bs'

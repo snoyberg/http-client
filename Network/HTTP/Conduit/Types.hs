@@ -198,6 +198,10 @@ data HttpException = StatusCodeException W.Status W.ResponseHeaders CookieJar
                    -- ^ Expected size/actual size.
                    --
                    -- Since 1.9.4
+                   | InvalidChunkHeaders
+                   -- ^
+                   --
+                   -- Since 1.9.4
     deriving (Show, Typeable)
 instance Exception HttpException
 

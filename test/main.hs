@@ -250,6 +250,18 @@ main = withSocketsDo $ do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
                  `shouldBe` Left (show $ ResponseBodyTooShort 50 18)
+        it "no chunk terminator" $ wrongLengthChunk1 $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            withManager $ \manager -> do
+                eres <- try $ httpLbs req manager
+                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+                 `shouldBe` Left (show InvalidChunkHeaders)
+        it "incomplete chunk" $ wrongLengthChunk2 $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            withManager $ \manager -> do
+                eres <- try $ httpLbs req manager
+                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+                 `shouldBe` Left (show InvalidChunkHeaders)
 
     describe "redirect" $ do
         it "ignores large response bodies" $ do
@@ -395,3 +407,20 @@ wrongLength =
     src = do
         yield "HTTP/1.0 200 OK\r\nContent-Length: 50\r\n\r\n"
         yield "Not quite 50 bytes"
+
+wrongLengthChunk1 :: (Int -> IO ()) -> IO ()
+wrongLengthChunk1 =
+    withCApp $ \app' -> do
+        _ <- appSource app' $$ await
+        src $$ appSink app'
+  where
+    src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n"
+
+
+wrongLengthChunk2 :: (Int -> IO ()) -> IO ()
+wrongLengthChunk2 =
+    withCApp $ \app' -> do
+        _ <- appSource app' $$ await
+        src $$ appSink app'
+  where
+    src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\nE\r\nin\r\n\r\nch\r\n"
