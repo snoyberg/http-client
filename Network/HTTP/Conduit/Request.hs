@@ -44,7 +44,6 @@ import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIStrin
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception.Lifted (Exception, toException, throwIO)
 import Control.Failure (Failure (failure))
-import Codec.Binary.UTF8.String (encodeString)
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
@@ -68,7 +67,7 @@ parseUrl s =
         Just uri -> setUri def uri
         Nothing  -> failure $ InvalidUrlException s "Invalid URL"
   where
-    encode = escapeURIString isAllowedInURI . encodeString
+    encode = escapeURIString isAllowedInURI
 
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
