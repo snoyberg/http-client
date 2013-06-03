@@ -146,8 +146,7 @@ sslClientConn _desc host onCerts clientCerts h = do
 #if DEBUG
             removeSocket i
 #endif
-            bye istate
-            hClose h
+            bye istate `E.finally` hClose h
         }
   where
     recvD istate = do
