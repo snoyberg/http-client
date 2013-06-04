@@ -37,10 +37,6 @@ chunkedConduit sendHeaders = do
       where
         start i = await >>= maybe (return i) (go i)
 
-        go :: Monad m
-           => Maybe Int
-           -> S.ByteString
-           -> Consumer S.ByteString m (Maybe Int)
         go i bs =
             case S.uncons bs of
                 Nothing -> start i
