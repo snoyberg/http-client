@@ -27,20 +27,16 @@ chunkedConduit sendHeaders = do
     mi <- getLen
     i <- maybe (monadThrow InvalidChunkHeaders) return mi
     when sendHeaders $ yield $ S8.pack $ showHex i "\r\n"
-    unless (i == 0) $ do
-        CB.isolate i
-        CB.drop 2
-        chunkedConduit sendHeaders
+    CB.isolate i
+    CB.drop 2
+    when sendHeaders $ yield $ S8.pack "\r\n"
+    unless (i == 0) $ chunkedConduit sendHeaders
   where
     getLen =
         start Nothing
       where
         start i = await >>= maybe (return i) (go i)
 
-        go :: Monad m
-           => Maybe Int
-           -> S.ByteString
-           -> Consumer S.ByteString m (Maybe Int)
         go i bs =
             case S.uncons bs of
                 Nothing -> start i
