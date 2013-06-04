@@ -29,6 +29,7 @@ chunkedConduit sendHeaders = do
     when sendHeaders $ yield $ S8.pack $ showHex i "\r\n"
     CB.isolate i
     CB.drop 2
+    when sendHeaders $ yield $ S8.pack "\r\n"
     unless (i == 0) $ chunkedConduit sendHeaders
   where
     getLen =
