@@ -24,7 +24,8 @@ chunkedConduit :: MonadThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy
                -> Conduit S.ByteString m S.ByteString
 chunkedConduit sendHeaders = do
-    i <- getLen
+    mi <- getLen
+    i <- maybe (monadThrow InvalidChunkHeaders) return mi
     when sendHeaders $ yield $ S8.pack $ showHex i "\r\n"
     unless (i == 0) $ do
         CB.isolate i
@@ -34,21 +35,18 @@ chunkedConduit sendHeaders = do
     getLen =
         start Nothing
       where
-        start i = await >>= maybe (returnLen i) (go' i)
+        start i = await >>= maybe (return i) (go i)
 
-        returnLen Nothing = monadThrow InvalidChunkHeaders
-        returnLen (Just i) = return i
-
-        go' i bs
-            | S.null bs = start i
-            | otherwise = go (fromMaybe 0 i) bs
-
+        go :: Monad m
+           => Maybe Int
+           -> S.ByteString
+           -> Consumer S.ByteString m (Maybe Int)
         go i bs =
             case S.uncons bs of
-                Nothing -> start $ Just i
+                Nothing -> start i
                 Just (w, bs') ->
                     case toI w of
-                        Just i' -> go (i * 16 + i') bs'
+                        Just i' -> go (Just $ fromMaybe 0 i * 16 + i') bs'
                         Nothing -> do
                             stripNewLine bs
                             return i

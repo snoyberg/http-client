@@ -250,6 +250,8 @@ main = withSocketsDo $ do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
                  `shouldBe` Left (show $ ResponseBodyTooShort 50 18)
+
+    describe "chunked response body" $ do
         it "no chunk terminator" $ wrongLengthChunk1 $ \port -> do
             req <- parseUrl $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
@@ -257,6 +259,30 @@ main = withSocketsDo $ do
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
                  `shouldBe` Left (show InvalidChunkHeaders)
         it "incomplete chunk" $ wrongLengthChunk2 $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            withManager $ \manager -> do
+                eres <- try $ httpLbs req manager
+                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+                 `shouldBe` Left (show InvalidChunkHeaders)
+        it "invalid chunk" $ invalidChunk $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            withManager $ \manager -> do
+                eres <- try $ httpLbs req manager
+                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+                 `shouldBe` Left (show InvalidChunkHeaders)
+
+        it "missing header" $ rawApp
+          "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\n\r\n\r\n"
+          $ \port -> do
+            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            withManager $ \manager -> do
+                eres <- try $ httpLbs req manager
+                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+                 `shouldBe` Left (show InvalidChunkHeaders)
+
+        it "junk header" $ rawApp
+          "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\njunk\r\n\r\n"
+          $ \port -> do
             req <- parseUrl $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
@@ -416,7 +442,6 @@ wrongLengthChunk1 =
   where
     src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n"
 
-
 wrongLengthChunk2 :: (Int -> IO ()) -> IO ()
 wrongLengthChunk2 =
     withCApp $ \app' -> do
@@ -424,3 +449,19 @@ wrongLengthChunk2 =
         src $$ appSink app'
   where
     src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\nE\r\nin\r\n\r\nch\r\n"
+
+invalidChunk :: (Int -> IO ()) -> IO ()
+invalidChunk =
+    withCApp $ \app' -> do
+        _ <- appSource app' $$ await
+        src $$ appSink app'
+  where
+    src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\ngarbage\r\nef\r\n0\r\n\r\n"
+
+rawApp :: S8.ByteString -> (Int -> IO ()) -> IO ()
+rawApp bs =
+    withCApp $ \app' -> do
+        _ <- appSource app' $$ await
+        src $$ appSink app'
+  where
+    src = yield bs
