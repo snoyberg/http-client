@@ -27,10 +27,9 @@ chunkedConduit sendHeaders = do
     mi <- getLen
     i <- maybe (monadThrow InvalidChunkHeaders) return mi
     when sendHeaders $ yield $ S8.pack $ showHex i "\r\n"
-    unless (i == 0) $ do
-        CB.isolate i
-        CB.drop 2
-        chunkedConduit sendHeaders
+    CB.isolate i
+    CB.drop 2
+    unless (i == 0) $ chunkedConduit sendHeaders
   where
     getLen =
         start Nothing
