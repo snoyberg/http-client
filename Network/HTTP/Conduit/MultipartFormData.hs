@@ -11,13 +11,15 @@
 -- > import Control.Monad
 -- >
 -- > main = withSocketsDo $ withManager $ \m -> do
--- >     Response{responseBody=cat} <- flip httpLbs m $ fromJust $ parseUrl "http://random-cat-photo.net/cat.jpg"
+-- >     req1 <- parseUrl "http://random-cat-photo.net/cat.jpg"
+-- >     res <- httpLbs req1 m
+-- >     req2 <- parseUrl "http://example.org/~friedrich/blog/addPost.hs"
 -- >     flip httpLbs m =<<
 -- >         (formDataBody [partBS "title" "Bleaurgh"
 -- >                       ,partBS "text" $ TE.encodeUtf8 "矢田矢田矢田矢田矢田"
 -- >                       ,partFileSource "file1" "/home/friedrich/Photos/MyLittlePony.jpg"
--- >                       ,partFileRequestBody "file2" "cat.jpg" $ RequestBodyLBS cat]
--- >             $ fromJust $ parseUrl "http://example.org/~friedrich/blog/addPost.hs")
+-- >                       ,partFileRequestBody "file2" "cat.jpg" $ RequestBodyLBS $ responseBody res]
+-- >             req2)
 module Network.HTTP.Conduit.MultipartFormData
     (
     -- * Part type
