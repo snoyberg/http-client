@@ -65,6 +65,7 @@ import Network.Socks5 (SocksConf)
 import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
+import System.Mem.Weak (addFinalizer)
 import Data.Conduit (($$), yield, runException)
 
 -- | Settings for a @Manager@. Please use the 'def' function and then modify
@@ -185,13 +186,15 @@ newManager ms = do
     mapRef <- I.newIORef (Just Map.empty)
     certCache <- I.newIORef Map.empty
     _ <- forkIO $ reap mapRef certCache
-    return Manager
-        { mConns = mapRef
-        , mMaxConns = managerConnCount ms
-        , mCheckCerts = \x y -> getCertStore >>= \cs -> managerCheckCerts ms cs x y
-        , mCertCache = certCache
-        , mResponseTimeout = managerResponseTimeout ms
-        }
+    let manager = Manager
+            { mConns = mapRef
+            , mMaxConns = managerConnCount ms
+            , mCheckCerts = \x y -> getCertStore >>= \cs -> managerCheckCerts ms cs x y
+            , mCertCache = certCache
+            , mResponseTimeout = managerResponseTimeout ms
+            }
+    addFinalizer manager $ closeManager manager
+    return manager
 
 -- | Collect and destroy any stale connections.
 reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
