@@ -236,10 +236,10 @@ data Cookie = Cookie
   , cookie_secure_only :: Bool
   , cookie_http_only :: Bool
   }
-  deriving (Show)
+  deriving (Read, Show)
 
 newtype CookieJar = CJ { expose :: [Cookie] }
-  deriving (Show)
+  deriving (Read, Show)
 
 -- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
 instance Eq Cookie where
