@@ -340,7 +340,7 @@ main = withSocketsDo $ do
             req1 <- parseUrl $ "http://localhost:" ++ show port
             let req2 = req1 { responseTimeout = Just 5000000 }
             withManagerSettings def { managerResponseTimeout = Just 1 } $ \man -> do
-                eres1 <- try $ httpLbs req1 man
+                eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
                 case eres1 of
                     Left (FailedConnectionException _ _) -> return ()
                     _ -> error "Did not time out"
