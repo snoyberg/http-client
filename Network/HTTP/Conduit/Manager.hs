@@ -65,7 +65,7 @@ import Network.Socks5 (SocksConf)
 import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
-import System.Mem.Weak (addFinalizer)
+import System.Mem.Weak (Weak, deRefWeak)
 import Data.Conduit (($$), yield, runException)
 
 -- | Settings for a @Manager@. Please use the 'def' function and then modify
@@ -184,8 +184,9 @@ newManager ms = do
                     return certStore
                 Just x -> return x
     mapRef <- I.newIORef (Just Map.empty)
+    wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
     certCache <- I.newIORef Map.empty
-    _ <- forkIO $ reap mapRef certCache
+    _ <- forkIO $ reap wmapRef certCache
     let manager = Manager
             { mConns = mapRef
             , mMaxConns = managerConnCount ms
@@ -193,18 +194,23 @@ newManager ms = do
             , mCertCache = certCache
             , mResponseTimeout = managerResponseTimeout ms
             }
-    addFinalizer manager $ closeManager manager
     return manager
 
 -- | Collect and destroy any stale connections.
-reap :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
+reap :: Weak (I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo))))
      -> I.IORef (Map.Map S8.ByteString (Map.Map X509Encoded UTCTime))
      -> IO ()
-reap mapRef certCacheRef =
+reap wmapRef certCacheRef =
     mask_ loop
   where
     loop = do
         threadDelay (5 * 1000 * 1000)
+        mmapRef <- deRefWeak wmapRef
+        case mmapRef of
+            Nothing -> return () -- manager is closed
+            Just mapRef -> goMapRef mapRef
+
+    goMapRef mapRef = do
         now <- getCurrentTime
         let isNotStale time = 30 `addUTCTime` time >= now
         mtoDestroy <- I.atomicModifyIORef mapRef (findStaleWrap isNotStale)
@@ -313,8 +319,12 @@ withManagerSettings s f = runResourceT $ do
 -- meaning you can safely use it without hurting any queries you may
 -- have concurrently running.
 closeManager :: Manager -> IO ()
-closeManager manager = mask_ $ do
-    m <- I.atomicModifyIORef (mConns manager) $ \x -> (Nothing, x)
+closeManager = closeManager' . mConns
+
+closeManager' :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList ConnInfo)))
+              -> IO ()
+closeManager' connsRef = mask_ $ do
+    m <- I.atomicModifyIORef connsRef $ \x -> (Nothing, x)
     mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
 
 safeConnClose :: ConnInfo -> IO ()
