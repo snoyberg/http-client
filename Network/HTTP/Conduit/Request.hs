@@ -26,6 +26,7 @@ module Network.HTTP.Conduit.Request
 
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
+import Data.String (IsString(..))
 
 import Data.Default (Default (def))
 
@@ -42,7 +43,7 @@ import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
 import Control.Monad.IO.Class (liftIO)
-import Control.Exception.Lifted (Exception, toException, throwIO)
+import Control.Exception.Lifted (Exception, toException, throw, throwIO)
 import Control.Failure (Failure (failure))
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
@@ -203,6 +204,12 @@ instance Default (Request m) where
                                 else return (Just remainingTime, res)
         , cookieJar = Just def
         }
+
+instance IsString (Request m) where
+    fromString s =
+        case parseUrl s of
+            Left e -> throw (e :: HttpException)
+            Right r -> r
 
 -- | Always decompress a compressed stream.
 alwaysDecompress :: ContentType -> Bool
