@@ -193,6 +193,7 @@ import Data.Default (def)
 
 import Control.Exception.Lifted (throwIO, try, IOException, handle, fromException, toException)
 import qualified Network.TLS as TLS
+import Control.Applicative
 import Control.Monad ((<=<))
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
@@ -401,5 +402,8 @@ wrapIOException =
 -- in production code.
 simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ withManager $ \man -> do
-    url' <- liftIO $ parseUrl url
-    fmap responseBody $ httpLbs url' man
+    req <- liftIO $ parseUrl url
+    responseBody <$> httpLbs (setConnectionClose req) man
+
+setConnectionClose :: Request m -> Request m
+setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
