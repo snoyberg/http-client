@@ -154,21 +154,31 @@ getResponse connRelease timeout'' req@(Request {..}) src1 = do
                 (rsrc, ()) <- return () $$+ return ()
                 return rsrc
             else do
-                let src3 =
-                        if ("transfer-encoding", "chunked") `elem` hs'
+                let isChunked = ("transfer-encoding", "chunked") `elem` hs'
+                    src3 =
+                        if isChunked
                             then fmapResume ($= chunkedConduit rawBody) src2
                             else
                                 case mcl of
                                     Just len -> fmapResume ($= requireLength len) src2
                                     Nothing  -> src2
-                let src4 =
+                    src4 =
                         if needsGunzip req hs'
-                            then fmapResume ($= CZ.ungzip) src3
+                            then fmapResume ($= (if isChunked then ungzipChunked else CZ.ungzip)) src3
                             else src3
                 return $ addCleanup' cleanup src4
 
     return $ Response s version hs' body def
   where
+    -- When a body is both chunked and gzipped, we need to flush each chunk
+    -- immediately to ensure streaming behavior.
+    ungzipChunked =
+        CL.concatMap (\x -> [Chunk x, Flush])
+        =$= CZ.decompressFlush (CZ.WindowBits 31)
+        =$= awaitForever unChunk
+      where
+        unChunk Flush = return ()
+        unChunk (Chunk x) = yield x
     fmapResume f (ResumableSource src m) = ResumableSource (f src) m
     addCleanup' f (ResumableSource src m) = ResumableSource (addCleanup f src) (m >> f False)
 
