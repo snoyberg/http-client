@@ -4,6 +4,14 @@ module-template: ! 'module MODULE_NAME where
 extensions: {}
 environment: null
 cabal-file: project.cabal
-modules: {}
+modules:
+  Network.HTTP.Client.Connection:
+    filename: src/Network/HTTP/Client/Connection.hs
+  Network.HTTP.Client.RequestParser:
+    filename: src/Network/HTTP/Client/RequestParser.hs
+  Network.HTTP.Client.Types:
+    filename: src/Network/HTTP/Client/Types.hs
+  Network.HTTP.Client.RequestParserSpec:
+    filename: test/Network/HTTP/Client/RequestParserSpec.hs
 version: 1
 ghc-args: []
