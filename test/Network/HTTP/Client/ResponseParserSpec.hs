@@ -11,7 +11,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = describe "RequestParserSpec" $ do
+spec = describe "ResponseParserSpec" $ do
     it "simple response" $ do
         let input =
                 [ "HTTP/"

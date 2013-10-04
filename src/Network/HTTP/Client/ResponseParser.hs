@@ -16,7 +16,7 @@ import           Network.HTTP.Types
 parseStatusHeaders :: Connection -> IO StatusHeaders
 parseStatusHeaders Connection {..} = do
     (status, version) <- getStatusLine
-    headers <- parseHeaders id
+    headers <- parseHeaders 0 id
     return $! StatusHeaders status version headers
   where
     getStatusLine = do
@@ -86,13 +86,14 @@ parseStatusHeaders Connection {..} = do
             Just (i, "") -> Just i
             _ -> Nothing
 
-    parseHeaders front = do
+    parseHeaders 100 _ = throwIO OverlongHeaders
+    parseHeaders count front = do
         line <- sinkLine
         if S.null line
             then return $ front []
             else do
                 header <- parseHeader line
-                parseHeaders $ front . (header:)
+                parseHeaders (count + 1) $ front . (header:)
 
     parseHeader :: S.ByteString -> IO Header
     parseHeader bs = do
