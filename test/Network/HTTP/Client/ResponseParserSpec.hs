@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Client.RequestParserSpec where
+module Network.HTTP.Client.ResponseParserSpec where
 
 import           Network.HTTP.Client.Connection
-import           Network.HTTP.Client.RequestParser
+import           Network.HTTP.Client.ResponseParser
 import           Network.HTTP.Client.Types
 import           Network.HTTP.Types
 import           Test.Hspec
