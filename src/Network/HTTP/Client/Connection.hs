@@ -1,13 +1,19 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Connection where
 
 import Data.ByteString (ByteString, empty)
 import Data.IORef
-import Control.Monad (join)
+import Control.Monad
+import Control.Exception (throwIO)
+import Network.HTTP.Client.Types
 import Network.Socket (Socket, sClose, HostAddress, defaultHints, addrFlags)
 import qualified Network.Socket as NS
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
+import qualified Data.ByteString as S
+import Data.Word (Word8)
 
 data Connection = Connection
     { connectionRead :: !(IO ByteString)
@@ -19,9 +25,46 @@ data Connection = Connection
     , connectionClose :: !(IO ())
     }
 
+
+connectionReadLine :: Connection -> IO ByteString
+connectionReadLine conn = do
+    bs <- connectionRead conn
+    when (S.null bs) $ throwIO IncompleteHeaders
+    connectionReadLineWith conn bs
+
+connectionReadLineWith :: Connection -> ByteString -> IO ByteString
+connectionReadLineWith conn bs0 =
+    go bs0 id 0
+  where
+    go bs front total =
+        case S.breakByte charLF bs of
+            (_, "") -> do
+                let total' = total + S.length bs
+                when (total' > 1024) $ throwIO OverlongHeaders
+                bs' <- connectionRead conn
+                when (S.null bs') $ throwIO IncompleteHeaders
+                go bs' (front . (bs:)) total'
+            (x, S.drop 1 -> y) -> do
+                unless (S.null y) $! connectionUnread conn y
+                return $! killCR $! S.concat $! front [x]
+
+charLF, charCR, charSpace, charColon, charPeriod :: Word8
+charLF = 10
+charCR = 13
+charSpace = 32
+charColon = 58
+charPeriod = 46
+
+killCR :: ByteString -> ByteString
+killCR bs
+    | S.null bs = bs
+    | S.last bs == charCR = S.init bs
+    | otherwise = bs
+
+
 -- | For testing
 dummyConnection :: [ByteString] -- ^ input
-                -> IO (Connection, IO [ByteString], IO [ByteString])
+                -> IO (Connection, IO [ByteString], IO [ByteString]) -- ^ conn, output, input
 dummyConnection input0 = do
     iinput <- newIORef input0
     ioutput <- newIORef []

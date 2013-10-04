@@ -7,10 +7,16 @@ cabal-file: project.cabal
 modules:
   Network.HTTP.Client.Connection:
     filename: src/Network/HTTP/Client/Connection.hs
+  Network.HTTP.Client.ResponseBodySpec:
+    filename: test/Network/HTTP/Client/ResponseBodySpec.hs
   Network.HTTP.Client.Types:
     filename: src/Network/HTTP/Client/Types.hs
   Network.HTTP.Client.ResponseParser:
     filename: src/Network/HTTP/Client/ResponseParser.hs
+  Network.HTTP.Client.ResponseBody:
+    filename: src/Network/HTTP/Client/ResponseBody.hs
+  Spec:
+    filename: src/Spec.hs
   Network.HTTP.Client.ResponseParserSpec:
     filename: test/Network/HTTP/Client/ResponseParserSpec.hs
 version: 1

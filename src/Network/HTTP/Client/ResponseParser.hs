@@ -14,7 +14,7 @@ import           Network.HTTP.Client.Types
 import           Network.HTTP.Types
 
 parseStatusHeaders :: Connection -> IO StatusHeaders
-parseStatusHeaders Connection {..} = do
+parseStatusHeaders conn = do
     (status, version) <- getStatusLine
     headers <- parseHeaders 0 id
     return $! StatusHeaders status version headers
@@ -22,47 +22,17 @@ parseStatusHeaders Connection {..} = do
     getStatusLine = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
-        bs <- connectionRead
+        bs <- connectionRead conn
         when (S.null bs) $ throwIO NoResponseDataReceived
 
-        status@(code, _) <- sinkLineWith bs >>= parseStatus
+        status@(code, _) <- connectionReadLineWith conn bs >>= parseStatus
         if code == status100
             then newline ExpectedBlankAfter100Continue >> getStatusLine
             else return status
 
     newline exc = do
-        line <- sinkLine
+        line <- connectionReadLine conn
         unless (S.null line) $ throwIO exc
-
-    sinkLine = do
-        bs <- connectionRead
-        when (S.null bs) $ throwIO IncompleteHeaders
-        sinkLineWith bs
-
-    sinkLineWith bs0 =
-        go bs0 id 0
-      where
-        go bs front total =
-            case S.breakByte charLF bs of
-                (_, "") -> do
-                    let total' = total + S.length bs
-                    when (total' > 1024) $ throwIO OverlongHeaders
-                    bs' <- connectionRead
-                    when (S.null bs') $ throwIO IncompleteHeaders
-                    go bs' (front . (bs:)) total'
-                (x, S.drop 1 -> y) -> do
-                    unless (S.null y) $! connectionUnread y
-                    return $! killCR $! S.concat $! front [x]
-
-    charLF = 10
-    charCR = 13
-    charSpace = 32
-    charColon = 58
-    charPeriod = 46
-    killCR bs
-        | S.null bs = bs
-        | S.last bs == charCR = S.init bs
-        | otherwise = bs
 
     parseStatus :: S.ByteString -> IO (Status, HttpVersion)
     parseStatus bs = do
@@ -88,7 +58,7 @@ parseStatusHeaders Connection {..} = do
 
     parseHeaders 100 _ = throwIO OverlongHeaders
     parseHeaders count front = do
-        line <- sinkLine
+        line <- connectionReadLine conn
         if S.null line
             then return $ front []
             else do
