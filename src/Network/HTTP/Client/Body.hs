@@ -9,11 +9,45 @@ import Data.ByteString (ByteString, empty, uncons)
 import Data.IORef
 import qualified Data.ByteString as S
 import Control.Monad (unless)
+import qualified Codec.Zlib as Z
 
 data BodyReader = BodyReader
     { brRead :: !(IO ByteString)
     , brComplete :: !(IO Bool)
     }
+
+makeGzipReader :: BodyReader -> IO BodyReader
+makeGzipReader br = do
+    inf <- Z.initInflate $ Z.WindowBits 31
+    istate <- newIORef Nothing
+    let goPopper popper = do
+            mbs <- popper
+            case mbs of
+                Just bs -> do
+                    writeIORef istate $ Just popper
+                    return bs
+                Nothing -> do
+                    bs <- Z.flushInflate inf
+                    if S.null bs
+                        then start
+                        else do
+                            writeIORef istate Nothing
+                            return bs
+        start = do
+            bs <- brRead br
+            if S.null bs
+                then return S.empty
+                else do
+                    popper <- Z.feedInflate inf bs
+                    goPopper popper
+    return BodyReader
+        { brRead = do
+            state <- readIORef istate
+            case state of
+                Nothing -> start
+                Just popper -> goPopper popper
+        , brComplete = brComplete br
+        }
 
 makeLengthReader :: Int -> Connection -> IO BodyReader
 makeLengthReader count0 Connection {..} = do
