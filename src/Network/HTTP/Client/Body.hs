@@ -10,24 +10,37 @@ import Data.IORef
 import qualified Data.ByteString as S
 import Control.Monad (unless)
 
-type BodyReader = IO ByteString
+data BodyReader = BodyReader
+    { brRead :: !(IO ByteString)
+    , brComplete :: !(IO Bool)
+    }
 
 makeChunkedReader :: Bool -- ^ send headers
                   -> Connection
                   -> IO BodyReader
 makeChunkedReader sendHeaders conn@Connection {..} = do
     icount <- newIORef 0
-    return $ go icount
+    return $! BodyReader
+        { brRead = go icount
+        , brComplete = do
+            count <- readIORef icount
+            return $! count == -1
+        }
   where
     go icount = do
         count0 <- readIORef icount
         count <-
-            if count0 > 0
-                then return count0
-                else readHeader
-        (bs, count') <- sendChunk count
-        writeIORef icount count'
-        return bs
+            if count0 == 0
+                then readHeader
+                else return count0
+        if count <= 0
+            then do
+                writeIORef icount (-1)
+                return empty
+            else do
+                (bs, count') <- sendChunk count
+                writeIORef icount count'
+                return bs
 
     sendChunk 0 = return (empty, 0)
     sendChunk remainder = do
