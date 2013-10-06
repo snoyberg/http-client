@@ -46,3 +46,28 @@ spec = describe "BodySpec" $ do
         S.concat input' `shouldBe` "not consumed"
         complete2 <- brComplete reader
         complete2 `shouldBe` True
+    it "length, single" $ do
+        (conn, _, input) <- dummyConnection
+            [ "hello world done"
+            ]
+        reader <- makeLengthReader 11 conn
+        complete1 <- brComplete reader
+        complete1 `shouldBe` False
+        body <- consumeReader reader
+        S.concat body `shouldBe` "hello world"
+        input' <- input
+        S.concat input' `shouldBe` " done"
+        complete2 <- brComplete reader
+        complete2 `shouldBe` True
+    it "length, pieces" $ do
+        (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
+            "hello world done"
+        reader <- makeLengthReader 11 conn
+        complete1 <- brComplete reader
+        complete1 `shouldBe` False
+        body <- consumeReader reader
+        S.concat body `shouldBe` "hello world"
+        input' <- input
+        S.concat input' `shouldBe` " done"
+        complete2 <- brComplete reader
+        complete2 `shouldBe` True

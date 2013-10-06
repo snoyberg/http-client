@@ -15,6 +15,31 @@ data BodyReader = BodyReader
     , brComplete :: !(IO Bool)
     }
 
+makeLengthReader :: Int -> Connection -> IO BodyReader
+makeLengthReader count0 Connection {..} = do
+    icount <- newIORef count0
+    return $! BodyReader
+        { brRead = do
+            count <- readIORef icount
+            if count <= 0
+                then return empty
+                else do
+                    bs <- connectionRead
+                    case compare count $ S.length bs of
+                        LT -> do
+                            let (x, y) = S.splitAt count bs
+                            connectionUnread y
+                            writeIORef icount (-1)
+                            return x
+                        EQ -> do
+                            writeIORef icount (-1)
+                            return bs
+                        GT -> do
+                            writeIORef icount (count - S.length bs)
+                            return bs
+        , brComplete = fmap (== -1) $ readIORef icount
+        }
+
 makeChunkedReader :: Bool -- ^ send headers
                   -> Connection
                   -> IO BodyReader
