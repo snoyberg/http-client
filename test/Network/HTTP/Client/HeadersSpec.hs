@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Client.ResponseParserSpec where
+module Network.HTTP.Client.HeadersSpec where
 
 import           Network.HTTP.Client.Connection
-import           Network.HTTP.Client.ResponseParser
+import           Network.HTTP.Client.Headers
 import           Network.HTTP.Client.Types
 import           Network.HTTP.Types
 import           Test.Hspec
@@ -11,7 +11,7 @@ main :: IO ()
 main = hspec spec
 
 spec :: Spec
-spec = describe "ResponseParserSpec" $ do
+spec = describe "HeadersSpec" $ do
     it "simple response" $ do
         let input =
                 [ "HTTP/"

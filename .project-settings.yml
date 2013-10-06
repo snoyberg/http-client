@@ -5,19 +5,19 @@ extensions: {}
 environment: null
 cabal-file: project.cabal
 modules:
+  Network.HTTP.Client.BodySpec:
+    filename: test/Network/HTTP/Client/BodySpec.hs
   Network.HTTP.Client.Connection:
     filename: src/Network/HTTP/Client/Connection.hs
-  Network.HTTP.Client.ResponseBodySpec:
-    filename: test/Network/HTTP/Client/ResponseBodySpec.hs
   Network.HTTP.Client.Types:
     filename: src/Network/HTTP/Client/Types.hs
-  Network.HTTP.Client.ResponseParser:
-    filename: src/Network/HTTP/Client/ResponseParser.hs
-  Network.HTTP.Client.ResponseBody:
-    filename: src/Network/HTTP/Client/ResponseBody.hs
+  Network.HTTP.Client.HeadersSpec:
+    filename: test/Network/HTTP/Client/HeadersSpec.hs
   Spec:
     filename: src/Spec.hs
-  Network.HTTP.Client.ResponseParserSpec:
-    filename: test/Network/HTTP/Client/ResponseParserSpec.hs
+  Network.HTTP.Client.Headers:
+    filename: src/Network/HTTP/Client/Headers.hs
+  Network.HTTP.Client.Body:
+    filename: src/Network/HTTP/Client/Body.hs
 version: 1
 ghc-args: []

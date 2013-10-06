@@ -1,8 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Client.ResponseBodySpec where
+module Network.HTTP.Client.BodySpec where
 
 import Test.Hspec
-import Network.HTTP.Client.ResponseBody
+import Network.HTTP.Client.Body
 import Network.HTTP.Client.Connection
 import qualified Data.ByteString as S
 
@@ -20,7 +20,7 @@ consumeReader f =
             else go (front . (x:))
 
 spec :: Spec
-spec = describe "Network.HTTP.Client.ResponseBodySpec" $ do
+spec = describe "BodySpec" $ do
     it "chunked, single" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\nnot consumed"

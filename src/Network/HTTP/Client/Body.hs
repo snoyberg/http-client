@@ -1,6 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Client.ResponseBody where
+module Network.HTTP.Client.Body where
 
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Types

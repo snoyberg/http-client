@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
-module Network.HTTP.Client.ResponseParser where
+module Network.HTTP.Client.Headers where
 
 import           Control.Applicative            ((<$>), (<*>))
 import           Control.Exception              (throwIO)

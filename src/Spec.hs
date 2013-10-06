@@ -1,10 +1,10 @@
 module Spec where
 
 import Test.Hspec
-import qualified Network.HTTP.Client.ResponseBodySpec as ResponseBodySpec
-import qualified Network.HTTP.Client.ResponseParserSpec as ResponseParserSpec
+import qualified Network.HTTP.Client.BodySpec as BodySpec
+import qualified Network.HTTP.Client.HeadersSpec as HeadersSpec
 
 main :: IO ()
 main = hspec $ do
-    ResponseBodySpec.spec
-    ResponseParserSpec.spec
+    BodySpec.spec
+    HeadersSpec.spec
