@@ -46,7 +46,6 @@ import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
 import System.Mem.Weak (Weak, deRefWeak)
-import Data.Conduit (($$), yield, runException)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 

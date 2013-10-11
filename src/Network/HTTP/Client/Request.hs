@@ -37,7 +37,7 @@ import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
 import Control.Monad.IO.Class (liftIO)
-import Control.Exception.Lifted (Exception, toException, throw, throwIO)
+import Control.Exception (Exception, toException, throw, throwIO)
 import Control.Failure (Failure (failure))
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
@@ -46,7 +46,7 @@ import Network.HTTP.Client.Types (Request (..), RequestBody (..), ContentType, P
 import Network.HTTP.Client.Connection
 
 import Network.HTTP.Client.Util (readDec, (<>))
-import System.Timeout.Lifted (timeout)
+import System.Timeout (timeout)
 import Data.Time.Clock
 
 -- | Convert a URL into a 'Request'.
