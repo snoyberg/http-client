@@ -24,7 +24,6 @@ library
                        Network.HTTP.Client.Response
                        Network.HTTP.Client.Connection
   build-depends:       base >=4.5
-                     , monad-control >=0.3 && <0.4
                      , bytestring >=0.9
                      , text >=0.11
                      , http-types >=0.8
@@ -66,9 +65,7 @@ test-suite spec
                      , containers
                      , transformers
                      , deepseq
-                     , conduit
                      , case-insensitive
-                     , lifted-base
                      , failure
                      , base64-bytestring
                      , zlib
