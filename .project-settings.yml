@@ -9,6 +9,8 @@ modules:
     filename: test/Network/HTTP/Client/BodySpec.hs
   Network.HTTP.Client.Connection:
     filename: src/Network/HTTP/Client/Connection.hs
+  Network.HTTP.Client.ResponseSpec:
+    filename: src/Network/HTTP/Client/ResponseSpec.hs
   Network.HTTP.Client.Types:
     filename: src/Network/HTTP/Client/Types.hs
   Network.HTTP.Client.Manager:
@@ -17,6 +19,8 @@ modules:
     filename: src/Network/HTTP/Client/Util.hs
   Network.HTTP.Client.HeadersSpec:
     filename: test/Network/HTTP/Client/HeadersSpec.hs
+  Network.HTTP.Client.Response:
+    filename: src/Network/HTTP/Client/Response.hs
   Spec:
     filename: src/Spec.hs
   Network.HTTP.Client.Headers:

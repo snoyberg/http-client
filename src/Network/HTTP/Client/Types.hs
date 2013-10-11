@@ -1,4 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFunctor #-}
 module Network.HTTP.Client.Types where
 
 import Data.Typeable
@@ -231,3 +232,31 @@ data ConnReuse = Reuse | DontReuse
 type ConnRelease = ConnReuse -> IO ()
 
 data ManagedConn = Fresh | Reused
+
+-- | A simple representation of the HTTP response created by 'lbsConsumer'.
+data Response body = Response
+    { responseStatus :: !Status
+    -- ^ Status code of the response.
+    , responseVersion :: !HttpVersion
+    -- ^ HTTP version used by the server.
+    , responseHeaders :: !ResponseHeaders
+    -- ^ Response headers sent by the server.
+    , responseBody :: !body
+    -- ^ Response body sent by the server.
+    , responseCookieJar :: !CookieJar
+    -- ^ Cookies set on the client after interacting with the server. If
+    -- cookies have been disabled by setting 'cookieJar' to @Nothing@, then
+    -- this will always be empty.
+    , responseClose :: !ResponseClose
+    -- ^ Releases any resource held by this response. If the response body
+    -- has not been fully read yet, doing so after this call will likely
+    -- be impossible.
+    }
+    deriving (Show, Eq, Typeable, Functor)
+
+newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
+    deriving Typeable
+instance Show ResponseClose where
+    show _ = "ResponseClose"
+instance Eq ResponseClose where
+    _ == _ = True

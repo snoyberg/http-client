@@ -11,16 +11,6 @@ import qualified Data.ByteString.Lazy as L
 main :: IO ()
 main = hspec spec
 
-consumeReader :: BodyReader -> IO [S.ByteString]
-consumeReader f =
-    go id
-  where
-    go front = do
-        x <- brRead f
-        if S.null x
-            then return $ front []
-            else go (front . (x:))
-
 spec :: Spec
 spec = describe "BodySpec" $ do
     it "chunked, single" $ do
@@ -30,7 +20,7 @@ spec = describe "BodySpec" $ do
         reader <- makeChunkedReader False conn
         complete1 <- brComplete reader
         complete1 `shouldBe` False
-        body <- consumeReader reader
+        body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
         S.concat input' `shouldBe` "not consumed"
@@ -42,7 +32,7 @@ spec = describe "BodySpec" $ do
         reader <- makeChunkedReader False conn
         complete1 <- brComplete reader
         complete1 `shouldBe` False
-        body <- consumeReader reader
+        body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
         S.concat input' `shouldBe` "not consumed"
@@ -55,7 +45,7 @@ spec = describe "BodySpec" $ do
         reader <- makeLengthReader 11 conn
         complete1 <- brComplete reader
         complete1 `shouldBe` False
-        body <- consumeReader reader
+        body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
         S.concat input' `shouldBe` " done"
@@ -67,7 +57,7 @@ spec = describe "BodySpec" $ do
         reader <- makeLengthReader 11 conn
         complete1 <- brComplete reader
         complete1 `shouldBe` False
-        body <- consumeReader reader
+        body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
         S.concat input' `shouldBe` " done"
@@ -81,7 +71,7 @@ spec = describe "BodySpec" $ do
         reader <- makeGzipReader reader'
         complete1 <- brComplete reader
         complete1 `shouldBe` False
-        body <- consumeReader reader
+        body <- brConsume reader
         L.fromChunks body `shouldBe` orig
         input' <- input
         S.concat input' `shouldBe` "ignored"

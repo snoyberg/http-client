@@ -8,13 +8,38 @@ import Control.Exception (throwIO, assert)
 import Data.ByteString (ByteString, empty, uncons)
 import Data.IORef
 import qualified Data.ByteString as S
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import qualified Codec.Zlib as Z
 
 data BodyReader = BodyReader
     { brRead :: !(IO ByteString)
     , brComplete :: !(IO Bool)
     }
+
+brEmpty :: BodyReader
+brEmpty = BodyReader
+    { brRead = return S.empty
+    , brComplete = return True
+    }
+
+brAddCleanup :: IO () -> BodyReader -> BodyReader
+brAddCleanup cleanup br = BodyReader
+    { brRead = do
+        bs <- brRead br
+        when (S.null bs) cleanup
+        return bs
+    , brComplete = brComplete br
+    }
+
+brConsume :: BodyReader -> IO [S.ByteString]
+brConsume f =
+    go id
+  where
+    go front = do
+        x <- brRead f
+        if S.null x
+            then return $ front []
+            else go (front . (x:))
 
 makeGzipReader :: BodyReader -> IO BodyReader
 makeGzipReader br = do
@@ -47,6 +72,17 @@ makeGzipReader br = do
                 Nothing -> start
                 Just popper -> goPopper popper
         , brComplete = brComplete br
+        }
+
+makeUnlimitedReader :: Connection -> IO BodyReader
+makeUnlimitedReader Connection {..} = do
+    icomplete <- newIORef False
+    return $! BodyReader
+        { brRead = do
+            bs <- connectionRead
+            when (S.null bs) $ writeIORef icomplete True
+            return bs
+        , brComplete = readIORef icomplete
         }
 
 makeLengthReader :: Int -> Connection -> IO BodyReader
