@@ -247,12 +247,15 @@ data Response body = Response
     -- ^ Cookies set on the client after interacting with the server. If
     -- cookies have been disabled by setting 'cookieJar' to @Nothing@, then
     -- this will always be empty.
-    , responseClose :: !ResponseClose
+    , responseClose' :: !ResponseClose
     -- ^ Releases any resource held by this response. If the response body
     -- has not been fully read yet, doing so after this call will likely
     -- be impossible.
     }
     deriving (Show, Eq, Typeable, Functor)
+
+responseClose :: Response a -> IO ()
+responseClose = runResponseClose . responseClose'
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving Typeable

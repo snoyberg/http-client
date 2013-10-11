@@ -10,15 +10,19 @@ modules:
   Network.HTTP.Client.Connection:
     filename: src/Network/HTTP/Client/Connection.hs
   Network.HTTP.Client.ResponseSpec:
-    filename: src/Network/HTTP/Client/ResponseSpec.hs
+    filename: test/Network/HTTP/Client/ResponseSpec.hs
   Network.HTTP.Client.Types:
     filename: src/Network/HTTP/Client/Types.hs
   Network.HTTP.Client.Manager:
     filename: src/Network/HTTP/Client/Manager.hs
+  Network.HTTP.ClientSpec:
+    filename: test/Network/HTTP/ClientSpec.hs
   Network.HTTP.Client.Util:
     filename: src/Network/HTTP/Client/Util.hs
   Network.HTTP.Client.HeadersSpec:
     filename: test/Network/HTTP/Client/HeadersSpec.hs
+  Network.HTTP.Client:
+    filename: src/Network/HTTP/Client.hs
   Network.HTTP.Client.Response:
     filename: src/Network/HTTP/Client/Response.hs
   Spec:

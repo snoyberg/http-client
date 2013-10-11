@@ -137,5 +137,5 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
         , responseHeaders = hs
         , responseBody = body
         , responseCookieJar = def
-        , responseClose = ResponseClose (cleanup False)
+        , responseClose' = ResponseClose (cleanup False)
         }
