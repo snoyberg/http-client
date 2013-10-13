@@ -1,5 +1,6 @@
 -- | This module implements the algorithms described in RFC 6265 for the Network.HTTP.Conduit library.
-module Network.HTTP.Client.Cookies
+module Network.HTTP.Client.Cookies where
+{-
     ( -- * Cookie functions
       updateCookieJar
     , receiveSetCookie
@@ -9,6 +10,7 @@ module Network.HTTP.Client.Cookies
     , computeCookieString
     , evictExpiredCookies
     ) where
+    -}
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as S8

@@ -25,7 +25,9 @@ brReadSome BodyReader {..} =
         | rem <= 0 = return $ L.fromChunks $ front []
         | otherwise = do
             bs <- brRead
-            loop (front . (bs:)) (rem - S.length bs)
+            if S.null bs
+                then return $ L.fromChunks $ front []
+                else loop (front . (bs:)) (rem - S.length bs)
 
 brEmpty :: BodyReader
 brEmpty = BodyReader
