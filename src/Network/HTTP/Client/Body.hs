@@ -108,6 +108,7 @@ makeLengthReader count0 Connection {..} = do
                 then return empty
                 else do
                     bs <- connectionRead
+                    when (S.null bs) $ throwIO $ ResponseBodyTooShort (fromIntegral count0) (fromIntegral $ count0 - count)
                     case compare count $ S.length bs of
                         LT -> do
                             let (x, y) = S.splitAt count bs
