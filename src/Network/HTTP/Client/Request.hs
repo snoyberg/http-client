@@ -42,7 +42,7 @@ import Control.Failure (Failure (failure))
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
-import Network.HTTP.Client.Types (Request (..), RequestBody (..), ContentType, Proxy (..), HttpException (..))
+import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 
 import Network.HTTP.Client.Util (readDec, (<>))
@@ -178,23 +178,21 @@ instance Default Request where
                 then Nothing
                 else Just $ toException $ StatusCodeException s hs cookie_jar
         , responseTimeout = useDefaultTimeout
-        {-
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
                 Nothing -> fmap ((,) Nothing) f
                 Just timeout' -> do
-                    before <- liftIO getCurrentTime
+                    before <- getCurrentTime
                     mres <- timeout timeout' f
                     case mres of
                         Nothing -> throwIO exc
                         Just res -> do
-                            now <- liftIO getCurrentTime
+                            now <- getCurrentTime
                             let timeSpentMicro = diffUTCTime now before * 1000000
                                 remainingTime = round $ fromIntegral timeout' - timeSpentMicro
                             if remainingTime <= 0
                                 then throwIO exc
                                 else return (Just remainingTime, res)
-        -}
         , cookieJar = Just def
         }
 

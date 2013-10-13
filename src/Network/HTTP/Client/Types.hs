@@ -16,12 +16,22 @@ import Data.Time (UTCTime)
 import qualified Data.List as DL
 import Network.Socket (HostAddress)
 
+data Connection = Connection
+    { connectionRead :: !(IO S.ByteString)
+      -- ^ If no more data, return empty.
+    , connectionUnread :: !(S.ByteString -> IO ())
+      -- ^ Return data to be read next time.
+    , connectionWrite :: !(S.ByteString -> IO ())
+      -- ^ Send data to server
+    , connectionClose :: !(IO ())
+    }
+
 data StatusHeaders = StatusHeaders !Status !HttpVersion !RequestHeaders
     deriving (Show, Eq, Ord)
 
 data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | InvalidUrlException String String
-                   -- FIXME | TooManyRedirects [Response L.ByteString]  -- ^ List of encountered responses containing redirects in reverse chronological order; including last redirect, which triggered the exception and was not followed.
+                   | TooManyRedirects [Response L.ByteString]  -- ^ List of encountered responses containing redirects in reverse chronological order; including last redirect, which triggered the exception and was not followed.
                    -- FIXME | UnparseableRedirect (Response L.ByteString) -- ^ Response containing unparseable redirect.
                    | TooManyRetries
                    | HttpParserException String
@@ -200,12 +210,10 @@ data Request = Request
     , responseTimeout :: Maybe Int
     -- ^ Number of microseconds to wait for a response. If @Nothing@, will wait
     -- indefinitely. Default: 5 seconds.
-    {-
-    , getConnectionWrapper :: forall n. (C.MonadResource n, C.MonadBaseControl IO n)
-                           => Maybe Int
+    , getConnectionWrapper :: Maybe Int
                            -> HttpException
-                           -> n (ConnRelease n, ConnInfo, ManagedConn)
-                           -> n (Maybe Int, (ConnRelease n, ConnInfo, ManagedConn))
+                           -> IO (ConnRelease, Connection, ManagedConn)
+                           -> IO (Maybe Int, (ConnRelease, Connection, ManagedConn))
     -- ^ Wraps the calls for getting new connections. This can be useful for
     -- instituting some kind of timeouts. The first argument is the value of
     -- @responseTimeout@. Second argument is the exception to be thrown on
@@ -215,7 +223,6 @@ data Request = Request
     -- institutes timeout, and returns remaining time for @responseTimeout@.
     --
     -- Since 1.8.8
-    -}
     , cookieJar :: Maybe CookieJar
     -- ^ A user-defined cookie jar.
     -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers

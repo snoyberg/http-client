@@ -3,9 +3,12 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE BangPatterns #-}
+{-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Manager
     ( Manager
     , mResponseTimeout
+    , mRetryableException
+    , mWrapIOException
     , ManagerSettings (..)
     , ConnKey (..)
     , ConnHost (..)
@@ -35,7 +38,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Exception (mask_, SomeException, catch, throwIO, fromException, mask)
+import Control.Exception (mask_, SomeException, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
 import Control.DeepSeq (deepseq)
@@ -52,19 +55,25 @@ import Network.HTTP.Client.Connection
 -- | Settings for a @Manager@. Please use the 'def' function and then modify
 -- individual settings.
 data ManagerSettings = ManagerSettings
-    { managerConnCount :: Int
+    { managerConnCount :: !Int
       -- ^ Number of connections to a single host to keep alive. Default: 10.
-    , managerRawConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
+    , managerRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create an insecure connection.
-    , managerTlsConnection :: IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
+    , managerTlsConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
       -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
-    , managerResponseTimeout :: Maybe Int
+    , managerResponseTimeout :: !(Maybe Int)
       -- ^ Default timeout (in microseconds) to be applied to requests which do
       -- not provide a timeout value.
       --
       -- Default is 5 seconds
       --
       -- Since 1.9.3
+    , managerRetryableException :: !(SomeException -> Bool)
+    -- ^ Exceptions for which we should retry our request if we were reusing an
+    -- already open connection. In the case of IOExceptions, for example, we
+    -- assume that the connection was closed on the server and therefore open a
+    -- new one.
+    , managerWrapIOException :: !(forall a. IO a -> IO a)
     }
 
 instance Default ManagerSettings where
@@ -73,6 +82,39 @@ instance Default ManagerSettings where
         , managerRawConnection = openSocketConnection
         , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
         , managerResponseTimeout = Just 5000000
+        , managerRetryableException = \e ->
+            case () of
+                ()
+                    -- FIXME | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF = True
+                    | otherwise -> case fromException e of
+                        Just (_ :: IOException) -> True
+                        _ ->
+                            case fromException e of
+                                -- Note: Some servers will timeout connections by accepting
+                                -- the incoming packets for the new request, but closing
+                                -- the connection as soon as we try to read. To make sure
+                                -- we open a new connection under these circumstances, we
+                                -- check for the NoResponseDataReceived exception.
+                                Just NoResponseDataReceived -> True
+                                _ -> False
+        , managerWrapIOException =
+            let wrapper se =
+                    case fromException se of
+                        Just e -> toException $ InternalIOException e
+                        Nothing -> se
+                        {- FIXME
+                        Nothing ->
+                            case fromException se of
+                                Just TLS.Terminated{} -> toException $ TlsException se
+                                Nothing ->
+                                    case fromException se of
+                                        Just TLS.HandshakeFailed{} -> toException $ TlsException se
+                                        Nothing ->
+                                            case fromException se of
+                                                Just TLS.ConnectionNotEstablished -> toException $ TlsException se
+                                                Nothing -> se
+                                                -}
+             in handle $ throwIO . wrapper
         }
 
 -- | Keeps track of open connections for keep-alive.
@@ -86,6 +128,8 @@ data Manager = Manager
     -- ^ Copied from 'managerResponseTimeout'
     , mRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
     , mTlsConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
+    , mRetryableException :: !(SomeException -> Bool)
+    , mWrapIOException :: !(forall a. IO a -> IO a)
     }
 
 data NonEmptyList a =
@@ -153,6 +197,8 @@ newManager ms = do
             , mResponseTimeout = managerResponseTimeout ms
             , mRawConnection = managerRawConnection ms
             , mTlsConnection = tlsConnection
+            , mRetryableException = managerRetryableException ms
+            , mWrapIOException = managerWrapIOException ms
             }
     return manager
 

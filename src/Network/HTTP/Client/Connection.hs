@@ -15,17 +15,6 @@ import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Word (Word8)
 
-data Connection = Connection
-    { connectionRead :: !(IO ByteString)
-      -- ^ If no more data, return empty.
-    , connectionUnread :: !(ByteString -> IO ())
-      -- ^ Return data to be read next time.
-    , connectionWrite :: !(ByteString -> IO ())
-      -- ^ Send data to server
-    , connectionClose :: !(IO ())
-    }
-
-
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
     bs <- connectionRead conn

@@ -8,6 +8,7 @@ import Control.Exception (throwIO, assert)
 import Data.ByteString (ByteString, empty, uncons)
 import Data.IORef
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as L
 import Control.Monad (unless, when)
 import qualified Codec.Zlib as Z
 
@@ -15,6 +16,16 @@ data BodyReader = BodyReader
     { brRead :: !(IO ByteString)
     , brComplete :: !(IO Bool)
     }
+
+brReadSome :: BodyReader -> Int -> IO L.ByteString
+brReadSome BodyReader {..} =
+    loop id
+  where
+    loop front rem
+        | rem <= 0 = return $ L.fromChunks $ front []
+        | otherwise = do
+            bs <- brRead
+            loop (front . (bs:)) (rem - S.length bs)
 
 brEmpty :: BodyReader
 brEmpty = BodyReader
