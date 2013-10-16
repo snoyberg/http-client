@@ -1,3 +1,4 @@
+{-# LANGUAGE OverloadedStrings #-}
 -- | This module implements the algorithms described in RFC 6265 for the Network.HTTP.Conduit library.
 module Network.HTTP.Client.Cookies where
 {-
@@ -14,7 +15,6 @@ module Network.HTTP.Client.Cookies where
 
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.UTF8 as U
 import Data.Maybe
 import qualified Data.List as L
 import Data.Time.Clock
@@ -52,7 +52,7 @@ domainMatches :: BS.ByteString -> BS.ByteString -> Bool
 domainMatches string domainString
   | string == domainString = True
   | BS.length string < BS.length domainString + 1 = False
-  | domainString `BS.isSuffixOf` string && BS.singleton (BS.last difference) == U.fromString "." && not (isIpAddress string) = True
+  | domainString `BS.isSuffixOf` string && BS.singleton (BS.last difference) == "." && not (isIpAddress string) = True
   | otherwise = False
   where difference = BS.take (BS.length string - BS.length domainString) string
 
@@ -60,9 +60,9 @@ domainMatches string domainString
 -- in section 5.1.4
 defaultPath :: Req.Request   -> BS.ByteString
 defaultPath req
-  | BS.null uri_path = U.fromString "/"
-  | BS.singleton (BS.head uri_path) /= U.fromString "/" = U.fromString "/"
-  | BS.count slash uri_path <= 1 = U.fromString "/"
+  | BS.null uri_path = "/"
+  | BS.singleton (BS.head uri_path) /= "/" = "/"
+  | BS.count slash uri_path <= 1 = "/"
   | otherwise = BS.reverse $ BS.tail $ BS.dropWhile (/= slash) $ BS.reverse uri_path
   where uri_path = Req.path req
 
@@ -71,8 +71,8 @@ defaultPath req
 pathMatches :: BS.ByteString -> BS.ByteString -> Bool
 pathMatches requestPath cookiePath
   | cookiePath == path' = True
-  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.last cookiePath) == U.fromString "/" = True
-  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.head remainder)  == U.fromString "/" = True
+  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.last cookiePath) == "/" = True
+  | cookiePath `BS.isPrefixOf` path' && BS.singleton (BS.head remainder)  == "/" = True
   | otherwise = False
   where remainder = BS.drop (BS.length cookiePath) requestPath
         path' = case S8.uncons requestPath of
@@ -119,9 +119,9 @@ insertCookiesIntoRequest :: Req.Request                 -- ^ The request to inse
 insertCookiesIntoRequest request cookie_jar now
   | BS.null cookie_string = (request, cookie_jar')
   | otherwise = (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
-  where purgedHeaders = L.deleteBy (\ (a, _) (b, _) -> a == b) (CI.mk $ U.fromString "Cookie", BS.empty) $ Req.requestHeaders request
+  where purgedHeaders = L.deleteBy (\ (a, _) (b, _) -> a == b) (CI.mk $ "Cookie", BS.empty) $ Req.requestHeaders request
         (cookie_string, cookie_jar') = computeCookieString request cookie_jar now True
-        cookie_header = (CI.mk $ U.fromString "Cookie", cookie_string)
+        cookie_header = (CI.mk $ "Cookie", cookie_string)
 
 -- | This corresponds to the algorithm described in Section 5.4 \"The Cookie Header\"
 computeCookieString :: Req.Request           -- ^ Input request
@@ -156,7 +156,7 @@ updateCookieJar :: Res.Response a               -- ^ Response received from serv
                 -> CookieJar                    -- ^ Current cookie jar
                 -> (CookieJar, Res.Response a)  -- ^ (Updated cookie jar with cookies from the Response, The response stripped of any \"Set-Cookie\" header)
 updateCookieJar response request now cookie_jar = (cookie_jar', response {Res.responseHeaders = other_headers})
-  where (set_cookie_headers, other_headers) = L.partition ((== (CI.mk $ U.fromString "Set-Cookie")) . fst) $ Res.responseHeaders response
+  where (set_cookie_headers, other_headers) = L.partition ((== (CI.mk $ "Set-Cookie")) . fst) $ Res.responseHeaders response
         set_cookie_data = map snd set_cookie_headers
         set_cookies = map parseSetCookie set_cookie_data
         cookie_jar' = foldl (\ cj sc -> receiveSetCookie sc request now True cj) cookie_jar set_cookies
@@ -217,8 +217,8 @@ generateCookie set_cookie request now is_http_api = do
                           , cookie_http_only = http_only'
                           }
   where sanitizeDomain domain'
-          | has_a_character && BS.singleton (BS.last domain') == U.fromString "." = Nothing
-          | has_a_character && BS.singleton (BS.head domain') == U.fromString "." = Just $ BS.tail domain'
+          | has_a_character && BS.singleton (BS.last domain') == "." = Nothing
+          | has_a_character && BS.singleton (BS.head domain') == "." = Just $ BS.tail domain'
           | otherwise = Just $ domain'
           where has_a_character = not (BS.null domain')
         step4 (Just set_cookie_domain) = set_cookie_domain
