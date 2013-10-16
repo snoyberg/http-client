@@ -136,6 +136,9 @@ module Network.HTTP.Conduit
     , responseTimeout
     , cookieJar
     , getConnectionWrapper
+      -- *** Request body
+    , requestBodySource
+    , requestBodySourceChunked
       -- * Response
     , Response
     , responseStatus
@@ -187,7 +190,7 @@ import Data.Default (def)
 import Control.Exception.Lifted (throwIO, try, IOException, handle, fromException, toException, bracket)
 import qualified Network.TLS as TLS
 import Control.Applicative
-import Control.Monad ((<=<))
+import Control.Monad ((<=<), unless)
 import Control.Monad.IO.Class (MonadIO (liftIO))
 import Control.Monad.Trans.Resource
 
@@ -207,6 +210,8 @@ import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Types
 import qualified Network.HTTP.Client as Client
 import qualified Network.Connection as NC
+import Data.Int (Int64)
+import Data.IORef
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -330,5 +335,34 @@ http req man = do
             (release key)
     return res { responseBody = rsrc }
   where
-    brSource :: BodyReader -> C.Source m S.ByteString
-    brSource = undefined
+    brSource br =
+        loop
+      where
+        loop = do
+            bs <- liftIO $ brRead br
+            unless (S.null bs) $ do
+                C.yield bs
+                loop
+
+requestBodySource :: Int64 -> C.Source (ResourceT IO) S.ByteString -> RequestBody
+requestBodySource size = RequestBodyStream size . srcToPopper
+
+requestBodySourceChunked :: C.Source (ResourceT IO) S.ByteString -> RequestBody
+requestBodySourceChunked = RequestBodyStreamChunked . srcToPopper
+
+srcToPopper :: C.Source (ResourceT IO) S.ByteString -> GivesPopper ()
+srcToPopper src f = runResourceT $ do
+    (rsrc0, ()) <- src C.$$+ return ()
+    irsrc <- liftIO $ newIORef rsrc0
+    is <- getInternalState
+    let popper :: IO S.ByteString
+        popper = do
+            rsrc <- readIORef irsrc
+            (rsrc', mres) <- runInternalState (rsrc C.$$++ C.await) is
+            writeIORef irsrc rsrc'
+            case mres of
+                Nothing -> return S.empty
+                Just bs
+                    | S.null bs -> popper
+                    | otherwise -> return bs
+    liftIO $ f popper

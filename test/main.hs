@@ -23,7 +23,7 @@ import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Conduit (($$), yield, Flush (Chunk, Flush), runResourceT, await)
+import Data.Conduit (($$), ($$+-), yield, Flush (Chunk, Flush), runResourceT, await)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -207,6 +207,14 @@ main = withSocketsDo $ do
                 _res2 <- http req2 manager
                 return ()
             --FIXME requireAllSocketsClosed
+    describe "http" $ do
+        it "response body" $ withApp app $ \port -> do
+            withManager $ \manager -> do
+                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                res1 <- http req manager
+                bss <- responseBody res1 $$+- CL.consume
+                res2 <- httpLbs req manager
+                liftIO $ L.fromChunks bss `shouldBe` responseBody res2
     describe "DOS protection" $ do
         it "overlong headers" $ overLongHeaders $ \port -> do
             withManager $ \manager -> do
@@ -239,19 +247,21 @@ main = withSocketsDo $ do
             let Just req = parseUrl $ concat ["http://127.0.0.1:", show port, "/infredir/0"]
             let go (res, i) = liftIO $ responseBody res @?= (L8.pack $ show i)
             E.catch (withManager $ \manager -> do
-                void $ http req{redirectCount=5} manager) $
-                \(TooManyRedirects redirs) -> mapM_ go (zip redirs [5,4..0 :: Int])
-    {- FIXME
+                void $ http req{redirectCount=5} manager) $ \e ->
+                    case e of
+                        TooManyRedirects redirs ->
+                            mapM_ go (zip redirs [5,4..0 :: Int])
+                        _ -> error $ show e
     describe "chunked request body" $ do
         it "works" $ echo $ \port -> do
             withManager $ \manager -> do
                 let go bss = do
                         let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
-                            src = sourceList $ map fromByteString bss
+                            src = sourceList bss
                             lbs = L.fromChunks bss
                         res <- httpLbs req1
                             { method = "POST"
-                            , requestBody = RequestBodySourceChunked src
+                            , requestBody = requestBodySourceChunked src
                             } manager
                         liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
                         let ts = S.concat . L.toChunks
@@ -260,7 +270,6 @@ main = withSocketsDo $ do
                     [ ["hello", "world"]
                     , replicate 500 "foo\003\n\r"
                     ]
-                    -}
     describe "no status message" $ do
         it "works" $ noStatusMessage $ \port -> do
             req <- parseUrl $ "http://127.0.0.1:" ++ show port
