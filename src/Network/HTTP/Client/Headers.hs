@@ -25,7 +25,7 @@ parseStatusHeaders conn = do
         bs <- connectionRead conn
         when (S.null bs) $ throwIO NoResponseDataReceived
 
-        status@(code, _) <- connectionReadLineWith conn bs >>= parseStatus
+        status@(code, _) <- connectionReadLineWith conn bs >>= parseStatus 3
         if code == status100
             then newline ExpectedBlankAfter100Continue >> getStatusLine
             else return status
@@ -34,8 +34,9 @@ parseStatusHeaders conn = do
         line <- connectionReadLine conn
         unless (S.null line) $ throwIO exc
 
-    parseStatus :: S.ByteString -> IO (Status, HttpVersion)
-    parseStatus bs = do
+    parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
+    parseStatus i bs | S.null bs && i > 0 = connectionReadLine conn >>= parseStatus (i - 1)
+    parseStatus _ bs = do
         let (ver, bs2) = S.breakByte charSpace bs
             (code, bs3) = S.breakByte charSpace $ S.dropWhile (== charSpace) bs2
             msg = S.dropWhile (== charSpace) bs3
