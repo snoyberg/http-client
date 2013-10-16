@@ -18,6 +18,8 @@ extra-source-files: test/main.hs
                   , test/CookieTest.hs
                   , multipart-example.bin
                   , nyan.gif
+                  , certificate.pem
+                  , key.pem
 
 flag network-bytestring
   default: False
@@ -63,6 +65,7 @@ library
                  , random
                  , filepath
                  , http-client
+                 , connection
     if flag(network-bytestring)
         build-depends: network               >= 2.2.1   && < 2.2.3
                      , network-bytestring    >= 0.1.3   && < 0.1.4
@@ -116,6 +119,7 @@ test-suite test
                  , network
                  , wai < 2.0
                  , warp >= 1.3.6 && < 2.0
+                 , warp-tls
                  , socks
                  , http-types
                  , cookie
@@ -131,6 +135,7 @@ test-suite test
                  , filepath
                  , mime-types
                  , http-client
+                 , connection
 
 source-repository head
   type:     git

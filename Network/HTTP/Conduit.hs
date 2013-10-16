@@ -121,7 +121,6 @@ module Network.HTTP.Conduit
     , def
     , method
     , secure
-    , clientCertificates
     , host
     , port
     , path
@@ -129,7 +128,6 @@ module Network.HTTP.Conduit
     , requestHeaders
     , requestBody
     , proxy
-    , socksProxy
     , hostAddress
     , rawBody
     , decompress
@@ -155,11 +153,9 @@ module Network.HTTP.Conduit
     , ManagerSettings
     , conduitManagerSettings
     , managerConnCount
-    , managerCheckCerts
-    , managerCertStore
     , managerResponseTimeout
-      -- *** Defaults
-    , defaultCheckCerts
+    , managerTlsConnection
+    , getTlsConnection
       -- * Cookies
     , Cookie(..)
     , CookieJar
@@ -200,14 +196,17 @@ import qualified Data.Conduit.Internal as CI
 import Data.Conduit.Blaze (builderToByteString)
 
 import Data.Time.Clock
+import Network.Socket (HostAddress)
 
 import Network.HTTP.Client.Request
+import Network.HTTP.Client.Connection (makeConnection)
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Types
 import qualified Network.HTTP.Client as Client
+import qualified Network.Connection as NC
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -249,8 +248,59 @@ simpleHttp url = liftIO $ withManager $ \man -> do
     req <- liftIO $ parseUrl url
     responseBody <$> httpLbs (setConnectionClose req) man
 
+getTlsConnection :: Maybe NC.TLSSettings
+                 -> Maybe NC.SockSettings
+                 -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
+getTlsConnection tls sock = do
+    context <- NC.initConnectionContext
+    return $ \_ha host port -> do
+        conn <- NC.connectTo context NC.ConnectionParams
+            { NC.connectionHostname = host
+            , NC.connectionPort = fromIntegral port
+            , NC.connectionUseSecure = tls
+            , NC.connectionUseSocks = sock
+            }
+        convertConnection conn
+  where
+    convertConnection conn = makeConnection
+        (NC.connectionGetChunk conn)
+        (NC.connectionPut conn)
+        (NC.connectionClose conn)
+
 conduitManagerSettings :: ManagerSettings
-conduitManagerSettings = defaultManagerSettings -- FIXME
+conduitManagerSettings = defaultManagerSettings
+    { managerTlsConnection = getTlsConnection (Just def) Nothing
+    , managerRetryableException = \e ->
+        case () of
+            ()
+                | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
+                | otherwise -> case fromException e of
+                    Just (_ :: IOException) -> True
+                    _ ->
+                        case fromException e of
+                            -- Note: Some servers will timeout connections by accepting
+                            -- the incoming packets for the new request, but closing
+                            -- the connection as soon as we try to read. To make sure
+                            -- we open a new connection under these circumstances, we
+                            -- check for the NoResponseDataReceived exception.
+                            Just NoResponseDataReceived -> True
+                            _ -> False
+    , managerWrapIOException =
+        let wrapper se =
+                case fromException se of
+                    Just e -> toException $ InternalIOException e
+                    Nothing ->
+                        case fromException se of
+                            Just TLS.Terminated{} -> toException $ TlsException se
+                            Nothing ->
+                                case fromException se of
+                                    Just TLS.HandshakeFailed{} -> toException $ TlsException se
+                                    Nothing ->
+                                        case fromException se of
+                                            Just TLS.ConnectionNotEstablished -> toException $ TlsException se
+                                            Nothing -> se
+         in handle $ throwIO . wrapper
+    }
 
 withManager :: (MonadIO m, MonadBaseControl IO m)
             => (Manager -> ResourceT m a)
@@ -282,9 +332,3 @@ http req man = do
   where
     brSource :: BodyReader -> C.Source m S.ByteString
     brSource = undefined
-
-clientCertificates = error "clientCertificates"
-socksProxy = error "socksProxy"
-managerCheckCerts = error "managerCheckCerts"
-managerCertStore = error "managerCertStore"
-defaultCheckCerts = error "defaultCheckCerts"

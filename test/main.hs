@@ -39,6 +39,8 @@ import System.IO
 import Data.Monoid (mconcat)
 import Data.Time.Clock
 import Data.Time.Calendar
+import qualified Network.Wai.Handler.WarpTLS as WT
+import Network.Connection (settingDisableCertificateValidation)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -117,6 +119,21 @@ withApp' app' f = do
         killThread
         (const $ takeMVar baton >> f port)
 
+withAppTls :: Application -> (Int -> IO ()) -> IO ()
+withAppTls app' f = withAppTls' (const app') f
+
+withAppTls' :: (Int -> Application) -> (Int -> IO ()) -> IO ()
+withAppTls' app' f = do
+    port <- getPort
+    baton <- newEmptyMVar
+    bracket
+        (forkIO $ WT.runTLS WT.defaultTlsSettings defaultSettings
+            { settingsPort = port
+            , settingsBeforeMainLoop = putMVar baton ()
+            } (app' port) `onException` putMVar baton ())
+        killThread
+        (const $ takeMVar baton >> f port)
+
 main :: IO ()
 main = withSocketsDo $ do
   mapM_ (`hSetBuffering` LineBuffering) [stdout, stderr]
@@ -170,6 +187,15 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 response <- httpLbs (request {cookieJar = Nothing}) manager
                 liftIO $ (responseCookieJar response) @?= def
+        it "TLS" $ withAppTls app $ \port -> do
+            request <- parseUrl $ "https://127.0.0.1:" ++ show port
+            let set = conduitManagerSettings
+                    { managerTlsConnection = getTlsConnection (Just def
+                        { settingDisableCertificateValidation = True
+                        }) Nothing
+                    }
+            response <- withManagerSettings set $ httpLbs request
+            responseBody response @?= "homepage"
     describe "manager" $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             --FIXME clearSocketsList
