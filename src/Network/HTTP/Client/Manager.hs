@@ -84,37 +84,22 @@ defaultManagerSettings = ManagerSettings
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
     , managerResponseTimeout = Just 5000000
     , managerRetryableException = \e ->
-        case () of
-            ()
-                -- FIXME | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF = True
-                | otherwise -> case fromException e of
-                    Just (_ :: IOException) -> True
-                    _ ->
-                        case fromException e of
-                            -- Note: Some servers will timeout connections by accepting
-                            -- the incoming packets for the new request, but closing
-                            -- the connection as soon as we try to read. To make sure
-                            -- we open a new connection under these circumstances, we
-                            -- check for the NoResponseDataReceived exception.
-                            Just NoResponseDataReceived -> True
-                            _ -> False
+        case fromException e of
+            Just (_ :: IOException) -> True
+            _ ->
+                case fromException e of
+                    -- Note: Some servers will timeout connections by accepting
+                    -- the incoming packets for the new request, but closing
+                    -- the connection as soon as we try to read. To make sure
+                    -- we open a new connection under these circumstances, we
+                    -- check for the NoResponseDataReceived exception.
+                    Just NoResponseDataReceived -> True
+                    _ -> False
     , managerWrapIOException =
         let wrapper se =
                 case fromException se of
                     Just e -> toException $ InternalIOException e
                     Nothing -> se
-                    {- FIXME
-                    Nothing ->
-                        case fromException se of
-                            Just TLS.Terminated{} -> toException $ TlsException se
-                            Nothing ->
-                                case fromException se of
-                                    Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                                    Nothing ->
-                                        case fromException se of
-                                            Just TLS.ConnectionNotEstablished -> toException $ TlsException se
-                                            Nothing -> se
-                                            -}
          in handle $ throwIO . wrapper
     }
 
@@ -224,7 +209,6 @@ reap wmapRef =
             Nothing -> return () -- manager is closed
             Just toDestroy -> do
                 mapM_ safeConnClose toDestroy
-                -- FIXME !() <- I.atomicModifyIORef certCacheRef $ \x -> let y = flushStaleCerts now x in y `seq` (y, ())
                 loop
     findStaleWrap _ Nothing = (Nothing, Nothing)
     findStaleWrap isNotStale (Just m) =
@@ -317,22 +301,6 @@ nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
 nonEmptyMapM_ f (One x _) = f x
 nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
-{- FIXME
-getSocketConn
-    :: Maybe NS.HostAddress
-    -> String
-    -> Int
-    -> Maybe SocksConf -- ^ optional socks proxy
-    -> IO ConnInfo
-getSocketConn hostAddress' host' port' socksProxy' =
-    getSocket hostAddress' host' port' socksProxy' >>= socketConn desc
-  where
-    desc = socketDesc host' port' "unsecured"
-
-socketDesc :: String -> Int -> String -> String
-socketDesc h p t = unwords [h, show p, t]
--}
-
 -- | This function needs to acquire a @ConnInfo@- either from the @Manager@ or
 -- via I\/O, and register it with the @ResourceT@ so it is guaranteed to be
 -- either released or returned to the manager.
@@ -387,7 +355,7 @@ getConn :: Request
         -> IO (ConnRelease, Connection, ManagedConn)
 getConn req m =
     getManagedConn m (ConnKey connKeyHost connport (secure req)) $
-        go connaddr connhost connport -- FIXME (socksProxy req)
+        go connaddr connhost connport
   where
     h = host req
     (useProxy, connhost, connport) = getConnDest req
@@ -399,4 +367,4 @@ getConn req m =
         case (secure req, useProxy) of
             (False, _) -> mRawConnection m
             (True, False) -> mTlsConnection m
-            --(True, True) -> getSslProxyConn (checkCerts m h) (clientCertificates req) h (port req)
+            -- FIXME (True, True) -> getSslProxyConn (checkCerts m h) (clientCertificates req) h (port req)

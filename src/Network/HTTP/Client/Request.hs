@@ -229,8 +229,6 @@ addProxy :: S.ByteString -> Int -> Request -> Request
 addProxy hst prt req =
     req { proxy = Just $ Proxy hst prt }
 
--- FIXME add a helper for generating POST bodies
-
 -- | Add url-encoded parameters to the 'Request'.
 --
 -- This sets a new 'requestBody', adds a content-type request header and

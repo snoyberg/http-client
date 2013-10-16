@@ -118,7 +118,6 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
                 return brEmpty
             else do
                 let isChunked = ("transfer-encoding", "chunked") `elem` hs
-                    rawBody = False -- FIXME
                 body1 <-
                     if isChunked
                         then makeChunkedReader rawBody conn

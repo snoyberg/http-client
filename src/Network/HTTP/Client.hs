@@ -13,8 +13,10 @@ import Network.HTTP.Client.Cookies
 import Data.Time
 import Control.Exception
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import Data.Monoid
+import Control.Monad (void)
 
 withResponse :: Request
              -> Manager
@@ -186,11 +188,9 @@ httpRedirect count0 http' req0 = go count0 req0 []
                         case S8.readInt bs of
                             Just (i, bs') | S.null bs' -> Just i
                             _ -> Nothing
-                    sink =
-                        case lookup "content-length" (responseHeaders res) >>= readMay of
-                            Just i | i > maxFlush -> return ()
-                            _ -> CB.isolate maxFlush C.=$ sinkNull
-                lift' $ responseBody res C.$$+- sink
+                case lookup "content-length" (responseHeaders res) >>= readMay of
+                    Just i | i > maxFlush -> return ()
+                    _ -> void $ brReadSome (responseBody res) maxFlush
                 -}
                 responseClose res
 

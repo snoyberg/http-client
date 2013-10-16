@@ -32,7 +32,7 @@ data StatusHeaders = StatusHeaders !Status !HttpVersion !RequestHeaders
 data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | InvalidUrlException String String
                    | TooManyRedirects [Response L.ByteString]  -- ^ List of encountered responses containing redirects in reverse chronological order; including last redirect, which triggered the exception and was not followed.
-                   -- FIXME | UnparseableRedirect (Response L.ByteString) -- ^ Response containing unparseable redirect.
+                   | UnparseableRedirect (Response L.ByteString) -- ^ Response containing unparseable redirect.
                    | TooManyRetries
                    | HttpParserException String
                    | HandshakeFailed
@@ -131,7 +131,7 @@ data RequestBody
     = RequestBodyLBS L.ByteString
     | RequestBodyBS S.ByteString
     | RequestBodyBuilder Int64 Builder
-    {-
+    {- FIXME
     | RequestBodySource Int64 (C.Source m Builder)
     | RequestBodySourceChunked (C.Source m Builder)
     -}
