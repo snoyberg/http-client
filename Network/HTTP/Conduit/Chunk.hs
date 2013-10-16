@@ -18,7 +18,7 @@ import qualified Data.Conduit.Binary as CB
 import Control.Monad (when, unless)
 import Control.Exception (assert)
 import Data.Maybe (fromMaybe)
-import Network.HTTP.Conduit.Types (HttpException (InvalidChunkHeaders))
+import Network.HTTP.Client.Types (HttpException (InvalidChunkHeaders))
 
 chunkedConduit :: MonadThrow m
                => Bool -- ^ send the headers as well, necessary for a proxy

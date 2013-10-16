@@ -4,9 +4,10 @@ import Prelude hiding (exp)
 import Test.Hspec
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
-import Network.HTTP.Conduit.Cookies
-import Network.HTTP.Conduit.Types
+import Network.HTTP.Client.Cookies
+import Network.HTTP.Client.Types
 import qualified Network.HTTP.Conduit as HC
+import Network.HTTP.Conduit
 import Data.ByteString.UTF8
 import Data.Monoid
 import Data.Maybe
@@ -15,7 +16,7 @@ import Data.Time.Calendar
 import qualified Data.CaseInsensitive as CI
 import Web.Cookie
 
-default_request :: HC.Request m
+default_request :: HC.Request
 default_request = fromJust $ HC.parseUrl "http://www.google.com/"
 
 default_cookie :: Cookie

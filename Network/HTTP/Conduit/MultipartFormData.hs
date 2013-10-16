@@ -21,6 +21,8 @@
 -- >                       ,partFileRequestBody "file2" "cat.jpg" $ RequestBodyLBS $ responseBody res]
 -- >             req2)
 module Network.HTTP.Conduit.MultipartFormData
+    where
+{- FIXME
     (
     -- * Part type
      Part(..)
@@ -44,7 +46,7 @@ module Network.HTTP.Conduit.MultipartFormData
     ,renderPart
     ) where
 
-import Network.HTTP.Conduit.Request
+import Network.HTTP.Client.Request
 import Network.HTTP.Conduit.Util
 import Network.Mime
 import Network.HTTP.Types (hContentType, methodPost)
@@ -219,3 +221,4 @@ formDataBodyWithBoundary boundary parts req = do
           : Prelude.filter (\(x, _) -> x /= hContentType) (requestHeaders req)
         , requestBody = body
         }
+        -}
