@@ -15,7 +15,6 @@ module Network.HTTP.Client.Cookies where
 import qualified Data.ByteString as BS
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.UTF8 as U
-import Text.Regex -- FIXME remove dep?
 import Data.Maybe
 import qualified Data.List as L
 import Data.Time.Clock
@@ -35,14 +34,17 @@ slash :: Integral a => a
 slash = 47 -- '/'
 
 isIpAddress :: BS.ByteString -> Bool
-isIpAddress a = case strs of
-  Just strs' -> helper strs'
-  Nothing -> False
-  where s = U.toString a
-        regex = mkRegex "^([0-9]{1,3})\\.([0-9]{1,3})\\.([0-9]{1,3})\\.([0-9]{1,3})$"
-        strs = matchRegex regex s
-        helper l = length l == 4 && all helper2 l
-        helper2 v = (read v :: Int) >= 0 && (read v :: Int) < 256
+isIpAddress =
+    go 4
+  where
+    go 0 bs = BS.null bs
+    go rest bs =
+        case S8.readInt x of
+            Just (i, x') | BS.null x' && i >= 0 && i < 256 -> go (rest - 1) y
+            _ -> False
+      where
+        (x, y') = BS.breakByte 46 bs -- period
+        y = BS.drop 1 y'
 
 -- | This corresponds to the subcomponent algorithm entitled \"Domain Matching\" detailed
 -- in section 5.1.3
