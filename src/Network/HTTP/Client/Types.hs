@@ -128,13 +128,15 @@ data Proxy = Proxy
 -- 'RequestBodySourceChunked' if you know the server you're
 -- sending to supports chunked request bodies.
 data RequestBody
-    = RequestBodyLBS L.ByteString
-    | RequestBodyBS S.ByteString
-    | RequestBodyBuilder Int64 Builder
-    {- FIXME
-    | RequestBodySource Int64 (C.Source m Builder)
-    | RequestBodySourceChunked (C.Source m Builder)
-    -}
+    = RequestBodyLBS !L.ByteString
+    | RequestBodyBS !S.ByteString
+    | RequestBodyBuilder !Int64 !Builder
+    | RequestBodyStream !Int64 !(GivesPopper ())
+    | RequestBodyStreamChunked !(GivesPopper ())
+
+type Popper = IO S.ByteString
+type NeedsPopper a = Popper -> IO a
+type GivesPopper a = NeedsPopper a -> IO a
 
 -- | All information on how to connect to a host and what should be sent in the
 -- HTTP request.

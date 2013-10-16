@@ -23,6 +23,8 @@ module Network.HTTP.Client.Request
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
+import Control.Monad (when, unless)
+import Numeric (showHex)
 
 import Data.Default (Default (def))
 
@@ -258,16 +260,27 @@ requestBuilder req Connection {..} =
     bodySource
   where
     writeBuilder = toByteStringIO connectionWrite
-        
+
     (contentLength, bodySource) =
         case requestBody req of
             RequestBodyLBS lbs -> (Just $ L.length lbs, writeBuilder $ builder `mappend` fromLazyByteString lbs)
             RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, writeBuilder $ builder `mappend` fromByteString bs)
             RequestBodyBuilder i b -> (Just $ i, writeBuilder $ builder `mappend` b)
-            {-
-            RequestBodySource i source -> (Just i, C.yield builder >> source)
-            RequestBodySourceChunked source -> (Nothing, C.yield builder >> (source C.$= chunkIt))
-            -}
+            RequestBodyStream i stream -> (Just i, writeBuilder builder >> writeStream False stream)
+            RequestBodyStreamChunked stream -> (Nothing, writeBuilder builder >> writeStream True stream)
+
+    writeStream isChunked withStream =
+        withStream loop
+      where
+        loop stream = do
+            bs <- stream
+            when isChunked $
+                connectionWrite $ S8.pack $ showHex (S.length bs) "\r\n"
+            unless (S.null bs) $ do
+                connectionWrite bs
+                when isChunked $ connectionWrite "\r\n"
+                loop stream
+
 
     hh
         | port req == 80 && not (secure req) = host req
