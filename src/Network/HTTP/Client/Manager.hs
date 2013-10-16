@@ -19,6 +19,7 @@ module Network.HTTP.Client.Manager
     , ConnRelease
     , ManagedConn (..)
     , failedConnectionException
+    , defaultManagerSettings
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -76,46 +77,46 @@ data ManagerSettings = ManagerSettings
     , managerWrapIOException :: !(forall a. IO a -> IO a)
     }
 
-instance Default ManagerSettings where
-    def = ManagerSettings
-        { managerConnCount = 10
-        , managerRawConnection = openSocketConnection
-        , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
-        , managerResponseTimeout = Just 5000000
-        , managerRetryableException = \e ->
-            case () of
-                ()
-                    -- FIXME | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF = True
-                    | otherwise -> case fromException e of
-                        Just (_ :: IOException) -> True
-                        _ ->
-                            case fromException e of
-                                -- Note: Some servers will timeout connections by accepting
-                                -- the incoming packets for the new request, but closing
-                                -- the connection as soon as we try to read. To make sure
-                                -- we open a new connection under these circumstances, we
-                                -- check for the NoResponseDataReceived exception.
-                                Just NoResponseDataReceived -> True
-                                _ -> False
-        , managerWrapIOException =
-            let wrapper se =
-                    case fromException se of
-                        Just e -> toException $ InternalIOException e
-                        Nothing -> se
-                        {- FIXME
-                        Nothing ->
-                            case fromException se of
-                                Just TLS.Terminated{} -> toException $ TlsException se
-                                Nothing ->
-                                    case fromException se of
-                                        Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                                        Nothing ->
-                                            case fromException se of
-                                                Just TLS.ConnectionNotEstablished -> toException $ TlsException se
-                                                Nothing -> se
-                                                -}
-             in handle $ throwIO . wrapper
-        }
+defaultManagerSettings :: ManagerSettings
+defaultManagerSettings = ManagerSettings
+    { managerConnCount = 10
+    , managerRawConnection = openSocketConnection
+    , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
+    , managerResponseTimeout = Just 5000000
+    , managerRetryableException = \e ->
+        case () of
+            ()
+                -- FIXME | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF = True
+                | otherwise -> case fromException e of
+                    Just (_ :: IOException) -> True
+                    _ ->
+                        case fromException e of
+                            -- Note: Some servers will timeout connections by accepting
+                            -- the incoming packets for the new request, but closing
+                            -- the connection as soon as we try to read. To make sure
+                            -- we open a new connection under these circumstances, we
+                            -- check for the NoResponseDataReceived exception.
+                            Just NoResponseDataReceived -> True
+                            _ -> False
+    , managerWrapIOException =
+        let wrapper se =
+                case fromException se of
+                    Just e -> toException $ InternalIOException e
+                    Nothing -> se
+                    {- FIXME
+                    Nothing ->
+                        case fromException se of
+                            Just TLS.Terminated{} -> toException $ TlsException se
+                            Nothing ->
+                                case fromException se of
+                                    Just TLS.HandshakeFailed{} -> toException $ TlsException se
+                                    Nothing ->
+                                        case fromException se of
+                                            Just TLS.ConnectionNotEstablished -> toException $ TlsException se
+                                            Nothing -> se
+                                            -}
+         in handle $ throwIO . wrapper
+    }
 
 -- | Keeps track of open connections for keep-alive.
 -- If possible, you should share a single 'Manager' between multiple threads and requests.

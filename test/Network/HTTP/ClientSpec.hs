@@ -16,6 +16,6 @@ spec :: Spec
 spec = describe "Client" $ do
     it "works" $ do
         req <- parseUrl "http://www.yesodweb.com/"
-        man <- newManager def
+        man <- newManager defaultManagerSettings
         Response {..} <- httpLbs req man
         responseStatus `shouldBe` status200

@@ -154,6 +154,7 @@ makeChunkedReader sendHeaders conn@Connection {..} = do
     sendChunk 0 = return (empty, 0)
     sendChunk remainder = do
         bs <- connectionRead
+        when (S.null bs) $ throwIO InvalidChunkHeaders
         case compare remainder $ S.length bs of
             LT -> do
                 let (x, y) = S.splitAt remainder bs
