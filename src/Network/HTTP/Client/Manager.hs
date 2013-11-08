@@ -53,7 +53,7 @@ import System.Mem.Weak (Weak, deRefWeak)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 
--- | Settings for a @Manager@. Please use the 'def' function and then modify
+-- | Settings for a @Manager@. Please use the 'defaultManagerSettings' function and then modify
 -- individual settings.
 data ManagerSettings = ManagerSettings
     { managerConnCount :: !Int
