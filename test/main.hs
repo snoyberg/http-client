@@ -10,7 +10,7 @@ import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop)
 import Network.HTTP.Conduit hiding (port)
 import qualified Network.HTTP.Conduit as NHC
-import Network.HTTP.Conduit.MultipartFormData
+import Network.HTTP.Client.MultipartFormData
 import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar, threadDelay)
 import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException, bracket, onException, IOException)

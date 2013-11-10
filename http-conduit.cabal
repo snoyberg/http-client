@@ -32,14 +32,7 @@ library
                  , http-client
                  , http-client-tls
                  , http-client-conduit
-                 , array
-                 , random
-                 , filepath
-                 , text
-                 , blaze-builder
-                 , mime-types
     exposed-modules: Network.HTTP.Conduit
-                     Network.HTTP.Conduit.MultipartFormData
     ghc-options:     -Wall
 
 test-suite test
@@ -96,6 +89,7 @@ test-suite test
                  , http-client
                  , http-conduit
                  , connection
+                 , http-client-multipart
 
 source-repository head
   type:     git
