@@ -136,8 +136,8 @@ data RequestBody
     | RequestBodyStreamChunked !(GivesPopper ())
 instance Monoid RequestBody where
     mempty = RequestBodyBS S.empty
-    mappend x y =
-        case (simplify x, simplify y) of
+    mappend x0 y0 =
+        case (simplify x0, simplify y0) of
             (Left (i, x), Left (j, y)) -> RequestBodyBuilder (i + j) (x `mappend` y)
             (Left x, Right y) -> combine (builderToStream x) y
             (Right x, Left y) -> combine x (builderToStream y)
