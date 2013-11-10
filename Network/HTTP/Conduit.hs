@@ -1,7 +1,6 @@
-{-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
 -- | This module contains everything you need to initiate HTTP connections.  If
 -- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
 -- want raw power, 'http' is the underlying workhorse of this package. Some
@@ -118,7 +117,6 @@ module Network.HTTP.Conduit
     , RequestBody (..)
       -- ** Request
     , Request
-    , def
     , method
     , secure
     , host
@@ -155,10 +153,10 @@ module Network.HTTP.Conduit
       -- ** Settings
     , ManagerSettings
     , conduitManagerSettings
+    , mkManagerSettings
     , managerConnCount
     , managerResponseTimeout
     , managerTlsConnection
-    , getTlsConnection
       -- * Cookies
     , Cookie(..)
     , CookieJar
@@ -181,37 +179,34 @@ module Network.HTTP.Conduit
     , HttpException (..)
     ) where
 
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Lazy as L
+import qualified Data.ByteString.Lazy         as L
 
-import qualified Network.HTTP.Types as W
-import Data.Default (def)
+import           Control.Applicative          ((<$>))
+import           Control.Exception.Lifted     (bracket)
+import           Control.Monad.IO.Class       (MonadIO (liftIO))
+import           Control.Monad.Trans.Resource
 
-import Control.Exception.Lifted (throwIO, try, IOException, handle, fromException, toException, bracket)
-import qualified Network.TLS as TLS
-import Control.Applicative
-import Control.Monad ((<=<), unless)
-import Control.Monad.IO.Class (MonadIO (liftIO))
-import Control.Monad.Trans.Resource
-
-import qualified Data.Conduit as C
-import qualified Data.Conduit.Internal as CI
-import Data.Conduit.Blaze (builderToByteString)
-
-import Data.Time.Clock
-import Network.Socket (HostAddress)
-
-import Network.HTTP.Client.Request
-import Network.HTTP.Client.Connection (makeConnection)
-import Network.HTTP.Client.Body
-import Network.HTTP.Client.Response
-import Network.HTTP.Client.Manager
-import Network.HTTP.Client.Cookies
-import Network.HTTP.Client.Types
-import qualified Network.HTTP.Client as Client
-import qualified Network.Connection as NC
-import Data.Int (Int64)
-import Data.IORef
+import qualified Network.HTTP.Client          as Client (httpLbs)
+import           Network.HTTP.Client.Conduit  (http, requestBodySource,
+                                               requestBodySourceChunked)
+import           Network.HTTP.Client.Cookies  (createCookieJar,
+                                               destroyCookieJar)
+import           Network.HTTP.Client.Manager  (Manager, ManagerSettings,
+                                               closeManager, managerConnCount,
+                                               managerResponseTimeout,
+                                               managerTlsConnection, newManager)
+import           Network.HTTP.Client.Request  (addProxy, alwaysDecompress,
+                                               applyBasicAuth,
+                                               browserDecompress, parseUrl,
+                                               urlEncodedBody)
+import           Network.HTTP.Client.Response (getRedirectedRequest,
+                                               lbsResponse)
+import           Network.HTTP.Client.TLS      (mkManagerSettings,
+                                               tlsManagerSettings)
+import           Network.HTTP.Client.Types    (Cookie (..), CookieJar (..),
+                                               HttpException (..), Proxy (..),
+                                               Request (..), RequestBody (..),
+                                               Response (..))
 
 -- | Download the specified 'Request', returning the results as a 'Response'.
 --
@@ -253,59 +248,8 @@ simpleHttp url = liftIO $ withManager $ \man -> do
     req <- liftIO $ parseUrl url
     responseBody <$> httpLbs (setConnectionClose req) man
 
-getTlsConnection :: Maybe NC.TLSSettings
-                 -> Maybe NC.SockSettings
-                 -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsConnection tls sock = do
-    context <- NC.initConnectionContext
-    return $ \_ha host port -> do
-        conn <- NC.connectTo context NC.ConnectionParams
-            { NC.connectionHostname = host
-            , NC.connectionPort = fromIntegral port
-            , NC.connectionUseSecure = tls
-            , NC.connectionUseSocks = sock
-            }
-        convertConnection conn
-  where
-    convertConnection conn = makeConnection
-        (NC.connectionGetChunk conn)
-        (NC.connectionPut conn)
-        (NC.connectionClose conn)
-
 conduitManagerSettings :: ManagerSettings
-conduitManagerSettings = defaultManagerSettings
-    { managerTlsConnection = getTlsConnection (Just def) Nothing
-    , managerRetryableException = \e ->
-        case () of
-            ()
-                | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
-                | otherwise -> case fromException e of
-                    Just (_ :: IOException) -> True
-                    _ ->
-                        case fromException e of
-                            -- Note: Some servers will timeout connections by accepting
-                            -- the incoming packets for the new request, but closing
-                            -- the connection as soon as we try to read. To make sure
-                            -- we open a new connection under these circumstances, we
-                            -- check for the NoResponseDataReceived exception.
-                            Just NoResponseDataReceived -> True
-                            _ -> False
-    , managerWrapIOException =
-        let wrapper se =
-                case fromException se of
-                    Just e -> toException $ InternalIOException e
-                    Nothing ->
-                        case fromException se of
-                            Just TLS.Terminated{} -> toException $ TlsException se
-                            Nothing ->
-                                case fromException se of
-                                    Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                                    Nothing ->
-                                        case fromException se of
-                                            Just TLS.ConnectionNotEstablished -> toException $ TlsException se
-                                            Nothing -> se
-         in handle $ throwIO . wrapper
-    }
+conduitManagerSettings = tlsManagerSettings
 
 withManager :: (MonadIO m, MonadBaseControl IO m)
             => (Manager -> ResourceT m a)
@@ -323,46 +267,3 @@ withManagerSettings set f = bracket
 
 setConnectionClose :: Request -> Request
 setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
-
-http :: MonadResource m
-     => Request
-     -> Manager
-     -> m (Response (C.ResumableSource m S.ByteString))
-http req man = do
-    (key, res) <- allocate (Client.responseOpen req man) responseClose
-    let rsrc = CI.ResumableSource
-            (brSource $ responseBody res)
-            (release key)
-    return res { responseBody = rsrc }
-  where
-    brSource br =
-        loop
-      where
-        loop = do
-            bs <- liftIO $ brRead br
-            unless (S.null bs) $ do
-                C.yield bs
-                loop
-
-requestBodySource :: Int64 -> C.Source (ResourceT IO) S.ByteString -> RequestBody
-requestBodySource size = RequestBodyStream size . srcToPopper
-
-requestBodySourceChunked :: C.Source (ResourceT IO) S.ByteString -> RequestBody
-requestBodySourceChunked = RequestBodyStreamChunked . srcToPopper
-
-srcToPopper :: C.Source (ResourceT IO) S.ByteString -> GivesPopper ()
-srcToPopper src f = runResourceT $ do
-    (rsrc0, ()) <- src C.$$+ return ()
-    irsrc <- liftIO $ newIORef rsrc0
-    is <- getInternalState
-    let popper :: IO S.ByteString
-        popper = do
-            rsrc <- readIORef irsrc
-            (rsrc', mres) <- runInternalState (rsrc C.$$++ C.await) is
-            writeIORef irsrc rsrc'
-            case mres of
-                Nothing -> return S.empty
-                Just bs
-                    | S.null bs -> popper
-                    | otherwise -> return bs
-    liftIO $ f popper

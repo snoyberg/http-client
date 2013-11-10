@@ -189,11 +189,11 @@ main = withSocketsDo $ do
                 liftIO $ (responseCookieJar response) @?= def
         it "TLS" $ withAppTls app $ \port -> do
             request <- parseUrl $ "https://127.0.0.1:" ++ show port
-            let set = conduitManagerSettings
-                    { managerTlsConnection = getTlsConnection (Just def
+            let set = mkManagerSettings
+                    def
                         { settingDisableCertificateValidation = True
-                        }) Nothing
-                    }
+                        }
+                    Nothing
             response <- withManagerSettings set $ httpLbs request
             responseBody response @?= "homepage"
     describe "manager" $ do
