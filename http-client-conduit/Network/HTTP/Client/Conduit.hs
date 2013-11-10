@@ -1,8 +1,11 @@
+{-# LANGUAGE RankNTypes #-}
 -- | Frontend support for using http-client with conduit. Intended for use with
 -- higher-level libraries like http-conduit.
 module Network.HTTP.Client.Conduit
     ( requestBodySource
     , requestBodySourceChunked
+    , requestBodySourceIO
+    , requestBodySourceChunkedIO
     , bodyReaderSource
     , http
     ) where
@@ -13,15 +16,17 @@ import Control.Monad.Trans.Resource
 import Network.HTTP.Client
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Types
-import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Manager
 import Data.Int (Int64)
 import qualified Data.ByteString as S
 import Data.ByteString (ByteString)
 import Data.IORef
-import Control.Monad.IO.Class (liftIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (unless)
 
+bodyReaderSource :: MonadIO m
+                 => BodyReader
+                 -> Producer m ByteString
 bodyReaderSource br =
     loop
   where
@@ -64,3 +69,25 @@ srcToPopper src f = runResourceT $ do
                     | S.null bs -> popper
                     | otherwise -> return bs
     liftIO $ f popper
+
+requestBodySourceIO :: Int64 -> Source IO ByteString -> RequestBody
+requestBodySourceIO size = RequestBodyStream size . srcToPopperIO
+
+requestBodySourceChunkedIO :: Source IO ByteString -> RequestBody
+requestBodySourceChunkedIO = RequestBodyStreamChunked . srcToPopperIO
+
+srcToPopperIO :: Source IO ByteString -> GivesPopper ()
+srcToPopperIO src f = do
+    (rsrc0, ()) <- src $$+ return ()
+    irsrc <- newIORef rsrc0
+    let popper :: IO ByteString
+        popper = do
+            rsrc <- readIORef irsrc
+            (rsrc', mres) <- rsrc $$++ await
+            writeIORef irsrc rsrc'
+            case mres of
+                Nothing -> return S.empty
+                Just bs
+                    | S.null bs -> popper
+                    | otherwise -> return bs
+    f popper
