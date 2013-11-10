@@ -1,0 +1,46 @@
+{-# LANGUAGE ScopedTypeVariables #-}
+-- | Support for making connections via the OpenSSL library.
+module Network.HTTP.Client.OpenSSL
+    ( opensslManagerSettings
+    , withOpenSSL
+    ) where
+
+import Network.HTTP.Client
+import Network.HTTP.Client.Types (HttpException (..), Connection)
+import Control.Exception
+import qualified Network.HTTP.Client.Manager as HC
+import Network.HTTP.Client.Request
+import Network.HTTP.Client.Connection (makeConnection)
+import Network.HTTP.Client.Body
+import Network.HTTP.Client.Response
+import Network.HTTP.Client.Cookies
+import Network.Socket (HostAddress)
+import OpenSSL
+import qualified Network.Socket as N
+import qualified OpenSSL.Session       as SSL
+
+opensslManagerSettings :: HC.ManagerSettings
+opensslManagerSettings = HC.defaultManagerSettings
+    { HC.managerTlsConnection = do
+        ctx <- SSL.context
+        return $ \_ha host port -> do
+            -- Copied/modified from openssl-streams
+            let hints      = N.defaultHints
+                                { N.addrFlags = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
+                                }
+            (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host) (Just $ show port)
+
+            let family     = N.addrFamily addrInfo
+            let socketType = N.addrSocketType addrInfo
+            let protocol   = N.addrProtocol addrInfo
+            let address    = N.addrAddress addrInfo
+
+            sock <- N.socket family socketType protocol
+            N.connect sock address
+            ssl <- SSL.connection ctx sock
+            SSL.connect ssl
+            makeConnection
+                (SSL.read ssl 32752)
+                (SSL.write ssl)
+                (N.sClose sock)
+    }

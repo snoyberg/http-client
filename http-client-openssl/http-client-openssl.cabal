@@ -1,0 +1,33 @@
+name:                http-client-openssl
+version:             0.1.0.0
+synopsis:            http-client backend using the OpenSSL library.
+description:         Intended for use by higher-level libraries.
+homepage:            https://github.com/snoyberg/http-client
+license:             MIT
+license-file:        LICENSE
+author:              Michael Snoyman
+maintainer:          michael@snoyman.com
+category:            Network
+build-type:          Simple
+cabal-version:       >=1.10
+
+library
+  exposed-modules:     Network.HTTP.Client.OpenSSL
+  other-extensions:    ScopedTypeVariables
+  build-depends:       base >= 4 && < 5
+                     , http-client
+                     , network
+                     , HsOpenSSL
+  default-language:    Haskell2010
+
+test-suite spec
+  main-is:             Spec.hs
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test
+  default-language:    Haskell2010
+  ghc-options:         -threaded
+  build-depends:       base
+                     , hspec
+                     , http-client
+                     , http-client-openssl
+                     , http-types
