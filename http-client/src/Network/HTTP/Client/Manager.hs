@@ -58,7 +58,7 @@ import Network.HTTP.Client.Connection
 data ManagerSettings = ManagerSettings
     { managerConnCount :: !Int
       -- ^ Number of connections to a single host to keep alive. Default: 10.
-    , managerRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
+    , managerRawConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
       -- ^ Create an insecure connection.
     , managerTlsConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
       -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
@@ -80,7 +80,7 @@ data ManagerSettings = ManagerSettings
 defaultManagerSettings :: ManagerSettings
 defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
-    , managerRawConnection = openSocketConnection
+    , managerRawConnection = return openSocketConnection
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
     , managerResponseTimeout = Just 5000000
     , managerRetryableException = \e ->
@@ -173,6 +173,7 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 -- a single 'Manager' between requests instead.
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
+    rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     mapRef <- I.newIORef (Just Map.empty)
     wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
@@ -181,7 +182,7 @@ newManager ms = do
             { mConns = mapRef
             , mMaxConns = managerConnCount ms
             , mResponseTimeout = managerResponseTimeout ms
-            , mRawConnection = managerRawConnection ms
+            , mRawConnection = rawConnection
             , mTlsConnection = tlsConnection
             , mRetryableException = managerRetryableException ms
             , mWrapIOException = managerWrapIOException ms
