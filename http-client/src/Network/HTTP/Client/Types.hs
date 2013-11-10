@@ -8,13 +8,14 @@ import Control.Exception (Exception, IOException, SomeException)
 import Data.Word (Word64)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
-import Blaze.ByteString.Builder (Builder)
+import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
 import Data.Int (Int64)
 import Data.Default
 import Data.Monoid
 import Data.Time (UTCTime)
 import qualified Data.List as DL
 import Network.Socket (HostAddress)
+import Data.IORef
 
 data Connection = Connection
     { connectionRead :: !(IO S.ByteString)
@@ -133,6 +134,58 @@ data RequestBody
     | RequestBodyBuilder !Int64 !Builder
     | RequestBodyStream !Int64 !(GivesPopper ())
     | RequestBodyStreamChunked !(GivesPopper ())
+instance Monoid RequestBody where
+    mempty = RequestBodyBS S.empty
+    mappend x y =
+        case (simplify x, simplify y) of
+            (Left (i, x), Left (j, y)) -> RequestBodyBuilder (i + j) (x `mappend` y)
+            (Left x, Right y) -> combine (builderToStream x) y
+            (Right x, Left y) -> combine x (builderToStream y)
+            (Right x, Right y) -> combine x y
+      where
+        combine (Just i, x) (Just j, y) = RequestBodyStream (i + j) (combine' x y)
+        combine (_, x) (_, y) = RequestBodyStreamChunked (combine' x y)
+
+        combine' :: GivesPopper () -> GivesPopper () -> GivesPopper ()
+        combine' x y f = x $ \x' -> y $ \y' -> combine'' x' y' f
+
+        combine'' :: Popper -> Popper -> NeedsPopper () -> IO ()
+        combine'' x y f = do
+            istate <- newIORef $ Left (x, y)
+            f $ go istate
+
+        go istate = do
+            state <- readIORef istate
+            case state of
+                Left (x, y) -> do
+                    bs <- x
+                    if S.null bs
+                        then do
+                            writeIORef istate $ Right y
+                            y
+                        else return bs
+                Right y -> y
+
+simplify :: RequestBody -> Either (Int64, Builder) (Maybe Int64, GivesPopper ())
+simplify (RequestBodyLBS lbs) = Left (L.length lbs, fromLazyByteString lbs)
+simplify (RequestBodyBS bs) = Left (fromIntegral $ S.length bs, fromByteString bs)
+simplify (RequestBodyBuilder len b) = Left (len, b)
+simplify (RequestBodyStream i gp) = Right (Just i, gp)
+simplify (RequestBodyStreamChunked gp) = Right (Nothing, gp)
+
+builderToStream :: (Int64, Builder) -> (Maybe Int64, GivesPopper ())
+builderToStream (len, builder) =
+    (Just len, gp)
+  where
+    gp np = do
+        ibss <- newIORef $ L.toChunks $ toLazyByteString builder
+        np $ do
+            bss <- readIORef ibss
+            case bss of
+                [] -> return S.empty
+                bs:bss' -> do
+                    writeIORef ibss bss'
+                    return bs
 
 type Popper = IO S.ByteString
 type NeedsPopper a = Popper -> IO a
