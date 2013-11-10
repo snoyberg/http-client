@@ -7,7 +7,6 @@ import Test.HUnit hiding (path)
 import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Types
 import qualified Network.HTTP.Conduit as HC
-import Network.HTTP.Conduit
 import Data.ByteString.UTF8
 import Data.Monoid
 import Data.Maybe

@@ -137,6 +137,8 @@ module Network.HTTP.Conduit
       -- *** Request body
     , requestBodySource
     , requestBodySourceChunked
+    , requestBodySourceIO
+    , requestBodySourceChunkedIO
       -- * Response
     , Response
     , responseStatus
@@ -187,8 +189,7 @@ import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
 import qualified Network.HTTP.Client          as Client (httpLbs)
-import           Network.HTTP.Client.Conduit  (http, requestBodySource,
-                                               requestBodySourceChunked)
+import           Network.HTTP.Client.Conduit
 import           Network.HTTP.Client.Cookies  (createCookieJar,
                                                destroyCookieJar)
 import           Network.HTTP.Client.Manager  (Manager, ManagerSettings,

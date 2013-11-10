@@ -23,7 +23,7 @@ import CookieTest (cookieTest)
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Conduit (($$), ($$+-), yield, Flush (Chunk, Flush), runResourceT, await)
+import Data.Conduit (($$), ($$+-), yield, Flush (Chunk, Flush), await)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -34,13 +34,13 @@ import qualified Data.Conduit.List as CL
 import qualified Data.Text as T
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as L
-import Blaze.ByteString.Builder (fromByteString, toByteString)
+import Blaze.ByteString.Builder (fromByteString)
 import System.IO
-import Data.Monoid (mconcat)
 import Data.Time.Clock
 import Data.Time.Calendar
 import qualified Network.Wai.Handler.WarpTLS as WT
 import Network.Connection (settingDisableCertificateValidation)
+import Data.Default (def)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -337,11 +337,10 @@ main = withSocketsDo $ do
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
                     responseBody res `shouldBe` "Hello World!"
-    {- FIXME
     describe "multipart/form-data" $ do
         it "formats correctly" $ do
             let bd = "---------------------------190723902820679116301912680260"
-            (RequestBodySource _ src) <- renderParts bd
+            (RequestBodyStream _ givesPopper) <- renderParts bd
                 [partBS "email" ""
                 ,partBS "parent_id" "70488"
                 ,partBS "captcha" ""
@@ -349,10 +348,16 @@ main = withSocketsDo $ do
                 ,partBS "text" $ TE.encodeUtf8 ">>72127\r\nМы работаем над этим."
                 ,partFileSource "upload" "nyan.gif"
                 ]
-            mfd <- fmap (toByteString . mconcat) $ runResourceT $ src $$ CL.consume
+            ires <- I.newIORef S.empty
+            let loop front popper = do
+                    bs <- popper
+                    if S.null bs
+                        then I.writeIORef ires $ S.concat $ front []
+                        else loop (front . (bs:)) popper
+            givesPopper $ loop id
+            mfd <- I.readIORef ires
             exam <- S.readFile "multipart-example.bin"
             mfd @?= exam
-            -}
 
     describe "HTTP/1.0" $ do
         it "BaseHTTP" $ do

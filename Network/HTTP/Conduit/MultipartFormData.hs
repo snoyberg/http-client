@@ -21,8 +21,6 @@
 -- >                       ,partFileRequestBody "file2" "cat.jpg" $ RequestBodyLBS $ responseBody res]
 -- >             req2)
 module Network.HTTP.Conduit.MultipartFormData
-    where
-{- FIXME
     (
     -- * Part type
      Part(..)
@@ -46,15 +44,12 @@ module Network.HTTP.Conduit.MultipartFormData
     ,renderPart
     ) where
 
-import Network.HTTP.Client.Request
-import Network.HTTP.Conduit.Util
+import Network.HTTP.Client.Types
 import Network.Mime
 import Network.HTTP.Types (hContentType, methodPost)
+import Data.Monoid ((<>))
 
 import Blaze.ByteString.Builder
-import qualified Data.Conduit.List as CL
-import qualified Data.Conduit.Binary as CB
-import Data.Conduit
 
 import Data.Text
 import qualified Data.Text.Encoding as TE
@@ -72,17 +67,18 @@ import Data.Word
 import Data.Functor.Identity
 import Data.Monoid (Monoid(..))
 import Control.Monad
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 -- | A single part of a multipart message.
-data Part m m' = Part
+data Part m = Part
     { partName :: Text -- ^ Name of the corresponding \<input\>
     , partFilename :: Maybe String -- ^ A file name, if this is an attached file
     , partContentType :: Maybe MimeType -- ^ Content type
-    , partGetBody :: m (RequestBody m') -- ^ Action in m which returns the body
-                                        -- of a message.
+    , partGetBody :: m RequestBody -- ^ Action in m which returns the body
+                                   -- of a message.
     }
 
-instance Show (Part m m') where
+instance Show (Part m) where
     showsPrec d (Part n f c _) =
         showParen (d>=11) $ showString "Part "
             . showsPrec 11 n
@@ -93,35 +89,40 @@ instance Show (Part m m') where
             . showString " "
             . showString "<m (RequestBody m)>"
 
-partBS :: (Monad m, Monad m') => Text -> BS.ByteString -> Part m m'
+partBS :: Monad m => Text -> BS.ByteString -> Part m
 partBS n b = Part n mempty mempty $ return $ RequestBodyBS b
 
-partLBS :: (Monad m, Monad m') => Text -> BL.ByteString -> Part m m'
+partLBS :: Monad m => Text -> BL.ByteString -> Part m
 partLBS n b = Part n mempty mempty $ return $ RequestBodyLBS b
 
 -- | Make a 'Part' from a file, the entire file will reside in memory at once.
 -- If you want constant memory usage use 'partFileSource'
-partFile :: (MonadIO m, Monad m') => Text -> FilePath -> Part m m'
+partFile :: MonadIO m => Text -> FilePath -> Part m
 partFile n f =
     partFileRequestBodyM n f $ do
         liftM RequestBodyBS $ liftIO $ BS.readFile f
 
 -- | Stream 'Part' from a file.
-partFileSource :: (MonadIO m, MonadResource m') => Text -> FilePath -> Part m m'
+partFileSource :: MonadIO m => Text -> FilePath -> Part m
 partFileSource n f =
     partFileRequestBodyM n f $ do
         size <- liftIO $ withBinaryFile f ReadMode hFileSize
-        return $ RequestBodySource (fromInteger size) $
-            CB.sourceFile f $= CL.map fromByteString
+        return $ RequestBodyStream (fromInteger size) $ streamFile f
+
+streamFile :: FilePath -> GivesPopper ()
+streamFile fp np =
+    withFile fp ReadMode $ np . go
+  where
+    go h = BS.hGetSome h defaultChunkSize
 
 -- | 'partFileSourceChunked' will read a file and send it in chunks.
 --
 -- Note that not all servers support this. Only use 'partFileSourceChunked'
 -- if you know the server you're sending to supports chunked request bodies.
-partFileSourceChunked :: (Monad m, MonadResource m') => Text -> FilePath -> Part m m'
+partFileSourceChunked :: Monad m => Text -> FilePath -> Part m
 partFileSourceChunked n f =
     partFileRequestBody n f $ do
-        RequestBodySourceChunked $ CB.sourceFile f $= CL.map fromByteString
+        RequestBodyStreamChunked $ streamFile f
 
 -- | Construct a 'Part' from form name, filepath and a 'RequestBody'
 --
@@ -129,7 +130,7 @@ partFileSourceChunked n f =
 --
 -- > -- empty upload form
 -- > partFileRequestBody "file" mempty mempty
-partFileRequestBody :: (Monad m, Monad m') => Text -> FilePath -> RequestBody m' -> Part m m'
+partFileRequestBody :: Monad m => Text -> FilePath -> RequestBody -> Part m
 partFileRequestBody n f rqb =
     partFileRequestBodyM n f $ return rqb
 
@@ -138,15 +139,15 @@ partFileRequestBody n f rqb =
 -- > partFileRequestBodyM "cat_photo" "haskell-the-cat.jpg" $ do
 -- >     size <- fromInteger <$> withBinaryFile "haskell-the-cat.jpg" ReadMode hFileSize
 -- >     return $ RequestBodySource size $ CB.sourceFile "haskell-the-cat.jpg" $= CL.map fromByteString
-partFileRequestBodyM :: Monad m' => Text -> FilePath -> m (RequestBody m') -> Part m m'
+partFileRequestBodyM :: Text -> FilePath -> m RequestBody -> Part m
 partFileRequestBodyM n f rqb =
     Part n (Just f) (Just $ defaultMimeLookup $ pack f) rqb
 
 {-# INLINE cp #-}
-cp :: BS.ByteString -> RequestBody m
+cp :: BS.ByteString -> RequestBody
 cp bs = RequestBodyBuilder (fromIntegral $ BS.length bs) $ copyByteString bs
 
-renderPart :: (Monad m, Monad m') => BS.ByteString -> Part m m' -> m (RequestBody m')
+renderPart :: Monad m => BS.ByteString -> Part m -> m RequestBody
 renderPart boundary (Part name mfilename mcontenttype get) = liftM render get
   where render renderBody =
             cp "--" <> cp boundary <> cp "\r\n"
@@ -166,7 +167,7 @@ renderPart boundary (Part name mfilename mcontenttype get) = liftM render get
          <> renderBody <> cp "\r\n"
 
 -- | Combine the 'Part's to form multipart/form-data body
-renderParts :: (Monad m, Monad m') => BS.ByteString -> [Part m m'] -> m (RequestBody m')
+renderParts :: Monad m => BS.ByteString -> [Part m] -> m RequestBody
 renderParts boundary parts = (fin . mconcat) `liftM` mapM (renderPart boundary) parts
   where fin = (<> cp "--" <> cp boundary <> cp "--\r\n")
 
@@ -198,7 +199,7 @@ webkitBoundaryPure g = (`runState` g) $ do
 -- | Add form data to the 'Request'.
 --
 -- This sets a new 'requestBody', adds a content-type request header and changes the method to POST.
-formDataBody :: (MonadIO m, Monad m') => [Part m m'] -> Request m' -> m (Request m')
+formDataBody :: MonadIO m => [Part m] -> Request -> m Request
 formDataBody a b = do
     boundary <- liftIO webkitBoundary
     formDataBodyWithBoundary boundary a b
@@ -206,12 +207,12 @@ formDataBody a b = do
 -- | Add form data to request without doing any IO. Your form data should only
 -- contain pure parts ('partBS', 'partLBS', 'partFileRequestBody'). You'll have
 -- to supply your own boundary (for example one generated by 'webkitBoundary')
-formDataBodyPure :: Monad m => BS.ByteString -> [Part Identity m] -> Request m -> Request m
+formDataBodyPure :: BS.ByteString -> [Part Identity] -> Request -> Request
 formDataBodyPure = \boundary parts req ->
     runIdentity $ formDataBodyWithBoundary boundary parts req
 
 -- | Add form data with supplied boundary
-formDataBodyWithBoundary :: (Monad m, Monad m') => BS.ByteString -> [Part m m'] -> Request m' -> m (Request m')
+formDataBodyWithBoundary :: Monad m => BS.ByteString -> [Part m] -> Request -> m Request
 formDataBodyWithBoundary boundary parts req = do
     body <- renderParts boundary parts
     return $ req
@@ -221,4 +222,3 @@ formDataBodyWithBoundary boundary parts req = do
           : Prelude.filter (\(x, _) -> x /= hContentType) (requestHeaders req)
         , requestBody = body
         }
-        -}
