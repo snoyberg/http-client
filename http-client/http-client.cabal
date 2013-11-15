@@ -3,6 +3,8 @@ version:             0.1.0.0
 synopsis:            An HTTP client engine
                       , intended as a base layer for more user-friendly packages.
 description:         This codebase has been refactored from http-conduit.
+                     .
+                     Note that, in its current state, this library is a preview release. It passes tests and seems to work correctly, but has not received a huge level of battle testing yet. I would recommend sticking with http-conduit for production usage until this library has been more thoroughly tested.
 homepage:            https://github.com/snoyberg/http-client
 license:             MIT
 license-file:        LICENSE
