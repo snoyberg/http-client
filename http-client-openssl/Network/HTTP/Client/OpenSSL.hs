@@ -2,6 +2,7 @@
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
     ( opensslManagerSettings
+    , defaultMakeContext
     , withOpenSSL
     ) where
 
@@ -19,10 +20,14 @@ import OpenSSL
 import qualified Network.Socket as N
 import qualified OpenSSL.Session       as SSL
 
-opensslManagerSettings :: HC.ManagerSettings
-opensslManagerSettings = HC.defaultManagerSettings
+-- | FIXME This needs better defaults
+defaultMakeContext :: IO SSL.SSLContext
+defaultMakeContext = SSL.context
+
+opensslManagerSettings :: IO SSL.SSLContext -> HC.ManagerSettings
+opensslManagerSettings mkContext = HC.defaultManagerSettings
     { HC.managerTlsConnection = do
-        ctx <- SSL.context
+        ctx <- mkContext
         return $ \_ha host port -> do
             -- Copied/modified from openssl-streams
             let hints      = N.defaultHints
