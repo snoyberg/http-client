@@ -2,7 +2,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 module Network.HTTP.Client.Types where
 
-import Data.Typeable
+import qualified Data.Typeable as T (Typeable)
 import Network.HTTP.Types
 import Control.Exception (Exception, IOException, SomeException)
 import Data.Word (Word64)
@@ -57,7 +57,7 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    --
                    -- Since 1.9.4
                    | IncompleteHeaders
-    deriving (Show, Typeable)
+    deriving (Show, T.Typeable)
 instance Exception HttpException
 
 
@@ -116,7 +116,7 @@ data Proxy = Proxy
     { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
-    deriving (Show, Read, Eq, Ord, Typeable)
+    deriving (Show, Read, Eq, Ord, T.Typeable)
 
 -- | When using one of the
 -- 'RequestBodySource' \/ 'RequestBodySourceChunked' constructors,
@@ -314,13 +314,13 @@ data Response body = Response
     -- has not been fully read yet, doing so after this call will likely
     -- be impossible.
     }
-    deriving (Show, Eq, Typeable, Functor)
+    deriving (Show, Eq, T.Typeable, Functor)
 
 responseClose :: Response a -> IO ()
 responseClose = runResponseClose . responseClose'
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
-    deriving Typeable
+    deriving T.Typeable
 instance Show ResponseClose where
     show _ = "ResponseClose"
 instance Eq ResponseClose where
