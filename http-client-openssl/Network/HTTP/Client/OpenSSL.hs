@@ -2,7 +2,7 @@
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
     ( opensslManagerSettings
-    , defaultMakeContext
+    -- , defaultMakeContext
     , withOpenSSL
     ) where
 
@@ -24,6 +24,9 @@ import qualified OpenSSL.Session       as SSL
 defaultMakeContext :: IO SSL.SSLContext
 defaultMakeContext = SSL.context
 
+-- | Note that it is the caller's responsibility to pass in an appropriate
+-- context. Future versions of http-client-openssl will hopefully include a
+-- sane, safe default.
 opensslManagerSettings :: IO SSL.SSLContext -> HC.ManagerSettings
 opensslManagerSettings mkContext = HC.defaultManagerSettings
     { HC.managerTlsConnection = do
