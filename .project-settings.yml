@@ -1,0 +1,61 @@
+module-template: ! 'module MODULE_NAME where
+
+'
+extensions: {}
+environment: null
+cabal-file: project.cabal
+modules:
+  Network.HTTP.Client.BodySpec:
+    filename: http-client/test/Network/HTTP/Client/BodySpec.hs
+  Network.HTTP.Client.Connection:
+    filename: http-client/src/Network/HTTP/Client/Connection.hs
+  Network.HTTP.Client.ResponseSpec:
+    filename: http-client/test/Network/HTTP/Client/ResponseSpec.hs
+  Network.HTTP.Client.Types:
+    filename: http-client/src/Network/HTTP/Client/Types.hs
+  Network.HTTP.Client.Manager:
+    filename: http-client/src/Network/HTTP/Client/Manager.hs
+  Network.HTTP.ClientSpec:
+    filename: http-client/test/Network/HTTP/ClientSpec.hs
+  Network.HTTP.Client.TLS:
+    filename: http-client-tls/Network/HTTP/Client/TLS.hs
+  Network.HTTP.Client.Util:
+    filename: http-client/src/Network/HTTP/Client/Util.hs
+  Main(http-client-openssl/test/Spec.hs):
+    filename: http-client-openssl/test/Spec.hs
+  Main(http-client-conduit/Setup.hs):
+    filename: http-client-conduit/Setup.hs
+  Network.HTTP.Client.HeadersSpec:
+    filename: http-client/test/Network/HTTP/Client/HeadersSpec.hs
+  Main(http-client/Setup.hs):
+    filename: http-client/Setup.hs
+  Main(http-client-openssl/Setup.hs):
+    filename: http-client-openssl/Setup.hs
+  Network.HTTP.Client.Cookies:
+    filename: http-client/src/Network/HTTP/Client/Cookies.hs
+  Network.HTTP.Client.OpenSSL:
+    filename: http-client-openssl/Network/HTTP/Client/OpenSSL.hs
+  Network.HTTP.Client.MultipartFormData:
+    filename: http-client-multipart/Network/HTTP/Client/MultipartFormData.hs
+  Network.HTTP.Client:
+    filename: http-client/src/Network/HTTP/Client.hs
+  Network.HTTP.Client.Conduit:
+    filename: http-client-conduit/Network/HTTP/Client/Conduit.hs
+  Network.HTTP.Client.Response:
+    filename: http-client/src/Network/HTTP/Client/Response.hs
+  Main(http-client-tls/Setup.hs):
+    filename: http-client-tls/Setup.hs
+  Network.HTTP.Client.Headers:
+    filename: http-client/src/Network/HTTP/Client/Headers.hs
+  Main(http-client-multipart/Setup.hs):
+    filename: http-client-multipart/Setup.hs
+  Main(http-client/test/Spec.hs):
+    filename: http-client/test/Spec.hs
+  Network.HTTP.Client.Request:
+    filename: http-client/src/Network/HTTP/Client/Request.hs
+  Main(http-client-tls/test/Spec.hs):
+    filename: http-client-tls/test/Spec.hs
+  Network.HTTP.Client.Body:
+    filename: http-client/src/Network/HTTP/Client/Body.hs
+version: 1
+ghc-args: []
