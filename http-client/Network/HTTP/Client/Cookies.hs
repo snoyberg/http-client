@@ -8,6 +8,13 @@ module Network.HTTP.Client.Cookies
     , insertCookiesIntoRequest
     , computeCookieString
     , evictExpiredCookies
+    , createCookieJar
+    , destroyCookieJar
+    , pathMatches
+    , removeExistingCookieFromCookieJar
+    , domainMatches
+    , isIpAddress
+    , defaultPath
     ) where
 
 import qualified Data.ByteString as BS

@@ -9,12 +9,14 @@ module Network.HTTP.Client.Internal
       module Network.HTTP.Client.Body
       -- * Raw connection handling
     , module Network.HTTP.Client.Connection
+      -- * Cookies
+    , module Network.HTTP.Client.Cookies
       -- * Performing requests
     , module Network.HTTP.Client.Core
       -- * Parse response headers
     , module Network.HTTP.Client.Headers
       -- * Request helper functions
-    , module Network.HTTP.Client.Response
+    , module Network.HTTP.Client.Request
       -- * Low-level response body handling
     , module Network.HTTP.Client.Response
       -- * Manager
@@ -27,6 +29,7 @@ module Network.HTTP.Client.Internal
 
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Connection
+import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Core
 import Network.HTTP.Client.Headers
 import Network.HTTP.Client.Manager
