@@ -1,4 +1,9 @@
 {-# OPTIONS_HADDOCK not-home #-}
+-- | Note that this is essentially the \"kitchen sink\" export module,
+-- including many functions intended only to be used internally by this
+-- package. No API stability is guaranteed for this module. If you see
+-- functions here which you believe should be promoted to a stable API, please
+-- contact the author.
 module Network.HTTP.Client.Internal
     ( -- * Low-level response body handling
       module Network.HTTP.Client.Body
