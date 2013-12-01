@@ -7,14 +7,8 @@ module Network.HTTP.Client.OpenSSL
     ) where
 
 import Network.HTTP.Client
-import Network.HTTP.Client.Types (HttpException (..), Connection)
+import Network.HTTP.Client.Internal
 import Control.Exception
-import qualified Network.HTTP.Client.Manager as HC
-import Network.HTTP.Client.Request
-import Network.HTTP.Client.Connection (makeConnection)
-import Network.HTTP.Client.Body
-import Network.HTTP.Client.Response
-import Network.HTTP.Client.Cookies
 import Network.Socket (HostAddress)
 import OpenSSL
 import qualified Network.Socket as N
@@ -27,9 +21,9 @@ defaultMakeContext = SSL.context
 -- | Note that it is the caller's responsibility to pass in an appropriate
 -- context. Future versions of http-client-openssl will hopefully include a
 -- sane, safe default.
-opensslManagerSettings :: IO SSL.SSLContext -> HC.ManagerSettings
-opensslManagerSettings mkContext = HC.defaultManagerSettings
-    { HC.managerTlsConnection = do
+opensslManagerSettings :: IO SSL.SSLContext -> ManagerSettings
+opensslManagerSettings mkContext = defaultManagerSettings
+    { managerTlsConnection = do
         ctx <- mkContext
         return $ \_ha host port -> do
             -- Copied/modified from openssl-streams

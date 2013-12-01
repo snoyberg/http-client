@@ -14,9 +14,7 @@ import Data.Conduit
 import qualified Data.Conduit.Internal as CI
 import Control.Monad.Trans.Resource
 import Network.HTTP.Client
-import Network.HTTP.Client.Body
-import Network.HTTP.Client.Types
-import Network.HTTP.Client.Manager
+import Network.HTTP.Client.Internal
 import Data.Int (Int64)
 import qualified Data.ByteString as S
 import Data.ByteString (ByteString)

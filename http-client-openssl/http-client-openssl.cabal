@@ -31,3 +31,4 @@ test-suite spec
                      , http-client
                      , http-client-openssl
                      , http-types
+                     , HsOpenSSL

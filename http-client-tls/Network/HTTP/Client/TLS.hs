@@ -9,28 +9,22 @@ module Network.HTTP.Client.TLS
 
 import Data.Default
 import Network.HTTP.Client
-import Network.HTTP.Client.Types (HttpException (..), Connection)
+import Network.HTTP.Client.Internal
 import Control.Exception
-import qualified Network.HTTP.Client.Manager as HC
 import qualified Network.Connection as NC
-import Network.HTTP.Client.Request
-import Network.HTTP.Client.Connection (makeConnection)
-import Network.HTTP.Client.Body
-import Network.HTTP.Client.Response
-import Network.HTTP.Client.Cookies
 import Network.Socket (HostAddress)
 import qualified Network.TLS as TLS
 
 mkManagerSettings :: NC.TLSSettings
                   -> Maybe NC.SockSettings
-                  -> HC.ManagerSettings
-mkManagerSettings tls sock = HC.defaultManagerSettings
-    { HC.managerTlsConnection = getTlsConnection (Just tls) sock
-    , HC.managerRawConnection =
+                  -> ManagerSettings
+mkManagerSettings tls sock = defaultManagerSettings
+    { managerTlsConnection = getTlsConnection (Just tls) sock
+    , managerRawConnection =
         case sock of
-            Nothing -> HC.managerRawConnection HC.defaultManagerSettings
+            Nothing -> managerRawConnection defaultManagerSettings
             Just _ -> getTlsConnection Nothing sock
-    , HC.managerRetryableException = \e ->
+    , managerRetryableException = \e ->
         case () of
             ()
                 | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
@@ -45,7 +39,7 @@ mkManagerSettings tls sock = HC.defaultManagerSettings
                             -- check for the NoResponseDataReceived exception.
                             Just NoResponseDataReceived -> True
                             _ -> False
-    , HC.managerWrapIOException =
+    , managerWrapIOException =
         let wrapper se =
                 case fromException se of
                     Just e -> toException $ InternalIOException e
@@ -62,7 +56,7 @@ mkManagerSettings tls sock = HC.defaultManagerSettings
          in handle $ throwIO . wrapper
     }
 
-tlsManagerSettings :: HC.ManagerSettings
+tlsManagerSettings :: ManagerSettings
 tlsManagerSettings = mkManagerSettings def Nothing
 
 getTlsConnection :: Maybe NC.TLSSettings
