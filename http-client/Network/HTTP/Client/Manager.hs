@@ -5,19 +5,10 @@
 {-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Manager
-    ( Manager
-    , mResponseTimeout
-    , mRetryableException
-    , mWrapIOException
-    , ManagerSettings (..)
-    , ConnKey (..)
-    , ConnHost (..)
+    ( ManagerSettings (..)
     , newManager
     , closeManager
     , getConn
-    , ConnReuse (..)
-    , ConnRelease
-    , ManagedConn (..)
     , failedConnectionException
     , defaultManagerSettings
     ) where
@@ -53,30 +44,9 @@ import System.Mem.Weak (Weak, deRefWeak)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 
--- | Settings for a @Manager@. Please use the 'defaultManagerSettings' function and then modify
--- individual settings.
-data ManagerSettings = ManagerSettings
-    { managerConnCount :: !Int
-      -- ^ Number of connections to a single host to keep alive. Default: 10.
-    , managerRawConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
-      -- ^ Create an insecure connection.
-    , managerTlsConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
-      -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
-    , managerResponseTimeout :: !(Maybe Int)
-      -- ^ Default timeout (in microseconds) to be applied to requests which do
-      -- not provide a timeout value.
-      --
-      -- Default is 5 seconds
-      --
-      -- Since 1.9.3
-    , managerRetryableException :: !(SomeException -> Bool)
-    -- ^ Exceptions for which we should retry our request if we were reusing an
-    -- already open connection. In the case of IOExceptions, for example, we
-    -- assume that the connection was closed on the server and therefore open a
-    -- new one.
-    , managerWrapIOException :: !(forall a. IO a -> IO a)
-    }
-
+-- | Default value for @ManagerSettings@.
+--
+-- Since 0.1.0
 defaultManagerSettings :: ManagerSettings
 defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
@@ -102,36 +72,6 @@ defaultManagerSettings = ManagerSettings
                     Nothing -> se
          in handle $ throwIO . wrapper
     }
-
--- | Keeps track of open connections for keep-alive.
--- If possible, you should share a single 'Manager' between multiple threads and requests.
-data Manager = Manager
-    { mConns :: !(I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection))))
-    -- ^ @Nothing@ indicates that the manager is closed.
-    , mMaxConns :: !Int
-    -- ^ This is a per-@ConnKey@ value.
-    , mResponseTimeout :: !(Maybe Int)
-    -- ^ Copied from 'managerResponseTimeout'
-    , mRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
-    , mTlsConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
-    , mRetryableException :: !(SomeException -> Bool)
-    , mWrapIOException :: !(forall a. IO a -> IO a)
-    }
-
-data NonEmptyList a =
-    One !a !UTCTime |
-    Cons !a !Int !UTCTime !(NonEmptyList a)
-
--- | Hostname or resolved host address.
-data ConnHost =
-    HostName !Text |
-    HostAddress !NS.HostAddress
-    deriving (Eq, Show, Ord)
-
--- | @ConnKey@ consists of a hostname, a port and a @Bool@
--- specifying whether to use SSL.
-data ConnKey = ConnKey !ConnHost !Int !Bool
-    deriving (Eq, Show, Ord)
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
 takeSocket man key =
@@ -167,10 +107,17 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
     | otherwise = (l, Just x)
 
--- | Create a 'Manager'. You must manually call 'closeManager' to shut it down.
+-- | Create a 'Manager'. You may manually call 'closeManager' to shut it down,
+-- or allow the @Manager@ to be shut down automatically based on garbage
+-- collection.
 --
--- Creating a new 'Manager' is an expensive operation, you are advised to share
--- a single 'Manager' between requests instead.
+-- Creating a new 'Manager' is a relatively expensive operation, you are
+-- advised to share a single 'Manager' between requests instead.
+--
+-- The first argument to this function is often 'defaultManagerSettings',
+-- though add-on libraries may provide a recommended replacement.
+--
+-- Since 0.1.0
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
     rawConnection <- managerRawConnection ms
@@ -280,12 +227,13 @@ neFromList xs =
             i' = i + 1
          in i' `seq` (i', Cons a i t rest')
 
--- | Close all connections in a 'Manager'. Afterwards, the 'Manager'
--- can be reused if desired.
+-- | Close all connections in a 'Manager'.
 --
 -- Note that this doesn't affect currently in-flight connections,
 -- meaning you can safely use it without hurting any queries you may
 -- have concurrently running.
+--
+-- Since 0.1.0
 closeManager :: Manager -> IO ()
 closeManager = closeManager' . mConns
 

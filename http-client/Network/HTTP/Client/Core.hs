@@ -26,12 +26,33 @@ import qualified Data.ByteString.Lazy as L
 import Data.Monoid
 import Control.Monad (void)
 
+-- | Perform a @Request@ using a connection acquired from the given @Manager@,
+-- and then provide the @Response@ to the given function. This function is
+-- fully exception safe, guaranteeing that the response will be closed when the
+-- inner function exits. It is defined as:
+--
+-- > withResponse req man f = bracket (responseOpen req man) responseClose f
+--
+-- It is recommended that you use this function in place of explicit calls to
+-- 'responseOpen' and 'responseClose'.
+--
+-- You will need to use functions such as 'brRead' to consume the response
+-- body.
+--
+-- Since 0.1.0
 withResponse :: Request
              -> Manager
              -> (Response BodyReader -> IO a)
              -> IO a
 withResponse req man f = bracket (responseOpen req man) responseClose f
 
+-- | A convenience wrapper around 'withResponse' which reads in the entire
+-- response body and immediately closes the connection. Note that this function
+-- performs fully strict I\/O, and only uses a lazy ByteString in its response
+-- for memory efficiency. If you are anticipating a large response body, you
+-- are encouraged to use 'withResponse' and 'brRead' instead.
+--
+-- Since 0.1.0
 httpLbs :: Request -> Manager -> IO (Response L.ByteString)
 httpLbs req man = withResponse req man $ \res -> do
     bss <- brConsume $ responseBody res
@@ -94,44 +115,22 @@ httpRaw req' m = do
 -- second argument specifies which 'Manager' should be used.
 --
 -- This function then returns a 'Response' with a
--- 'C.Source'.  The 'Response' contains the status code
+-- 'BodyReader'.  The 'Response' contains the status code
 -- and headers that were sent back to us, and the
--- 'C.Source' contains the body of the request.  Note
--- that this 'C.Source' allows you to have fully
+-- 'BodyReader' contains the body of the request.  Note
+-- that this 'BodyReader' allows you to have fully
 -- interleaved IO actions during your HTTP download, making it
 -- possible to download very large responses in constant memory.
--- You may also directly connect the returned 'C.Source'
--- into a 'C.Sink', perhaps a file or another socket.
 --
 -- An important note: the response body returned by this function represents a
 -- live HTTP connection. As such, if you do not use the response body, an open
--- socket will be retained until the containing @ResourceT@ block exits. If you
--- do not need the response body, it is recommended that you explicitly shut
--- down the connection immediately, using the pattern:
+-- socket will be retained indefinitely. You must be certain to call
+-- 'responseClose' on this response to free up resources.
 --
--- > responseBody res $$+- return ()
+-- This function automatically performs any necessary redirects, as specified
+-- by the 'redirectCount' setting.
 --
--- As a more thorough example, consider the following program. Without the
--- explicit response body closing, the program will run out of file descriptors
--- around the 1000th request (depending on the operating system limits).
---
--- > import Control.Monad          (replicateM_)
--- > import Control.Monad.IO.Class (liftIO)
--- > import Data.Conduit           (($$+-))
--- > import Network                (withSocketsDo)
--- > import Network.HTTP.Conduit
--- >
--- > main = withSocketsDo $ withManager $ \manager -> do
--- >     req <- parseUrl "http://localhost/"
--- >     mapM_ (worker manager req) [1..5000]
--- >
--- > worker manager req i = do
--- >     res <- http req manager
--- >     responseBody res $$+- return () -- The important line
--- >     liftIO $ print (i, responseStatus res)
---
--- Note: Unlike previous versions, this function will perform redirects, as
--- specified by the 'redirectCount' setting.
+-- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen req0 manager = mWrapIOException manager $ do
     res <-
@@ -206,5 +205,10 @@ httpRedirect count0 http' req0 = go count0 req0 []
                 go (count - 1) req (res:ress)
             Nothing -> return res
 
+-- | Close any open resources associated with the given @Response@. In general,
+-- this will either close an active @Connection@ or return it to the @Manager@
+-- to be reused.
+--
+-- Since 0.1.0
 responseClose :: Response a -> IO ()
 responseClose = runResponseClose . responseClose'

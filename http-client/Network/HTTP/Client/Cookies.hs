@@ -1,8 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 -- | This module implements the algorithms described in RFC 6265 for the Network.HTTP.Conduit library.
 module Network.HTTP.Client.Cookies
-    ( -- * Cookie functions
-      updateCookieJar
+    ( updateCookieJar
     , receiveSetCookie
     , generateCookie
     , insertCheckedCookie

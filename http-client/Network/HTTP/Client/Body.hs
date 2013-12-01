@@ -48,6 +48,9 @@ brAddCleanup cleanup br = BodyReader
     , brComplete = brComplete br
     }
 
+-- | Strictly consume all remaining chunks of data from the stream.
+--
+-- Since 0.1.0
 brConsume :: BodyReader -> IO [S.ByteString]
 brConsume f =
     go id

@@ -1,5 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Types
     ( BodyReader (..)
     , Connection (..)
@@ -18,6 +19,11 @@ module Network.HTTP.Client.Types
     , ManagedConn (..)
     , Response (..)
     , ResponseClose (..)
+    , Manager (..)
+    , ManagerSettings (..)
+    , NonEmptyList (..)
+    , ConnHost (..)
+    , ConnKey (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -34,9 +40,22 @@ import Data.Time (UTCTime)
 import qualified Data.List as DL
 import Network.Socket (HostAddress)
 import Data.IORef
+import qualified Network.Socket as NS
+import qualified Data.IORef as I
+import qualified Data.Map as Map
+import Data.Text (Text)
 
+-- | An abstraction for representing an incoming response body coming from the
+-- server. Data provided by this abstraction has already been gunzipped and
+-- de-chunked, and respects any content-length headers present.
+--
+-- Since 0.1.0
 data BodyReader = BodyReader
     { brRead :: !(IO S.ByteString)
+    -- ^ Get a single chunk of data from the response body, or an empty
+    -- bytestring if no more data is available.
+    --
+    -- Since 0.1.0
     , brComplete :: !(IO Bool)
     }
 
@@ -141,16 +160,15 @@ data Proxy = Proxy
     }
     deriving (Show, Read, Eq, Ord, T.Typeable)
 
--- | When using one of the
--- 'RequestBodySource' \/ 'RequestBodySourceChunked' constructors,
--- you must ensure
--- that the 'Source' can be called multiple times.  Usually this
--- is not a problem.
+-- | When using one of the 'RequestBodyStream' \/ 'RequestBodyStreamChunked'
+-- constructors, you must ensure that the 'GivesPopper' can be called multiple
+-- times.  Usually this is not a problem.
 --
--- The 'RequestBodySourceChunked' will send a chunked request
--- body, note that not all servers support this. Only use
--- 'RequestBodySourceChunked' if you know the server you're
--- sending to supports chunked request bodies.
+-- The 'RequestBodyStreamChunked' will send a chunked request body. Note that
+-- not all servers support this. Only use 'RequestBodyStreamChunked' if you
+-- know the server you're sending to supports chunked request bodies.
+--
+-- Since 0.1.0
 data RequestBody
     = RequestBodyLBS !L.ByteString
     | RequestBodyBS !S.ByteString
@@ -210,8 +228,22 @@ builderToStream (len, builder) =
                     writeIORef ibss bss'
                     return bs
 
+-- | A function which generates successive chunks of a request body, provider a
+-- single empty bytestring when no more data is available.
+--
+-- Since 0.1.0
 type Popper = IO S.ByteString
+
+-- | A function which must be provided with a 'Popper'.
+--
+-- Since 0.1.0
 type NeedsPopper a = Popper -> IO a
+
+-- | A function which will provide a 'Popper' to a 'NeedsPopper'. This
+-- seemingly convoluted structure allows for creation of request bodies which
+-- allocate scarce resources in an exception safe manner.
+--
+-- Since 0.1.0
 type GivesPopper a = NeedsPopper a -> IO a
 
 -- | All information on how to connect to a host and what should be sent in the
@@ -222,7 +254,7 @@ type GivesPopper a = NeedsPopper a -> IO a
 -- The constructor for this data type is not exposed. Instead, you should use
 -- either the 'def' method to retrieve a default instance, or 'parseUrl' to
 -- construct from a URL, and then use the records below to make modifications.
--- This approach allows http-conduit to add configuration options without
+-- This approach allows http-client to add configuration options without
 -- breaking backwards compatibility.
 --
 -- For example, to construct a POST request, you could do something like:
@@ -234,22 +266,42 @@ type GivesPopper a = NeedsPopper a -> IO a
 --
 -- For more information, please see
 -- <http://www.yesodweb.com/book/settings-types>.
+--
+-- Since 0.1.0
 data Request = Request
     { method :: Method
     -- ^ HTTP request method, eg GET, POST.
+    --
+    -- Since 0.1.0
     , secure :: Bool
     -- ^ Whether to use HTTPS (ie, SSL).
+    --
+    -- Since 0.1.0
     , host :: S.ByteString
+    -- ^ Requested host name, used for both the IP address to connect to and
+    -- the @host@ request header.
+    --
+    -- Since 0.1.0
     , port :: Int
+    -- ^ The port to connect to. Also used for generating the @host@ request header.
+    --
+    -- Since 0.1.0
     , path :: S.ByteString
     -- ^ Everything from the host to the query string.
+    --
+    -- Since 0.1.0
     , queryString :: S.ByteString
+    -- ^ Query string appended to the path.
+    --
+    -- Since 0.1.0
     , requestHeaders :: RequestHeaders
     -- ^ Custom HTTP request headers
     --
-    -- As already stated in the introduction, the Content-Length and Host
-    -- headers are set automatically by this module, and shall not be added to
-    -- requestHeaders.
+    -- The Content-Length and Transfer-Encoding headers are set automatically
+    -- by this module, and shall not be added to @requestHeaders@.
+    --
+    -- If not provided by the user, @Host@ will automatically be set based on
+    -- the @host@ and @port@ fields.
     --
     -- Moreover, the Accept-Encoding header is set implicitly to gzip for
     -- convenience by default. This behaviour can be overridden if needed, by
@@ -265,30 +317,47 @@ data Request = Request
     -- multiple header fields being sent and therefore it\'s the responsibility
     -- of the client code to ensure that the rules from RFC 2616 section 4.2
     -- are honoured.
+    --
+    -- Since 0.1.0
     , requestBody :: RequestBody
+    -- ^ Request body to be sent to the server.
+    --
+    -- Since 0.1.0
     , proxy :: Maybe Proxy
     -- ^ Optional HTTP proxy.
-    , hostAddress :: Maybe HostAddress
-    -- ^ Optional resolved host address.
     --
-    -- Since 1.8.9
+    -- Since 0.1.0
+    , hostAddress :: Maybe HostAddress
+    -- ^ Optional resolved host address. May not be used by all backends.
+    --
+    -- Since 0.1.0
     , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.
+    --
+    -- Since 0.1.0
     , decompress :: S.ByteString -> Bool
     -- ^ Predicate to specify whether gzipped data should be
     -- decompressed on the fly (see 'alwaysDecompress' and
     -- 'browserDecompress'). Argument is the mime type.
     -- Default: browserDecompress.
+    --
+    -- Since 0.1.0
     , redirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. 0 means follow
     -- no redirects. Default value: 10.
+    --
+    -- Since 0.1.0
     , checkStatus :: Status -> ResponseHeaders -> CookieJar -> Maybe SomeException
     -- ^ Check the status code. Note that this will run after all redirects are
     -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
+    --
+    -- Since 0.1.0
     , responseTimeout :: Maybe Int
     -- ^ Number of microseconds to wait for a response. If @Nothing@, will wait
     -- indefinitely. Default: 5 seconds.
+    --
+    -- Since 0.1.0
     , getConnectionWrapper :: Maybe Int
                            -> HttpException
                            -> IO (ConnRelease, Connection, ManagedConn)
@@ -301,14 +370,14 @@ data Request = Request
     -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
     -- institutes timeout, and returns remaining time for @responseTimeout@.
     --
-    -- Since 1.8.8
+    -- Since 0.1.0
     , cookieJar :: Maybe CookieJar
     -- ^ A user-defined cookie jar.
     -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers
     -- in 'requestHeaders' will be sent raw, and 'responseCookieJar' will be
     -- empty.
     --
-    -- Since 1.9.0
+    -- Since 0.1.0
     }
 
 data ConnReuse = Reuse | DontReuse
@@ -317,24 +386,38 @@ type ConnRelease = ConnReuse -> IO ()
 
 data ManagedConn = Fresh | Reused
 
--- | A simple representation of the HTTP response created by 'lbsConsumer'.
+-- | A simple representation of the HTTP response.
+--
+-- Since 0.1.0
 data Response body = Response
     { responseStatus :: !Status
     -- ^ Status code of the response.
+    --
+    -- Since 0.1.0
     , responseVersion :: !HttpVersion
     -- ^ HTTP version used by the server.
+    --
+    -- Since 0.1.0
     , responseHeaders :: !ResponseHeaders
     -- ^ Response headers sent by the server.
+    --
+    -- Since 0.1.0
     , responseBody :: !body
     -- ^ Response body sent by the server.
+    --
+    -- Since 0.1.0
     , responseCookieJar :: !CookieJar
     -- ^ Cookies set on the client after interacting with the server. If
     -- cookies have been disabled by setting 'cookieJar' to @Nothing@, then
     -- this will always be empty.
+    --
+    -- Since 0.1.0
     , responseClose' :: !ResponseClose
     -- ^ Releases any resource held by this response. If the response body
     -- has not been fully read yet, doing so after this call will likely
     -- be impossible.
+    --
+    -- Since 0.1.0
     }
     deriving (Show, Eq, T.Typeable, Functor)
 
@@ -344,3 +427,76 @@ instance Show ResponseClose where
     show _ = "ResponseClose"
 instance Eq ResponseClose where
     _ == _ = True
+
+-- | Settings for a @Manager@. Please use the 'defaultManagerSettings' function and then modify
+-- individual settings. For more information, see <http://www.yesodweb.com/book/settings-types>.
+--
+-- Since 0.1.0
+data ManagerSettings = ManagerSettings
+    { managerConnCount :: !Int
+      -- ^ Number of connections to a single host to keep alive. Default: 10.
+      --
+      -- Since 0.1.0
+    , managerRawConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
+      -- ^ Create an insecure connection.
+      --
+      -- Since 0.1.0
+    , managerTlsConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
+      -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
+      --
+      -- Since 0.1.0
+    , managerResponseTimeout :: !(Maybe Int)
+      -- ^ Default timeout (in microseconds) to be applied to requests which do
+      -- not provide a timeout value.
+      --
+      -- Default is 5 seconds
+      --
+      -- Since 0.1.0
+    , managerRetryableException :: !(SomeException -> Bool)
+    -- ^ Exceptions for which we should retry our request if we were reusing an
+    -- already open connection. In the case of IOExceptions, for example, we
+    -- assume that the connection was closed on the server and therefore open a
+    -- new one.
+    --
+    -- Since 0.1.0
+    , managerWrapIOException :: !(forall a. IO a -> IO a)
+    -- ^ Action wrapped around all attempted @Request@s, usually used to wrap
+    -- up exceptions in library-specific types.
+    --
+    -- Default: wrap all @IOException@s in the @InternalIOException@ constructor.
+    --
+    -- Since 0.1.0
+    }
+
+-- | Keeps track of open connections for keep-alive.
+--
+-- If possible, you should share a single 'Manager' between multiple threads and requests.
+--
+-- Since 0.1.0
+data Manager = Manager
+    { mConns :: !(I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection))))
+    -- ^ @Nothing@ indicates that the manager is closed.
+    , mMaxConns :: !Int
+    -- ^ This is a per-@ConnKey@ value.
+    , mResponseTimeout :: !(Maybe Int)
+    -- ^ Copied from 'managerResponseTimeout'
+    , mRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
+    , mTlsConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
+    , mRetryableException :: !(SomeException -> Bool)
+    , mWrapIOException :: !(forall a. IO a -> IO a)
+    }
+
+data NonEmptyList a =
+    One !a !UTCTime |
+    Cons !a !Int !UTCTime !(NonEmptyList a)
+
+-- | Hostname or resolved host address.
+data ConnHost =
+    HostName !Text |
+    HostAddress !NS.HostAddress
+    deriving (Eq, Show, Ord)
+
+-- | @ConnKey@ consists of a hostname, a port and a @Bool@
+-- specifying whether to use SSL.
+data ConnKey = ConnKey !ConnHost !Int !Bool
+    deriving (Eq, Show, Ord)

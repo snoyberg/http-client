@@ -58,6 +58,8 @@ import Data.Time.Clock
 --
 -- Since this function uses 'Failure', the return monad can be anything that is
 -- an instance of 'Failure', such as 'IO' or 'Maybe'.
+--
+-- Since 0.1.0
 parseUrl :: Failure HttpException m => String -> m Request
 parseUrl s =
     case parseURI (encode s) of
@@ -215,8 +217,9 @@ browserDecompress = (/= "application/x-tar")
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
 --
---    applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
-
+-- >  applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
+--
+-- Since 0.1.0
 applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
 applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
@@ -227,6 +230,8 @@ applyBasicAuth user passwd req =
 
 -- | Add a proxy to the Request so that the Request when executed will use
 -- the provided proxy.
+--
+-- Since 0.1.0
 addProxy :: S.ByteString -> Int -> Request -> Request
 addProxy hst prt req =
     req { proxy = Just $ Proxy hst prt }
@@ -235,6 +240,8 @@ addProxy hst prt req =
 --
 -- This sets a new 'requestBody', adds a content-type request header and
 -- changes the 'method' to POST.
+--
+-- Since 0.1.0
 urlEncodedBody :: [(S.ByteString, S.ByteString)] -> Request -> Request
 urlEncodedBody headers req = req
     { requestBody = RequestBodyLBS body
