@@ -4,8 +4,7 @@ import Prelude hiding (exp)
 import Test.Hspec
 import qualified Data.ByteString as BS
 import Test.HUnit hiding (path)
-import Network.HTTP.Client.Cookies
-import Network.HTTP.Client.Types
+import Network.HTTP.Client
 import qualified Network.HTTP.Conduit as HC
 import Data.ByteString.UTF8
 import Data.Monoid

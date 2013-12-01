@@ -29,7 +29,7 @@ library
                  , conduit               >= 0.5.5   && < 1.1
                  , http-types            >= 0.7
                  , lifted-base           >= 0.1
-                 , http-client
+                 , http-client           >= 0.2
                  , http-client-tls
                  , http-client-conduit
     exposed-modules: Network.HTTP.Conduit

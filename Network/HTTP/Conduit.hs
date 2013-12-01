@@ -190,21 +190,20 @@ import           Control.Monad.Trans.Resource
 
 import qualified Network.HTTP.Client          as Client (httpLbs)
 import           Network.HTTP.Client.Conduit
-import           Network.HTTP.Client.Cookies  (createCookieJar,
+import           Network.HTTP.Client.Internal (createCookieJar,
                                                destroyCookieJar)
-import           Network.HTTP.Client.Manager  (Manager, ManagerSettings,
+import           Network.HTTP.Client.Internal (Manager, ManagerSettings,
                                                closeManager, managerConnCount,
                                                managerResponseTimeout,
                                                managerTlsConnection, newManager)
-import           Network.HTTP.Client.Request  (addProxy, alwaysDecompress,
-                                               applyBasicAuth,
-                                               browserDecompress, parseUrl,
-                                               urlEncodedBody)
-import           Network.HTTP.Client.Response (getRedirectedRequest,
+import           Network.HTTP.Client          (parseUrl, urlEncodedBody, applyBasicAuth)
+import           Network.HTTP.Client.Internal (addProxy, alwaysDecompress,
+                                               browserDecompress)
+import           Network.HTTP.Client.Internal (getRedirectedRequest,
                                                lbsResponse)
 import           Network.HTTP.Client.TLS      (mkManagerSettings,
                                                tlsManagerSettings)
-import           Network.HTTP.Client.Types    (Cookie (..), CookieJar (..),
+import           Network.HTTP.Client.Internal (Cookie (..), CookieJar (..),
                                                HttpException (..), Proxy (..),
                                                Request (..), RequestBody (..),
                                                Response (..))
