@@ -17,6 +17,11 @@ import qualified Data.List as DL
 import Network.Socket (HostAddress)
 import Data.IORef
 
+data BodyReader = BodyReader
+    { brRead :: !(IO S.ByteString)
+    , brComplete :: !(IO Bool)
+    }
+
 data Connection = Connection
     { connectionRead :: !(IO S.ByteString)
       -- ^ If no more data, return empty.

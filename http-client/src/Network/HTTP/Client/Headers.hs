@@ -1,7 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE RecordWildCards   #-}
 {-# LANGUAGE ViewPatterns      #-}
-module Network.HTTP.Client.Headers where
+module Network.HTTP.Client.Headers
+    ( parseStatusHeaders
+    ) where
 
 import           Control.Applicative            ((<$>), (<*>))
 import           Control.Exception              (throwIO)
@@ -12,6 +14,15 @@ import qualified Data.CaseInsensitive           as CI
 import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
 import           Network.HTTP.Types
+import Data.Word (Word8)
+
+charLF, charCR, charSpace, charColon, charPeriod :: Word8
+charLF = 10
+charCR = 13
+charSpace = 32
+charColon = 58
+charPeriod = 46
+
 
 parseStatusHeaders :: Connection -> IO StatusHeaders
 parseStatusHeaders conn = do

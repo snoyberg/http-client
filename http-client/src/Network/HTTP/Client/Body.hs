@@ -1,6 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Client.Body where
+module Network.HTTP.Client.Body
+    ( makeChunkedReader
+    , makeLengthReader
+    , makeGzipReader
+    , makeUnlimitedReader
+    , brConsume
+    , brEmpty
+    , brAddCleanup
+    , brReadSome
+    ) where
 
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Types
@@ -11,11 +20,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Control.Monad (unless, when)
 import qualified Codec.Zlib as Z
-
-data BodyReader = BodyReader
-    { brRead :: !(IO ByteString)
-    , brComplete :: !(IO Bool)
-    }
 
 brReadSome :: BodyReader -> Int -> IO L.ByteString
 brReadSome BodyReader {..} =

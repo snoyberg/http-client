@@ -1,14 +1,20 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
-module Network.HTTP.Client.Connection where
+module Network.HTTP.Client.Connection
+    ( connectionReadLine
+    , connectionReadLineWith
+    , dummyConnection
+    , openSocketConnection
+    , makeConnection
+    ) where
 
 import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
 import Control.Exception (throwIO)
 import Network.HTTP.Client.Types
-import Network.Socket (Socket, sClose, HostAddress, defaultHints, addrFlags)
+import Network.Socket (Socket, sClose, HostAddress)
 import qualified Network.Socket as NS
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
@@ -37,12 +43,9 @@ connectionReadLineWith conn bs0 =
                 unless (S.null y) $! connectionUnread conn y
                 return $! killCR $! S.concat $! front [x]
 
-charLF, charCR, charSpace, charColon, charPeriod :: Word8
+charLF, charCR :: Word8
 charLF = 10
 charCR = 13
-charSpace = 32
-charColon = 58
-charPeriod = 46
 
 killCR :: ByteString -> ByteString
 killCR bs
