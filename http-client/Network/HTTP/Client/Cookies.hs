@@ -148,13 +148,13 @@ computeCookieString request cookie_jar now is_http_api = (output_line, cookie_ja
         cookie_jar' = foldl folding_function cookie_jar matching_cookies
 
 -- | This applies 'receiveSetCookie' to a given Response
-updateCookieJar :: Res.Response a               -- ^ Response received from server
-                -> Req.Request                  -- ^ Request which generated the response
+updateCookieJar :: Response a                   -- ^ Response received from server
+                -> Request                      -- ^ Request which generated the response
                 -> UTCTime                      -- ^ Value that should be used as \"now\"
                 -> CookieJar                    -- ^ Current cookie jar
-                -> (CookieJar, Res.Response a)  -- ^ (Updated cookie jar with cookies from the Response, The response stripped of any \"Set-Cookie\" header)
-updateCookieJar response request now cookie_jar = (cookie_jar', response {Res.responseHeaders = other_headers})
-  where (set_cookie_headers, other_headers) = L.partition ((== (CI.mk $ "Set-Cookie")) . fst) $ Res.responseHeaders response
+                -> (CookieJar, Response a)      -- ^ (Updated cookie jar with cookies from the Response, The response stripped of any \"Set-Cookie\" header)
+updateCookieJar response request now cookie_jar = (cookie_jar', response { responseHeaders = other_headers })
+  where (set_cookie_headers, other_headers) = L.partition ((== (CI.mk $ "Set-Cookie")) . fst) $ responseHeaders response
         set_cookie_data = map snd set_cookie_headers
         set_cookies = map parseSetCookie set_cookie_data
         cookie_jar' = foldl (\ cj sc -> receiveSetCookie sc request now True cj) cookie_jar set_cookies

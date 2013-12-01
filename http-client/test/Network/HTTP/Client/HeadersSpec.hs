@@ -1,9 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Client.HeadersSpec where
 
-import           Network.HTTP.Client.Connection
-import           Network.HTTP.Client.Headers
-import           Network.HTTP.Client.Types
+import           Network.HTTP.Client
+import           Network.HTTP.Client.Internal
 import           Network.HTTP.Types
 import           Test.Hspec
 

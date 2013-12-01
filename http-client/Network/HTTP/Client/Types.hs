@@ -1,6 +1,24 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFunctor #-}
-module Network.HTTP.Client.Types where
+module Network.HTTP.Client.Types
+    ( BodyReader (..)
+    , Connection (..)
+    , StatusHeaders (..)
+    , HttpException (..)
+    , Cookie (..)
+    , CookieJar (..)
+    , Proxy (..)
+    , RequestBody (..)
+    , Popper
+    , NeedsPopper
+    , GivesPopper
+    , Request (..)
+    , ConnReuse (..)
+    , ConnRelease
+    , ManagedConn (..)
+    , Response (..)
+    , ResponseClose (..)
+    ) where
 
 import qualified Data.Typeable as T (Typeable)
 import Network.HTTP.Types
@@ -118,8 +136,8 @@ instance Monoid CookieJar where
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
 data Proxy = Proxy
-    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
-    , proxyPort :: Int -- ^ The port number of the HTTP proxy.
+    { proxyHost :: !S.ByteString -- ^ The host name of the HTTP proxy.
+    , proxyPort :: !Int -- ^ The port number of the HTTP proxy.
     }
     deriving (Show, Read, Eq, Ord, T.Typeable)
 
@@ -257,10 +275,11 @@ data Request = Request
     , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.
-    , decompress :: ContentType -> Bool
+    , decompress :: S.ByteString -> Bool
     -- ^ Predicate to specify whether gzipped data should be
     -- decompressed on the fly (see 'alwaysDecompress' and
-    -- 'browserDecompress'). Default: browserDecompress.
+    -- 'browserDecompress'). Argument is the mime type.
+    -- Default: browserDecompress.
     , redirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. 0 means follow
     -- no redirects. Default value: 10.
@@ -292,8 +311,6 @@ data Request = Request
     -- Since 1.9.0
     }
 
-type ContentType = S.ByteString
-
 data ConnReuse = Reuse | DontReuse
 
 type ConnRelease = ConnReuse -> IO ()
@@ -320,9 +337,6 @@ data Response body = Response
     -- be impossible.
     }
     deriving (Show, Eq, T.Typeable, Functor)
-
-responseClose :: Response a -> IO ()
-responseClose = runResponseClose . responseClose'
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving T.Typeable

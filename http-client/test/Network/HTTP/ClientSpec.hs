@@ -1,12 +1,8 @@
-{-# LANGUAGE RecordWildCards #-}
 module Network.HTTP.ClientSpec where
 
 import           Data.Default
 import           Network.HTTP.Client
-import           Network.HTTP.Client.Manager
-import           Network.HTTP.Client.Request
-import           Network.HTTP.Client.Types
-import           Network.HTTP.Types
+import           Network.HTTP.Types (status200)
 import           Test.Hspec
 
 main :: IO ()
@@ -17,5 +13,5 @@ spec = describe "Client" $ do
     it "works" $ do
         req <- parseUrl "http://www.yesodweb.com/"
         man <- newManager defaultManagerSettings
-        Response {..} <- httpLbs req man
-        responseStatus `shouldBe` status200
+        res <- httpLbs req man
+        responseStatus res `shouldBe` status200

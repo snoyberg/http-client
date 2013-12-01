@@ -1,7 +1,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Client where
+module Network.HTTP.Client.Core
+    ( withResponse
+    , httpLbs
+    , httpRaw
+    , responseOpen
+    , responseClose
+    , applyCheckStatus
+    , httpRedirect
+    ) where
 
 import Network.HTTP.Types
 import Network.HTTP.Client.Manager
@@ -197,3 +205,6 @@ httpRedirect count0 http' req0 = go count0 req0 []
                 -- And now perform the actual redirect
                 go (count - 1) req (res:ress)
             Nothing -> return res
+
+responseClose :: Response a -> IO ()
+responseClose = runResponseClose . responseClose'

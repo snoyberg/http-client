@@ -2,9 +2,8 @@
 module Network.HTTP.Client.BodySpec where
 
 import Test.Hspec
-import Network.HTTP.Client.Body
-import Network.HTTP.Client.Connection
-import Network.HTTP.Client.Types
+import Network.HTTP.Client
+import Network.HTTP.Client.Internal
 import qualified Data.ByteString as S
 import Codec.Compression.GZip (compress)
 import qualified Data.ByteString.Lazy as L

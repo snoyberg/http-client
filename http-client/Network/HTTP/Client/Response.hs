@@ -3,8 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 module Network.HTTP.Client.Response
-    ( Response (..)
-    , getRedirectedRequest
+    ( getRedirectedRequest
     , getResponse
     , lbsResponse
     ) where

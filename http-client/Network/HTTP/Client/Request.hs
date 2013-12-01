@@ -205,11 +205,11 @@ instance IsString Request where
             Right r -> r
 
 -- | Always decompress a compressed stream.
-alwaysDecompress :: ContentType -> Bool
+alwaysDecompress :: S.ByteString -> Bool
 alwaysDecompress = const True
 
 -- | Decompress a compressed stream unless the content-type is 'application/x-tar'.
-browserDecompress :: ContentType -> Bool
+browserDecompress :: S.ByteString -> Bool
 browserDecompress = (/= "application/x-tar")
 
 -- | Add a Basic Auth header (with the specified user name and password) to the

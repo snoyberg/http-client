@@ -3,10 +3,8 @@
 module Network.HTTP.Client.ResponseSpec where
 
 import Test.Hspec
-import Network.HTTP.Client.Request
-import Network.HTTP.Client.Response
-import Network.HTTP.Client.Connection
-import Network.HTTP.Client.Body
+import Network.HTTP.Client
+import Network.HTTP.Client.Internal
 import Network.HTTP.Types
 import Codec.Compression.GZip (compress)
 import qualified Data.ByteString.Lazy as L
