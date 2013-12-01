@@ -1,5 +1,5 @@
 name:                http-client-conduit
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Frontend support for using http-client with conduit
 description:         Intended for use by higher-level libraries, such as http-conduit.
 homepage:            https://github.com/snoyberg/http-client
@@ -14,7 +14,7 @@ cabal-version:       >=1.10
 library
   exposed-modules:     Network.HTTP.Client.Conduit
   build-depends:       base >= 4 && < 5
-                     , http-client
+                     , http-client >= 0.2
                      , conduit
                      , resourcet
                      , bytestring
