@@ -43,7 +43,7 @@ module Network.HTTP.Client.MultipartFormData
     ,renderPart
     ) where
 
-import Network.HTTP.Client.Types
+import Network.HTTP.Client
 import Network.Mime
 import Network.HTTP.Types (hContentType, methodPost)
 import Data.Monoid ((<>))
