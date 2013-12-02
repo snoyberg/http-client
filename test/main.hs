@@ -83,7 +83,7 @@ app req =
                     [(hLocation, S.append "/infredir/" $ S8.pack $ show $ i+1)]
                     (L8.pack $ show i)
         ["dump_cookies"] -> return $ responseLBS status200 [] $ L.fromChunks $ return $ maybe "" id $ lookup hCookie $ Wai.requestHeaders req
-        ["delayed"] -> return $ ResponseSource status200 [("foo", "bar")] $ do
+        ["delayed"] -> return $ responseSource status200 [("foo", "bar")] $ do
             yield Flush
             liftIO $ threadDelay 30000000
             yield $ Chunk $ fromByteString "Hello World!"
@@ -154,7 +154,7 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 response <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
-                    (setCookieHeaders, _) = partition ((== setCookie) . fst) (responseHeaders response)
+                    (setCookieHeaders, _) = partition ((== setCookie) . fst) (NHC.responseHeaders response)
                 liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
         it "redirects set cookies" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookie_redir1"]
@@ -330,7 +330,7 @@ main = withSocketsDo $ do
             let app' port req =
                     case pathInfo req of
                         ["foo"] -> return $ responseLBS status200 [] "Hello World!"
-                        _ -> return $ ResponseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
+                        _ -> return $ responseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
             withApp' app' $ \port -> withManager $ \manager -> do
                 req <- parseUrl $ "http://127.0.0.1:" ++ show port
                 res <- httpLbs req manager
