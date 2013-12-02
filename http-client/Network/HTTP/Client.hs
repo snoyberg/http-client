@@ -31,6 +31,19 @@
 -- above. For example, if using http-client-tls, instead of using
 -- 'defaultManagerSettings', you would want to use @tlsManagerSettings@. Be
 -- sure to read the relevant helper library documentation for more information.
+--
+-- A note on exceptions: for the most part, all actions that perform I/O should
+-- be assumed to throw an @HttpException@ in the event of some problem, and all
+-- pure functions will be total. For example, @withResponse@, @httpLbs@, and
+-- @brRead@ can all throw exceptions. Functions like @responseStatus@ and
+-- @applyBasicAuth@ are guaranteed to be total (or there\'s a bug in the
+-- library).
+--
+-- One thing to be cautioned about: the type of @parseUrl@ allows it to work in
+-- different monads. If used in the @IO@ monad, it will throw an exception in
+-- the case of an invalid URI. In addition, if you leverage the @IsString@
+-- instance of the @Request@ value via @OverloadedStrings@, an invalid URI will
+-- result in a partial value. Caveat emptor!
 module Network.HTTP.Client
     ( -- * Performing requests
       withResponse
