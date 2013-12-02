@@ -54,6 +54,7 @@ module Network.HTTP.Client
     , parseUrl
     , applyBasicAuth
     , urlEncodedBody
+    , getUri
       -- ** Request type and fields
     , Request
     , method

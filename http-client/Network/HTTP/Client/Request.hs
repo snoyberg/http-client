@@ -81,6 +81,8 @@ setUriRelative req uri =
 #endif
 
 -- | Extract a 'URI' from the request.
+--
+-- Since 0.1.0
 getUri :: Request -> URI
 getUri req = URI
     { uriScheme = if secure req
