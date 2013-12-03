@@ -93,4 +93,4 @@ test-suite test
 
 source-repository head
   type:     git
-  location: git://github.com/snoyberg/http-conduit.git
+  location: git://github.com/snoyberg/http-client.git
