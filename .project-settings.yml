@@ -5,45 +5,24 @@ extensions: {}
 environment: ghc-7.4.2-stable-13.09
 cabal-file: project.cabal
 hidden-packages: ''
-modules:
-  Network.HTTP.Client.BodySpec:
-    filename: http-client/test/Network/HTTP/Client/BodySpec.hs
-  Network.HTTP.Client.Connection:
-    filename: http-client/Network/HTTP/Client/Connection.hs
-  Network.HTTP.Client.ResponseSpec:
-    filename: http-client/test/Network/HTTP/Client/ResponseSpec.hs
-  Network.HTTP.Client.Types:
-    filename: http-client/Network/HTTP/Client/Types.hs
-  Network.HTTP.Client.Manager:
-    filename: http-client/Network/HTTP/Client/Manager.hs
-  Network.HTTP.ClientSpec:
-    filename: http-client/test/Network/HTTP/ClientSpec.hs
-  Network.HTTP.Client.TLS:
-    filename: http-client-tls/Network/HTTP/Client/TLS.hs
-  Network.HTTP.Client.Util:
-    filename: http-client/Network/HTTP/Client/Util.hs
-  Network.HTTP.Client.HeadersSpec:
-    filename: http-client/test/Network/HTTP/Client/HeadersSpec.hs
-  Network.HTTP.Client.Cookies:
-    filename: http-client/Network/HTTP/Client/Cookies.hs
-  Network.HTTP.Client.MultipartFormData:
-    filename: http-client-multipart/Network/HTTP/Client/MultipartFormData.hs
-  Network.HTTP.Client:
-    filename: http-client/Network/HTTP/Client.hs
-  Network.HTTP.Client.Conduit:
-    filename: http-client-conduit/Network/HTTP/Client/Conduit.hs
-  Network.HTTP.Client.Response:
-    filename: http-client/Network/HTTP/Client/Response.hs
-  Network.HTTP.Client.Headers:
-    filename: http-client/Network/HTTP/Client/Headers.hs
-  Main(http-client/test/Spec.hs):
-    filename: http-client/test/Spec.hs
-  Network.HTTP.Client.Request:
-    filename: http-client/Network/HTTP/Client/Request.hs
-  Main(http-client-tls/test/Spec.hs):
-    filename: http-client-tls/test/Spec.hs
-  Network.HTTP.Client.Body:
-    filename: http-client/Network/HTTP/Client/Body.hs
 version: 1
 extra-packages: ''
 ghc-args: []
+excluded-modules:
+- http-client-conduit/Setup.hs
+- http-client-multipart/Setup.hs
+- http-client-openssl/Network/HTTP/Client/OpenSSL.hs
+- http-client-openssl/Setup.hs
+- http-client-openssl/test/Spec.hs
+- http-client-tls/Setup.hs
+- http-client-tls/test/Spec.hs
+- http-client/Network/HTTP/Client/Core.hs
+- http-client/Network/HTTP/Client/Internal.hs
+- http-client/Setup.hs
+- http-client/test/Spec.hs
+- http-conduit/Network/HTTP/Conduit.hs
+- http-conduit/http.hs
+- http-conduit/test-server.hs
+- http-conduit/test.hs
+- http-conduit/test/CookieTest.hs
+- http-conduit/test/main.hs
