@@ -181,7 +181,10 @@ module Network.HTTP.Conduit
     , HttpException (..)
     ) where
 
+import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
+import           Data.Conduit                 (ResumableSource, ($$+-))
+import qualified Data.Conduit.List            as CL
 
 import           Control.Applicative          ((<$>))
 import           Control.Exception.Lifted     (bracket)
@@ -199,8 +202,7 @@ import           Network.HTTP.Client.Internal (Manager, ManagerSettings,
 import           Network.HTTP.Client          (parseUrl, urlEncodedBody, applyBasicAuth)
 import           Network.HTTP.Client.Internal (addProxy, alwaysDecompress,
                                                browserDecompress)
-import           Network.HTTP.Client.Internal (getRedirectedRequest,
-                                               lbsResponse)
+import           Network.HTTP.Client.Internal (getRedirectedRequest)
 import           Network.HTTP.Client.TLS      (mkManagerSettings,
                                                tlsManagerSettings)
 import           Network.HTTP.Client.Internal (Cookie (..), CookieJar (..),
@@ -267,3 +269,12 @@ withManagerSettings set f = bracket
 
 setConnectionClose :: Request -> Request
 setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
+
+lbsResponse :: Monad m
+            => Response (ResumableSource m S.ByteString)
+            -> m (Response L.ByteString)
+lbsResponse res = do
+    bss <- responseBody res $$+- CL.consume
+    return res
+        { responseBody = L.fromChunks bss
+        }
