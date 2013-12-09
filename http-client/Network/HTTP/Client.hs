@@ -13,7 +13,9 @@
 -- Secure HTTP connections can be allowed by modifying the settings used for
 -- creating a manager. The simplest way to create a @Manager@ is with:
 --
--- > 'newManager' 'defaultManagerSettings'
+-- @
+-- 'newManager' 'defaultManagerSettings'
+-- @
 --
 -- The next core component is a @Request@, which represents a single HTTP
 -- request to be sent to a specific server. @Request@s allow for many settings
