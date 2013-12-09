@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.2.0.1
+version:             0.2.0.2
 synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
 description:         This codebase has been refactored from http-conduit.
 homepage:            https://github.com/snoyberg/http-client

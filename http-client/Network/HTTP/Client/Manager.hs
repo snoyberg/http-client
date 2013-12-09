@@ -30,6 +30,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad (unless)
 import Control.Exception (mask_, SomeException, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
@@ -277,11 +278,21 @@ getManagedConn man key open = mask $ \restore -> do
     -- reference to track what we want to do. By default, we say not to reuse
     -- it, that way if an exception is thrown, the connection won't be reused.
     toReuseRef <- I.newIORef DontReuse
+    wasReleasedRef <- I.newIORef False
 
     -- When the connection is explicitly released, we update our toReuseRef to
     -- indicate what action should be taken, and then call release.
-    let connRelease Reuse = putSocket man key ci
-        connRelease DontReuse = connectionClose ci
+    let connRelease r = do
+            I.writeIORef toReuseRef r
+            releaseHelper
+
+        releaseHelper = mask $ \restore -> do
+            wasReleased <- I.atomicModifyIORef wasReleasedRef $ \x -> (True, x)
+            unless wasReleased $ do
+                toReuse <- I.readIORef toReuseRef
+                restore $ case toReuse of
+                    Reuse -> putSocket man key ci
+                    DontReuse -> connectionClose ci
 
     return (connRelease, ci, isManaged)
 
