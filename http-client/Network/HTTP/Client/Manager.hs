@@ -245,7 +245,7 @@ closeManager' connsRef = mask_ $ do
     mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
 
 safeConnClose :: Connection -> IO ()
-safeConnClose ci = connectionClose ci `catch` \(_::SomeException) -> return ()
+safeConnClose ci = connectionClose ci `catch` \(_ :: IOException) -> return ()
 
 nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
 nonEmptyMapM_ f (One x _) = f x
