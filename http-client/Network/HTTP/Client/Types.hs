@@ -1,5 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Types
     ( BodyReader (..)
@@ -35,8 +37,10 @@ import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
 import Data.Int (Int64)
 import Data.Default
+import Data.Foldable (Foldable)
 import Data.Monoid
 import Data.Time (UTCTime)
+import Data.Traversable (Traversable)
 import qualified Data.List as DL
 import Network.Socket (HostAddress)
 import Data.IORef
@@ -419,7 +423,7 @@ data Response body = Response
     --
     -- Since 0.1.0
     }
-    deriving (Show, Eq, T.Typeable, Functor)
+    deriving (Show, Eq, T.Typeable, Functor, Foldable, Traversable)
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving T.Typeable
