@@ -107,6 +107,22 @@
 -- >      let request = request' { checkStatus = \_ _ -> Nothing }
 -- >      res <- withManager $ httpLbs request
 -- >      print res
+--
+-- By default, when connecting to websites using HTTPS, functions in this
+-- package will throw an exception if the TLS certificate doesn't validate. To
+-- continue the HTTPS transaction even if the TLS cerficate validation fails,
+-- you should use 'mkManagerSetttings' as follows:
+--
+-- > import Network.Connection (TLSSettings (..))
+-- > import Network.HTTP.Conduit
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >     request <- parseUrl "https://github.com/"
+-- >     let settings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
+-- >     res <- withManagerSettings settings $ httpLbs request
+-- >     print res
+
 module Network.HTTP.Conduit
     ( -- * Perform a request
       simpleHttp
