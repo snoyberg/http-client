@@ -1,5 +1,5 @@
 name:                http-client-conduit
-version:             0.2.0.0
+version:             0.2.0.1
 synopsis:            Frontend support for using http-client with conduit
 description:         Intended for use by higher-level libraries, such as http-conduit.
 homepage:            https://github.com/snoyberg/http-client
