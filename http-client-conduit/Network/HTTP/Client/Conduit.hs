@@ -34,10 +34,10 @@ bodyReaderSource br =
             yield bs
             loop
 
-http :: (MonadResource m, MonadIO n)
+http :: MonadResource m
      => Request
      -> Manager
-     -> m (Response (ResumableSource n ByteString))
+     -> m (Response (ResumableSource m ByteString))
 http req man = do
     (key, res) <- allocate (responseOpen req man) responseClose
     let rsrc = CI.ResumableSource
