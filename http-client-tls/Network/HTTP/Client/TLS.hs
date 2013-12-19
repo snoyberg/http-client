@@ -79,4 +79,4 @@ getTlsConnection tls sock = do
         -- Closing an SSL connection gracefully involves writing/reading
         -- on the socket.  But when this is called the socket might be
         -- already closed, and we get a @ResourceVanished@.
-        (NC.connectionClose conn `catch` \(_ :: IOException) -> return ())
+        (NC.connectionClose conn `Control.Exception.catch` \(_ :: IOException) -> return ())
