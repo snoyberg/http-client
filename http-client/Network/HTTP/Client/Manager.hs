@@ -8,6 +8,7 @@ module Network.HTTP.Client.Manager
     ( ManagerSettings (..)
     , newManager
     , closeManager
+    , withManager
     , getConn
     , failedConnectionException
     , defaultManagerSettings
@@ -31,7 +32,7 @@ import qualified Data.Text as T
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (unless)
-import Control.Exception (mask_, SomeException, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
+import Control.Exception (mask_, SomeException, bracket, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
 import Control.DeepSeq (deepseq)
@@ -243,6 +244,9 @@ closeManager' :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection)))
 closeManager' connsRef = mask_ $ do
     m <- I.atomicModifyIORef connsRef $ \x -> (Nothing, x)
     mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
+
+withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
+withManager settings = bracket (newManager settings) closeManager
 
 safeConnClose :: Connection -> IO ()
 safeConnClose ci = connectionClose ci `catch` \(_ :: IOException) -> return ()

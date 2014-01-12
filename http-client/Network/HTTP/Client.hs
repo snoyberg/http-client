@@ -56,6 +56,7 @@ module Network.HTTP.Client
     , Manager
     , newManager
     , closeManager
+    , withManager
       -- ** Connection manager settings
     , ManagerSettings
     , defaultManagerSettings
