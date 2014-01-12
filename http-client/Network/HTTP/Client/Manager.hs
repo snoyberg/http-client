@@ -245,6 +245,7 @@ closeManager' connsRef = mask_ $ do
     m <- I.atomicModifyIORef connsRef $ \x -> (Nothing, x)
     mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
 
+-- | Create, use and close a 'Manager'.
 withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
 withManager settings = bracket (newManager settings) closeManager
 
