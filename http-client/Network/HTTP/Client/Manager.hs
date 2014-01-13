@@ -246,6 +246,8 @@ closeManager' connsRef = mask_ $ do
     mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
 
 -- | Create, use and close a 'Manager'.
+--
+-- Since 0.2.1
 withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
 withManager settings = bracket (newManager settings) closeManager
 
