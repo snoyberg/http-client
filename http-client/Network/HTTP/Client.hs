@@ -17,6 +17,12 @@
 -- 'newManager' 'defaultManagerSettings'
 -- @
 --
+-- or using the 'braket' pattern with
+--
+-- @
+-- 'withManager' 'defaultManagerSettings'
+-- @
+--
 -- The next core component is a @Request@, which represents a single HTTP
 -- request to be sent to a specific server. @Request@s allow for many settings
 -- to control exact how they function, but usually the simplest approach for
@@ -56,6 +62,7 @@ module Network.HTTP.Client
     , Manager
     , newManager
     , closeManager
+    , withManager
       -- ** Connection manager settings
     , ManagerSettings
     , defaultManagerSettings
