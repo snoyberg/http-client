@@ -17,7 +17,7 @@
 -- 'newManager' 'defaultManagerSettings'
 -- @
 --
--- or using the 'braket' pattern with
+-- or using the 'bracket' pattern with
 --
 -- @
 -- 'withManager' 'defaultManagerSettings'
