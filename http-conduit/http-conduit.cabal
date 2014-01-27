@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         2.0.0.3
+version:         2.0.0.4
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -57,8 +57,6 @@ test-suite test
                  , blaze-builder
                  , http-types
                  , cprng-aes
-                 , tls
-                 , tls-extra
                  , monad-control
                  , containers
                  , certificate
