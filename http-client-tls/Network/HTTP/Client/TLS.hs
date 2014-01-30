@@ -46,13 +46,13 @@ mkManagerSettings tls sock = defaultManagerSettings
                     Nothing ->
                         case fromException se of
                             Just TLS.Terminated{} -> toException $ TlsException se
-                            Nothing ->
+                            _ ->
                                 case fromException se of
                                     Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                                    Nothing ->
+                                    _ ->
                                         case fromException se of
                                             Just TLS.ConnectionNotEstablished -> toException $ TlsException se
-                                            Nothing -> se
+                                            _ -> se
          in handle $ throwIO . wrapper
     }
 

@@ -1,5 +1,5 @@
 name:                http-client-tls
-version:             0.2.0.2
+version:             0.2.0.3
 synopsis:            http-client backend using the connection package and tls library
 description:         Intended for use by higher-level libraries, such as http-conduit.
 homepage:            https://github.com/snoyberg/http-client
