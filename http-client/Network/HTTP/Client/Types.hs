@@ -445,10 +445,15 @@ data ManagerSettings = ManagerSettings
       -- ^ Create an insecure connection.
       --
       -- Since 0.1.0
+    -- FIXME in the future, combine managerTlsConnection and managerTlsProxyConnection
     , managerTlsConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
       -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
       --
       -- Since 0.1.0
+    , managerTlsProxyConnection :: !(IO (S.ByteString -> (Connection -> IO ()) -> Maybe NS.HostAddress -> String -> Int -> IO Connection))
+      -- ^ Create a TLS proxy connection. Default behavior: throw an exception that TLS is not supported.
+      --
+      -- Since 0.2.2
     , managerResponseTimeout :: !(Maybe Int)
       -- ^ Default timeout (in microseconds) to be applied to requests which do
       -- not provide a timeout value.
@@ -486,6 +491,7 @@ data Manager = Manager
     -- ^ Copied from 'managerResponseTimeout'
     , mRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
     , mTlsConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
+    , mTlsProxyConnection :: !(S.ByteString -> (Connection -> IO ()) -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
     , mRetryableException :: !(SomeException -> Bool)
     , mWrapIOException :: !(forall a. IO a -> IO a)
     }

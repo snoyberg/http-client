@@ -14,12 +14,14 @@ import Control.Exception
 import qualified Network.Connection as NC
 import Network.Socket (HostAddress)
 import qualified Network.TLS as TLS
+import qualified Data.ByteString as S
 
 mkManagerSettings :: NC.TLSSettings
                   -> Maybe NC.SockSettings
                   -> ManagerSettings
 mkManagerSettings tls sock = defaultManagerSettings
     { managerTlsConnection = getTlsConnection (Just tls) sock
+    , managerTlsProxyConnection = getTlsProxyConnection tls sock
     , managerRawConnection =
         case sock of
             Nothing -> managerRawConnection defaultManagerSettings
@@ -72,11 +74,36 @@ getTlsConnection tls sock = do
             , NC.connectionUseSocks = sock
             }
         convertConnection conn
-  where
-    convertConnection conn = makeConnection
-        (NC.connectionGetChunk conn)
-        (NC.connectionPut conn)
-        -- Closing an SSL connection gracefully involves writing/reading
-        -- on the socket.  But when this is called the socket might be
-        -- already closed, and we get a @ResourceVanished@.
-        (NC.connectionClose conn `Control.Exception.catch` \(_ :: IOException) -> return ())
+
+getTlsProxyConnection
+    :: NC.TLSSettings
+    -> Maybe NC.SockSettings
+    -> IO (S.ByteString -> (Connection -> IO ()) -> Maybe HostAddress -> String -> Int -> IO Connection)
+getTlsProxyConnection tls sock = do
+    context <- NC.initConnectionContext
+    return $ \connstr checkConn _ha host port -> do
+        --error $ show (connstr, host, port)
+        conn <- NC.connectTo context NC.ConnectionParams
+            { NC.connectionHostname = host
+            , NC.connectionPort = fromIntegral port
+            , NC.connectionUseSecure = Nothing
+            , NC.connectionUseSocks = sock
+            }
+
+        NC.connectionPut conn connstr
+        conn' <- convertConnection conn
+
+        checkConn conn'
+
+        NC.connectionSetSecure context conn tls
+
+        return conn'
+
+convertConnection :: NC.Connection -> IO Connection
+convertConnection conn = makeConnection
+    (NC.connectionGetChunk conn)
+    (NC.connectionPut conn)
+    -- Closing an SSL connection gracefully involves writing/reading
+    -- on the socket.  But when this is called the socket might be
+    -- already closed, and we get a @ResourceVanished@.
+    (NC.connectionClose conn `Control.Exception.catch` \(_ :: IOException) -> return ())

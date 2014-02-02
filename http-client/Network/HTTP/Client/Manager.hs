@@ -43,8 +43,10 @@ import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
 import System.Mem.Weak (Weak, deRefWeak)
+import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
+import Network.HTTP.Client.Headers (parseStatusHeaders)
 
 -- | Default value for @ManagerSettings@.
 --
@@ -54,6 +56,7 @@ defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
     , managerRawConnection = return openSocketConnection
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
+    , managerTlsProxyConnection = return $ \_ _ _ _ _ -> throwIO TlsNotSupported
     , managerResponseTimeout = Just 5000000
     , managerRetryableException = \e ->
         case fromException e of
@@ -124,6 +127,7 @@ newManager :: ManagerSettings -> IO Manager
 newManager ms = do
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
+    tlsProxyConnection <- managerTlsProxyConnection ms
     mapRef <- I.newIORef (Just Map.empty)
     wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
     _ <- forkIO $ reap wmapRef
@@ -133,6 +137,7 @@ newManager ms = do
             , mResponseTimeout = managerResponseTimeout ms
             , mRawConnection = rawConnection
             , mTlsConnection = tlsConnection
+            , mTlsProxyConnection = tlsProxyConnection
             , mRetryableException = managerRetryableException ms
             , mWrapIOException = managerWrapIOException ms
             }
@@ -327,11 +332,25 @@ getConn req m =
     h = host req
     (useProxy, connhost, connport) = getConnDest req
     (connaddr, connKeyHost) =
-        case (hostAddress req, useProxy{-, socksProxy req-}) of
-            (Just ha, False{-, Nothing-}) -> (Just ha, HostAddress ha)
+        case (hostAddress req, useProxy) of
+            (Just ha, False) -> (Just ha, HostAddress ha)
             _ -> (Nothing, HostName $ T.pack connhost)
     go =
         case (secure req, useProxy) of
             (False, _) -> mRawConnection m
             (True, False) -> mTlsConnection m
-            -- FIXME (True, True) -> getSslProxyConn (checkCerts m h) (clientCertificates req) h (port req)
+            (True, True) ->
+                let ultHost = host req
+                    ultPort = port req
+                    connstr = S8.concat
+                        [ "CONNECT "
+                        , ultHost
+                        , ":"
+                        , S8.pack $ show ultPort
+                        , " HTTP/1.1\r\n\r\n"
+                        ]
+                    parse conn = do
+                        sh@(StatusHeaders status _ _) <- parseStatusHeaders conn
+                        unless (status == status200) $
+                            throwIO $ ProxyConnectException ultHost ultPort $ Left $ S8.pack $ show sh
+                 in mTlsProxyConnection m connstr parse
