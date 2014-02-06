@@ -1,6 +1,5 @@
 module Network.HTTP.ClientSpec where
 
-import           Data.Default
 import           Network.HTTP.Client
 import           Network.HTTP.Types (status200)
 import           Test.Hspec

@@ -20,7 +20,7 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Data.CaseInsensitive as CI
 
-import Data.Default (def)
+import Data.Default.Class (def)
 
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference)

@@ -63,7 +63,7 @@ test-suite test
                  , case-insensitive
                  , base64-bytestring
                  , asn1-data
-                 , data-default
+                 , data-default-class
                  , text
                  , transformers-base
                  , lifted-base
@@ -88,7 +88,7 @@ test-suite test
                  , mime-types
                  , http-client
                  , http-conduit
-                 , connection
+                 , connection >= 0.2
                  , http-client-multipart
 
 source-repository head
