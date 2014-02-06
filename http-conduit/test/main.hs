@@ -40,7 +40,7 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import qualified Network.Wai.Handler.WarpTLS as WT
 import Network.Connection (settingDisableCertificateValidation)
-import Data.Default (def)
+import Data.Default.Class (def)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)

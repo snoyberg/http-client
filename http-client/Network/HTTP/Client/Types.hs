@@ -36,7 +36,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
 import Data.Int (Int64)
-import Data.Default
+import Data.Default.Class
 import Data.Foldable (Foldable)
 import Data.Monoid
 import Data.Time (UTCTime)

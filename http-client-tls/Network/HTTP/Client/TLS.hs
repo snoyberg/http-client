@@ -7,7 +7,7 @@ module Network.HTTP.Client.TLS
     , getTlsConnection
     ) where
 
-import Data.Default
+import Data.Default.Class
 import Network.HTTP.Client
 import Network.HTTP.Client.Internal
 import Control.Exception

@@ -26,7 +26,7 @@ import Data.String (IsString(..))
 import Control.Monad (when, unless)
 import Numeric (showHex)
 
-import Data.Default (Default (def))
+import Data.Default.Class (Default (def))
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO)
 import Blaze.ByteString.Builder.Char8 (fromChar)

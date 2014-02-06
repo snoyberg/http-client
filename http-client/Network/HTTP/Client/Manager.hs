@@ -39,7 +39,6 @@ import Control.DeepSeq (deepseq)
 
 import qualified Network.Socket as NS
 
-import Data.Default
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
 import System.Mem.Weak (Weak, deRefWeak)

@@ -30,7 +30,7 @@ library
                      , text              >= 0.11
                      , http-types        >= 0.8
                      , blaze-builder     >= 0.3
-                     , data-default
+                     , data-default-class
                      , time              >= 1.2
                      , network           >= 2.3
                      , zlib-bindings     >= 0.1    && <0.2
@@ -61,7 +61,6 @@ test-suite spec
                      , text
                      , http-types
                      , blaze-builder
-                     , data-default
                      , time
                      , network
                      , zlib-bindings
