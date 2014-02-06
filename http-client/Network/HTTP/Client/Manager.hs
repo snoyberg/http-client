@@ -57,7 +57,7 @@ defaultManagerSettings = ManagerSettings
     , managerRawConnection = return openSocketConnection
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
     , managerTlsProxyConnection = return $ \_ _ _ _ _ -> throwIO TlsNotSupported
-    , managerResponseTimeout = Just 5000000
+    , managerResponseTimeout = Just 30000000
     , managerRetryableException = \e ->
         case fromException e of
             Just (_ :: IOException) -> True
