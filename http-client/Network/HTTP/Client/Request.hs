@@ -301,7 +301,8 @@ requestBuilder req Connection {..} =
         | otherwise  = fromByteString "http://"
 
     requestHostname
-        | isJust (proxy req) = requestProtocol <> fromByteString hh
+        | isJust (proxy req) && not (secure req)
+            = requestProtocol <> fromByteString hh
         | otherwise          = mempty
 
     contentLengthHeader (Just contentLength') =
