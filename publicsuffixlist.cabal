@@ -4,7 +4,7 @@ license:         BSD3
 license-file:    LICENSE
 author:          Myles C. Maxfield <myles.maxfield@gmail.com>
 maintainer:      Myles C. Maxfield <myles.maxfield@gmail.com>
-synopsis:        Is a given string a domain suffix?
+synopsis:        Effective TLD checking
 description:     Is a given string a domain suffix?
 category:        Network
 stability:       Experimental
