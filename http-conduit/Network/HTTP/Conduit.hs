@@ -104,7 +104,7 @@
 -- > main :: IO ()
 -- > main = withSocketsDo $ do
 -- >      request' <- parseUrl "http://www.yesodweb.com/does-not-exist"
--- >      let request = request' { checkStatus = \_ _ -> Nothing }
+-- >      let request = request' { checkStatus = \_ _ _ -> Nothing }
 -- >      res <- withManager $ httpLbs request
 -- >      print res
 --
