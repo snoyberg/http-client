@@ -35,7 +35,7 @@ connectionReadLineWith conn bs0 =
         case S.breakByte charLF bs of
             (_, "") -> do
                 let total' = total + S.length bs
-                when (total' > 1024) $ throwIO OverlongHeaders
+                when (total' > 4096) $ throwIO OverlongHeaders
                 bs' <- connectionRead conn
                 when (S.null bs') $ throwIO IncompleteHeaders
                 go bs' (front . (bs:)) total'
