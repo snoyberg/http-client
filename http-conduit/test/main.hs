@@ -210,7 +210,7 @@ main = withSocketsDo $ do
     describe "http" $ do
         it "response body" $ withApp app $ \port -> do
             withManager $ \manager -> do
-                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                req <- liftIO $ parseUrl $ "http://127.0.0.1:" ++ show port
                 res1 <- http req manager
                 bss <- responseBody res1 $$+- CL.consume
                 res2 <- httpLbs req manager
@@ -332,7 +332,7 @@ main = withSocketsDo $ do
                         ["foo"] -> return $ responseLBS status200 [] "Hello World!"
                         _ -> return $ responseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
             withApp' app' $ \port -> withManager $ \manager -> do
-                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                req <- liftIO $ parseUrl $ "http://127.0.0.1:" ++ show port
                 res <- httpLbs req manager
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
@@ -365,7 +365,7 @@ main = withSocketsDo $ do
                     _ <- appSource app' $$ await
                     yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" $$ appSink app'
             withCApp baseHTTP $ \port -> withManager $ \manager -> do
-                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                req <- liftIO $ parseUrl $ "http://127.0.0.1:" ++ show port
                 res1 <- httpLbs req manager
                 res2 <- httpLbs req manager
                 liftIO $ res1 @?= res2

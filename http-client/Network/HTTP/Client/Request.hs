@@ -40,7 +40,6 @@ import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIStrin
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (Exception, toException, throw, throwIO)
-import Control.Failure (Failure (failure))
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
@@ -50,34 +49,35 @@ import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Util (readDec, (<>))
 import System.Timeout (timeout)
 import Data.Time.Clock
+import Control.Monad.Catch (MonadThrow, throwM)
 
 -- | Convert a URL into a 'Request'.
 --
 -- This defaults some of the values in 'Request', such as setting 'method' to
 -- GET and 'requestHeaders' to @[]@.
 --
--- Since this function uses 'Failure', the return monad can be anything that is
--- an instance of 'Failure', such as 'IO' or 'Maybe'.
+-- Since this function uses 'MonadThrow', the return monad can be anything that is
+-- an instance of 'MonadThrow', such as 'IO' or 'Maybe'.
 --
 -- Since 0.1.0
-parseUrl :: Failure HttpException m => String -> m Request
+parseUrl :: MonadThrow m => String -> m Request
 parseUrl s =
     case parseURI (encode s) of
         Just uri -> setUri def uri
-        Nothing  -> failure $ InvalidUrlException s "Invalid URL"
+        Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
   where
     encode = escapeURIString isAllowedInURI
 
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
-setUriRelative :: Failure HttpException m => Request -> URI -> m Request
+setUriRelative :: MonadThrow m => Request -> URI -> m Request
 setUriRelative req uri =
 #if MIN_VERSION_network(2,4,0)
     setUri req $ uri `relativeTo` getUri req
 #else
     case uri `relativeTo` getUri req of
         Just uri' -> setUri req uri'
-        Nothing   -> failure $ InvalidUrlException (show uri) "Invalid URL"
+        Nothing   -> throwM $ InvalidUrlException (show uri) "Invalid URL"
 #endif
 
 -- | Extract a 'URI' from the request.
@@ -99,7 +99,7 @@ getUri req = URI
     }
 
 -- | Validate a 'URI', then add it to the request.
-setUri :: Failure HttpException m => Request -> URI -> m Request
+setUri :: MonadThrow m => Request -> URI -> m Request
 setUri req uri = do
     sec <- parseScheme uri
     auth <- maybe (failUri "URL must be absolute") return $ uriAuthority uri
@@ -118,8 +118,8 @@ setUri req uri = do
         , queryString = S8.pack $ uriQuery uri
         }
   where
-    failUri :: Failure HttpException m => String -> m a
-    failUri = failure . InvalidUrlException (show uri)
+    failUri :: MonadThrow m => String -> m a
+    failUri = throwM . InvalidUrlException (show uri)
 
     parseScheme URI{uriScheme = scheme} =
         case scheme of
@@ -205,7 +205,7 @@ instance Default Request where
 instance IsString Request where
     fromString s =
         case parseUrl s of
-            Left e -> throw (e :: HttpException)
+            Left e -> throw e
             Right r -> r
 
 -- | Always decompress a compressed stream.
