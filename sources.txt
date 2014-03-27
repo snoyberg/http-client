@@ -2,5 +2,4 @@
 ./http-client-tls
 ./http-client-openssl
 ./http-client-conduit
-./http-client-multipart
 ./http-conduit
