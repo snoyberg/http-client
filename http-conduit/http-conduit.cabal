@@ -25,8 +25,8 @@ library
     build-depends: base                  >= 4       && < 5
                  , bytestring            >= 0.9.1.4
                  , transformers          >= 0.2
-                 , resourcet             >= 0.3     && < 0.5
-                 , conduit               >= 0.5.5   && < 1.1
+                 , resourcet             >= 1.1     && < 1.2
+                 , conduit               >= 0.5.5   && < 1.2
                  , http-types            >= 0.7
                  , lifted-base           >= 0.1
                  , http-client           >= 0.3     && < 0.4
@@ -67,6 +67,8 @@ test-suite test
                  , network-conduit >= 0.6
                  , http-client
                  , http-conduit
+                 , conduit-extra
+                 , streaming-commons
 
 source-repository head
   type:     git

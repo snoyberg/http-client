@@ -7,7 +7,7 @@ module Network.HTTP.Client.Conduit
       withResponse
     , responseOpen
     , responseClose
-    , responseResource
+    , acquireResponse
       -- * Manager helpers
     , defaultManagerSettings
     , newManager
@@ -27,7 +27,7 @@ import           Control.Monad                (unless)
 import           Control.Monad.IO.Class       (MonadIO, liftIO)
 import           Control.Monad.Reader         (MonadReader (..), ReaderT (..))
 import           Control.Monad.Trans.Control  (MonadBaseControl)
-import           Control.Monad.Trans.Resource (Resource, mkResource, with)
+import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
 import           Data.Conduit                 (ConduitM, Producer, Source,
@@ -57,19 +57,19 @@ withResponse :: (MonadBaseControl IO m, MonadIO n, MonadReader env m, HasHttpMan
              -> m a
 withResponse req f = do
     env <- ask
-    with (responseResource req env) f
+    with (acquireResponse req env) f
 
--- | A @Resource@ for getting a @Response@.
+-- | An @Acquire@ for getting a @Response@.
 --
 -- Since 2.1.0
-responseResource :: (MonadIO n, MonadReader env m, HasHttpManager env)
-                 => Request
-                 -> m (Resource (Response (ConduitM i ByteString n ())))
-responseResource req = do
+acquireResponse :: (MonadIO n, MonadReader env m, HasHttpManager env)
+                => Request
+                -> m (Acquire (Response (ConduitM i ByteString n ())))
+acquireResponse req = do
     env <- ask
     let man = getHttpManager env
     return $ do
-        res <- mkResource (H.responseOpen req man) H.responseClose
+        res <- mkAcquire (H.responseOpen req man) H.responseClose
         return $ fmap bodyReaderSource res
 
 -- | TLS-powered manager settings.

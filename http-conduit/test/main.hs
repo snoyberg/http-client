@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 import Test.Hspec
@@ -20,7 +21,13 @@ import Network (withSocketsDo)
 import Network.Socket (sClose)
 import qualified Network.BSD
 import CookieTest (cookieTest)
+#if MIN_VERSION_conduit(1,1,0)
+import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, ServerSettings)
+import Data.Streaming.Network (bindPortTCP, setAfterBind)
+#define bindPort bindPortTCP
+#else
 import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, bindPort, serverAfterBind, ServerSettings)
+#endif
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
 import Data.Conduit (($$), ($$+-), yield, Flush (Chunk, Flush), await)
@@ -97,7 +104,7 @@ nextPort = unsafePerformIO $ I.newIORef 15452
 getPort :: IO Int
 getPort = do
     port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
-    esocket <- try $ bindPort port HostIPv4
+    esocket <- try $ bindPort port "*4"
     case esocket of
         Left (_ :: IOException) -> getPort
         Right socket -> do
@@ -397,13 +404,18 @@ main = withSocketsDo $ do
                 _ <- http req man
                 return ()
 
-withCApp :: Data.Conduit.Network.Application IO -> (Int -> IO ()) -> IO ()
+withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
     port <- getPort
     baton <- newEmptyMVar
     let start = putMVar baton ()
+#if MIN_VERSION_conduit(1,1,0)
+        settings :: ServerSettings
+        settings = setAfterBind (const start) (serverSettings port "*")
+#else
         settings :: ServerSettings IO
-        settings = (serverSettings port HostAny :: ServerSettings IO) { serverAfterBind = const start }
+        settings = (serverSettings port "*" :: ServerSettings IO) { serverAfterBind = const start }
+#endif
     bracket
         (forkIO $ runTCPServer settings app' `onException` start)
         killThread
