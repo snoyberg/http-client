@@ -199,16 +199,18 @@ module Network.HTTP.Conduit
 
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ResumableSource, ($$+-))
+import           Data.Conduit                 (ResumableSource, ($$+-), await, ($$++), ($$+), Source)
+import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
-
+import           Data.IORef                   (readIORef, writeIORef, newIORef)
+import           Data.Int                     (Int64)
 import           Control.Applicative          ((<$>))
 import           Control.Exception.Lifted     (bracket)
 import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
-import qualified Network.HTTP.Client          as Client (httpLbs)
-import           Network.HTTP.Client.Conduit
+import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen, responseClose)
+import qualified Network.HTTP.Client.Conduit  as HCC
 import           Network.HTTP.Client.Internal (createCookieJar,
                                                destroyCookieJar)
 import           Network.HTTP.Client.Internal (Manager, ManagerSettings,
@@ -294,3 +296,43 @@ lbsResponse res = do
     return res
         { responseBody = L.fromChunks bss
         }
+
+http :: MonadResource m
+     => Request
+     -> Manager
+     -> m (Response (ResumableSource m S.ByteString))
+http req man = do
+    (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
+    let rsrc = CI.ResumableSource
+            (HCC.bodyReaderSource $ responseBody res)
+            (release key)
+    return res { responseBody = rsrc }
+
+requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody
+requestBodySource size = RequestBodyStream size . srcToPopper
+
+requestBodySourceChunked :: Source (ResourceT IO) S.ByteString -> RequestBody
+requestBodySourceChunked = RequestBodyStreamChunked . srcToPopper
+
+srcToPopper :: Source (ResourceT IO) S.ByteString -> HCC.GivesPopper ()
+srcToPopper src f = runResourceT $ do
+    (rsrc0, ()) <- src $$+ return ()
+    irsrc <- liftIO $ newIORef rsrc0
+    is <- getInternalState
+    let popper :: IO S.ByteString
+        popper = do
+            rsrc <- readIORef irsrc
+            (rsrc', mres) <- runInternalState (rsrc $$++ await) is
+            writeIORef irsrc rsrc'
+            case mres of
+                Nothing -> return S.empty
+                Just bs
+                    | S.null bs -> popper
+                    | otherwise -> return bs
+    liftIO $ f popper
+
+requestBodySourceIO :: Int64 -> Source IO S.ByteString -> RequestBody
+requestBodySourceIO = HCC.requestBodySource
+
+requestBodySourceChunkedIO :: Source IO S.ByteString -> RequestBody
+requestBodySourceChunkedIO = HCC.requestBodySourceChunked

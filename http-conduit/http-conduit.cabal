@@ -9,8 +9,6 @@ description:
     This package uses conduit for parsing the actual contents of the HTTP connection. It also provides higher-level functions which allow you to avoid directly dealing with streaming data. See <http://www.yesodweb.com/book/http-conduit> for more information.
     .
     The @Network.HTTP.Conduit.Browser@ module has been moved to <http://hackage.haskell.org/package/http-conduit-browser/>
-    .
-    The @Network.HTTP.Conduit.MultipartFormData@ module has been moved to <http://hackage.haskell.org/package/http-client-multipart/>
 category:        Web, Conduit
 stability:       Stable
 cabal-version:   >= 1.8
@@ -33,6 +31,8 @@ library
                  , lifted-base           >= 0.1
                  , http-client           >= 0.3     && < 0.4
                  , http-client-tls
+                 , monad-control
+                 , mtl
     exposed-modules: Network.HTTP.Conduit
                      Network.HTTP.Client.Conduit
     ghc-options:     -Wall
