@@ -103,6 +103,7 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    --
                    -- Since 1.9.4
                    | IncompleteHeaders
+                   | InvalidDestinationHost S.ByteString
     deriving (Show, T.Typeable)
 instance Exception HttpException
 

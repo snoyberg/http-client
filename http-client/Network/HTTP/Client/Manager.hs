@@ -324,9 +324,13 @@ getConnDest req =
 getConn :: Request
         -> Manager
         -> IO (ConnRelease, Connection, ManagedConn)
-getConn req m =
-    getManagedConn m (ConnKey connKeyHost connport (secure req)) $
-        go connaddr connhost connport
+getConn req m
+    -- Stop Mac OS X from getting high:
+    -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
+    | S8.null h = throwIO $ InvalidDestinationHost h
+    | otherwise =
+        getManagedConn m (ConnKey connKeyHost connport (secure req)) $
+            go connaddr connhost connport
   where
     h = host req
     (useProxy, connhost, connport) = getConnDest req
