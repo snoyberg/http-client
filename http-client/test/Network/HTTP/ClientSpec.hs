@@ -1,12 +1,35 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
+import           Control.Concurrent        (forkIO, threadDelay)
+import           Control.Concurrent.Async  (withAsync)
+import           Control.Exception         (bracket)
+import           Control.Monad             (forever, replicateM_)
+import           Network                   (PortID (PortNumber), listenOn)
 import           Network.HTTP.Client
-import           Network.HTTP.Types (status200)
+import           Network.HTTP.Types        (status200)
+import           Network.Socket            (accept, sClose)
+import           Network.Socket.ByteString (recv, sendAll)
 import           Test.Hspec
 
 main :: IO ()
 main = hspec spec
+
+redirectServer :: (Int -> IO a) -> IO a
+redirectServer inner = do
+    let port = 23456
+    bracket (listenOn $ PortNumber $ fromIntegral port) sClose $ \listener -> do
+        withAsync (forker listener) $ \_ -> inner port
+  where
+    forker listener = forever $ do
+        (socket, _) <- accept listener
+        _ <- forkIO $ forever $ do
+            sendAll socket "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
+            threadDelay 10000
+            sendAll socket "hello\r\n"
+            threadDelay 10000
+        _ <- forkIO $ forever $ recv socket 4096
+        return ()
 
 spec :: Spec
 spec = describe "Client" $ do
@@ -25,3 +48,11 @@ spec = describe "Client" $ do
                         _ -> False
                 return ()
         mapM_ test ["http://", "https://", "http://:8000", "https://:8001"]
+    it "redirecting #41" $ redirectServer $ \port -> do
+        req' <- parseUrl $ "http://127.0.0.1:" ++ show port
+        let req = req' { redirectCount = 1 }
+        withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
+            httpLbs req man `shouldThrow` \e ->
+                case e of
+                    TooManyRedirects _ -> True
+                    _ -> False

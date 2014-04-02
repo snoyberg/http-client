@@ -180,29 +180,21 @@ httpRedirect
      -> IO (Response BodyReader)
 httpRedirect count0 http' req0 = go count0 req0 []
   where
-    go (-1) _ ress = throwIO . TooManyRedirects =<< mapM lbsResponse ress
+    go (-1) _ ress = throwIO $ TooManyRedirects ress
     go count req' ress = do
         (res, mreq) <- http' req'
         case mreq of
             Just req -> do
-                {- FIXME
                 -- Allow the original connection to return to the
                 -- connection pool immediately by flushing the body.
                 -- If the response body is too large, don't flush, but
                 -- instead just close the connection.
                 let maxFlush = 1024
-                    readMay bs =
-                        case S8.readInt bs of
-                            Just (i, bs') | S.null bs' -> Just i
-                            _ -> Nothing
-                case lookup "content-length" (responseHeaders res) >>= readMay of
-                    Just i | i > maxFlush -> return ()
-                    _ -> void $ brReadSome (responseBody res) maxFlush
-                -}
+                lbs <- brReadSome (responseBody res) maxFlush
                 responseClose res
 
                 -- And now perform the actual redirect
-                go (count - 1) req (res:ress)
+                go (count - 1) req (res { responseBody = lbs }:ress)
             Nothing -> return res
 
 -- | Close any open resources associated with the given @Response@. In general,
