@@ -48,6 +48,7 @@ import qualified Network.Socket as NS
 import qualified Data.IORef as I
 import qualified Data.Map as Map
 import Data.Text (Text)
+import Data.Streaming.Zlib (ZlibException)
 
 -- | An abstraction for representing an incoming response body coming from the
 -- server. Data provided by this abstraction has already been gunzipped and
@@ -104,6 +105,10 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- Since 1.9.4
                    | IncompleteHeaders
                    | InvalidDestinationHost S.ByteString
+                   | HttpZlibException ZlibException
+                   -- ^
+                   --
+                   -- Since 0.3
     deriving (Show, T.Typeable)
 instance Exception HttpException
 

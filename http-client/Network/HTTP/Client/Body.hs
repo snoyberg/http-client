@@ -19,7 +19,7 @@ import Data.IORef
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Control.Monad (unless, when)
-import qualified Codec.Zlib as Z
+import qualified Data.Streaming.Zlib as Z
 
 brReadSome :: BodyReader -> Int -> IO L.ByteString
 brReadSome BodyReader {..} =
@@ -66,18 +66,19 @@ makeGzipReader br = do
     inf <- Z.initInflate $ Z.WindowBits 31
     istate <- newIORef Nothing
     let goPopper popper = do
-            mbs <- popper
-            case mbs of
-                Just bs -> do
+            res <- popper
+            case res of
+                Z.PRNext bs -> do
                     writeIORef istate $ Just popper
                     return bs
-                Nothing -> do
+                Z.PRDone -> do
                     bs <- Z.flushInflate inf
                     if S.null bs
                         then start
                         else do
                             writeIORef istate Nothing
                             return bs
+                Z.PRError e -> throwIO $ HttpZlibException e
         start = do
             bs <- brRead br
             if S.null bs
