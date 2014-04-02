@@ -76,3 +76,4 @@ test-suite spec
                      , failure
                      , base64-bytestring
                      , zlib
+                     , async
