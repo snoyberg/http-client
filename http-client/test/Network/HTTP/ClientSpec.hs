@@ -56,3 +56,11 @@ spec = describe "Client" $ do
                 case e of
                     TooManyRedirects _ -> True
                     _ -> False
+    it "redirectCount=0" $ redirectServer $ \port -> do
+        req' <- parseUrl $ "http://127.0.0.1:" ++ show port
+        let req = req' { redirectCount = 0 }
+        withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
+            httpLbs req man `shouldThrow` \e ->
+                case e of
+                    StatusCodeException{} -> True
+                    _ -> False

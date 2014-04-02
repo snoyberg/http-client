@@ -180,7 +180,7 @@ httpRedirect
      -> IO (Response BodyReader)
 httpRedirect count0 http' req0 = go count0 req0 []
   where
-    go (-1) _ ress = throwIO $ TooManyRedirects ress
+    go count _ ress | count < 0 = throwIO $ TooManyRedirects ress
     go count req' ress = do
         (res, mreq) <- http' req'
         case mreq of
