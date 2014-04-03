@@ -23,6 +23,7 @@ module Network.HTTP.Client.Request
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
+import Data.Char (toLower)
 import Control.Monad (when, unless)
 import Numeric (showHex)
 
@@ -122,7 +123,7 @@ setUri req uri = do
     failUri = throwM . InvalidUrlException (show uri)
 
     parseScheme URI{uriScheme = scheme} =
-        case scheme of
+        case map toLower scheme of
             "http:"  -> return False
             "https:" -> return True
             _        -> failUri "Invalid scheme"

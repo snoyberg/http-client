@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.3.0.1
+version:             0.3.0.2
 synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
 description:         This codebase has been refactored from http-conduit.
 homepage:            https://github.com/snoyberg/http-client
@@ -58,6 +58,7 @@ test-suite spec
                        Network.HTTP.Client.ResponseSpec
                        Network.HTTP.Client.BodySpec
                        Network.HTTP.Client.HeadersSpec
+                       Network.HTTP.Client.RequestSpec
   build-depends:       base
                      , http-client
                      , hspec
@@ -68,7 +69,6 @@ test-suite spec
                      , blaze-builder
                      , time
                      , network
-                     , zlib-bindings
                      , containers
                      , transformers
                      , deepseq
