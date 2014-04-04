@@ -155,12 +155,12 @@ makeChunkedReader sendHeaders conn@Connection {..} = do
                 writeIORef icount (-1)
                 return empty
             else do
-                (bs, count') <- sendChunk count
+                (bs, count') <- readChunk count
                 writeIORef icount count'
                 return bs
 
-    sendChunk 0 = return (empty, 0)
-    sendChunk remainder = do
+    readChunk 0 = return (empty, 0)
+    readChunk remainder = do
         bs <- connectionRead
         when (S.null bs) $ throwIO InvalidChunkHeaders
         case compare remainder $ S.length bs of
