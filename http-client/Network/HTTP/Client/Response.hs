@@ -9,10 +9,9 @@ module Network.HTTP.Client.Response
     ) where
 
 import Control.Arrow (first)
-import Control.Monad (liftM)
+import Control.Monad (liftM, (>=>))
 
 import Control.Exception (throwIO)
-import Control.Monad.IO.Class (MonadIO, liftIO)
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
@@ -97,11 +96,7 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
     let timeout' =
             case timeout'' of
                 Nothing -> id
-                Just useconds -> \ma -> do
-                    x <- timeout useconds ma
-                    case x of
-                        Nothing -> liftIO $ throwIO ResponseTimeout
-                        Just y -> return y
+                Just t -> timeout t >=> maybe responseTimeout return
     StatusHeaders s version hs <- timeout' $ parseStatusHeaders conn
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
 
@@ -137,3 +132,5 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
         , responseCookieJar = def
         , responseClose' = ResponseClose (cleanup False)
         }
+  where
+    responseTimeout = throwIO ResponseTimeout
