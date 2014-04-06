@@ -132,10 +132,10 @@ makeLengthReader count0 Connection {..} = do
         , brComplete = fmap (== -1) $ readIORef icount
         }
 
-makeChunkedReader :: Bool -- ^ send headers
+makeChunkedReader :: Bool -- ^ raw
                   -> Connection
                   -> IO BodyReader
-makeChunkedReader sendHeaders conn@Connection {..} = do
+makeChunkedReader raw conn@Connection {..} = do
     icount <- newIORef 0
     return $! BodyReader
         { brRead = go icount
@@ -146,21 +146,25 @@ makeChunkedReader sendHeaders conn@Connection {..} = do
   where
     go icount = do
         count0 <- readIORef icount
-        count <-
+        (rawCount, count) <-
             if count0 == 0
                 then readHeader
-                else return count0
+                else return (empty, count0)
         if count <= 0
             then do
                 writeIORef icount (-1)
-                return empty
+                return $ if count /= (-1) && raw then rawCount else empty
             else do
-                (bs, count') <- sendChunk count
+                (bs, count') <- readChunk count
                 writeIORef icount count'
-                return bs
+                return $ appendHeader rawCount bs
 
-    sendChunk 0 = return (empty, 0)
-    sendChunk remainder = do
+    appendHeader
+      | raw = S.append
+      | otherwise = flip const
+
+    readChunk 0 = return (empty, 0)
+    readChunk remainder = do
         bs <- connectionRead
         when (S.null bs) $ throwIO InvalidChunkHeaders
         case compare remainder $ S.length bs of
@@ -168,11 +172,15 @@ makeChunkedReader sendHeaders conn@Connection {..} = do
                 let (x, y) = S.splitAt remainder bs
                 assert (not $ S.null y) $ connectionUnread y
                 requireNewline
-                return (x, 0)
+                done x
             EQ -> do
                 requireNewline
-                return (bs, 0)
+                done bs
             GT -> return (bs, remainder - S.length bs)
+      where
+        done x
+          | raw = return (x `S.append` "\r\n", 0)
+          | otherwise = return (x, 0)
 
     requireNewline = do
         bs <- connectionReadLine conn
@@ -182,7 +190,7 @@ makeChunkedReader sendHeaders conn@Connection {..} = do
         bs <- connectionReadLine conn
         case parseHex bs of
             Nothing -> throwIO InvalidChunkHeaders
-            Just hex -> return hex
+            Just hex -> return (bs `S.append` "\r\n", hex)
 
     parseHex bs0 =
         case uncons bs0 of
