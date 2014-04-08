@@ -76,3 +76,4 @@ test-suite spec
                      , base64-bytestring
                      , zlib
                      , async
+                     , streaming-commons >= 0.1.1

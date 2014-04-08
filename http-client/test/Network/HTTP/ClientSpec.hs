@@ -11,25 +11,26 @@ import           Network.HTTP.Types        (status200)
 import           Network.Socket            (accept, sClose)
 import           Network.Socket.ByteString (recv, sendAll)
 import           Test.Hspec
+import qualified Data.Streaming.Network    as N
 
 main :: IO ()
 main = hspec spec
 
 redirectServer :: (Int -> IO a) -> IO a
-redirectServer inner = do
-    let port = 23456
-    bracket (listenOn $ PortNumber $ fromIntegral port) sClose $ \listener -> do
-        withAsync (forker listener) $ \_ -> inner port
+redirectServer inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (sClose . snd)
+    $ \(port, lsocket) -> withAsync
+        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+        (const $ inner port)
   where
-    forker listener = forever $ do
-        (socket, _) <- accept listener
-        _ <- forkIO $ forever $ do
-            sendAll socket "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
+    app ad = do
+        forkIO $ forever $ N.appRead ad
+        forever $ do
+            N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
             threadDelay 10000
-            sendAll socket "hello\r\n"
+            N.appWrite ad "hello\r\n"
             threadDelay 10000
-        _ <- forkIO $ forever $ recv socket 4096
-        return ()
 
 spec :: Spec
 spec = describe "Client" $ do
