@@ -65,3 +65,12 @@ spec = describe "Client" $ do
                 case e of
                     StatusCodeException{} -> True
                     _ -> False
+    it "connecting to missing server gives nice error message" $ do
+        (port, socket) <- N.bindRandomPortTCP "*4"
+        sClose socket
+        req <- parseUrl $ "http://127.0.0.1:" ++ show port
+        withManager defaultManagerSettings $ \man ->
+            httpLbs req man `shouldThrow` \e ->
+                case e of
+                    FailedConnectionException2 "127.0.0.1" port' False _ -> port == port'
+                    _ -> False

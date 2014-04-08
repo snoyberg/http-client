@@ -330,7 +330,7 @@ getConn req m
     | S8.null h = throwIO $ InvalidDestinationHost h
     | otherwise =
         getManagedConn m (ConnKey connKeyHost connport (secure req)) $
-            go connaddr connhost connport
+            wrapConnectExc $ go connaddr connhost connport
   where
     h = host req
     (useProxy, connhost, connport) = getConnDest req
@@ -338,6 +338,10 @@ getConn req m
         case (hostAddress req, useProxy) of
             (Just ha, False) -> (Just ha, HostAddress ha)
             _ -> (Nothing, HostName $ T.pack connhost)
+
+    wrapConnectExc = handle $ \e ->
+        throwIO $ FailedConnectionException2 connhost connport (secure req)
+            (toException (e :: IOException))
     go =
         case (secure req, useProxy) of
             (False, _) -> mRawConnection m

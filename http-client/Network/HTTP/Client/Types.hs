@@ -87,6 +87,7 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | OverlongHeaders
                    | ResponseTimeout
                    | FailedConnectionException String Int -- ^ host/port
+                   | FailedConnectionException2 String Int Bool SomeException -- ^ host/port/secure
                    | ExpectedBlankAfter100Continue
                    | InvalidStatusLine S.ByteString
                    | InvalidHeader S.ByteString
