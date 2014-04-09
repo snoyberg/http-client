@@ -130,6 +130,11 @@ httpRaw req' m = do
 -- This function automatically performs any necessary redirects, as specified
 -- by the 'redirectCount' setting.
 --
+-- When implementing a (reverse) proxy using this function or relating
+-- functions, it's wise to remove Transfer-Encoding:, Content-Length:,
+-- Content-Encoding: and Accept-Encoding: from request and response
+-- headers to be relayed.
+--
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen req0 manager = mWrapIOException manager $ do
