@@ -31,6 +31,7 @@ import           Control.Monad.Trans.Control  (MonadBaseControl)
 import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
+import qualified Data.ByteString.Lazy         as L
 import           Data.Conduit                 (ConduitM, Producer, Source,
                                                await, yield, ($$+), ($$++))
 import           Data.Int                     (Int64)
@@ -163,7 +164,9 @@ srcToPopperIO src f = do
 -- | Same as 'H.httpLbs', except it uses the @Manager@ in the reader environment.
 --
 -- Since 2.1.1
-httpLbs :: Request -> m (Response L.ByteString)
+httpLbs :: (MonadIO m, HasHttpManager env, MonadReader env m)
+        => Request
+        -> m (Response L.ByteString)
 httpLbs req = do
     env <- ask
     let man = getHttpManager env
