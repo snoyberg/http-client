@@ -17,6 +17,7 @@ module Network.HTTP.Client.Conduit
     , HasHttpManager (..)
       -- * General HTTP client interface
     , module Network.HTTP.Client
+    , httpLbs
       -- * Lower-level conduit functions
     , requestBodySource
     , requestBodySourceChunked
@@ -158,3 +159,12 @@ srcToPopperIO src f = do
                     | S.null bs -> popper
                     | otherwise -> return bs
     f popper
+
+-- | Same as 'H.httpLbs', except it uses the @Manager@ in the reader environment.
+--
+-- Since 2.1.1
+httpLbs :: Request -> m (Response L.ByteString)
+httpLbs req = do
+    env <- ask
+    let man = getHttpManager env
+    liftIO $ H.httpLbs req man
