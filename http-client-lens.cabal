@@ -10,8 +10,8 @@ stability:     provisional
 homepage:      http://github.com/reinh/http-client-lens
 bug-reports:   http://github.com/reinh/http-client-lens/issues
 copyright:     Copyright (C) 2014 Rein Henrichs
-synopsis:      Lenses for http-client
-description:   Lenses for http-client
+synopsis:      Optics for http-client
+description:   Optics for <http://hackage.haskell.org/package/http-client http-client>.
 build-type:    Simple
 
 extra-source-files:
