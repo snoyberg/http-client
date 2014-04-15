@@ -20,6 +20,10 @@ extra-source-files:
   .travis.yml
   CHANGELOG.markdown
 
+source-repository head
+  type: git
+  location: git://github.com/reinh/http-client-lens.git
+
 library
   build-depends:
     base          == 4.*,
