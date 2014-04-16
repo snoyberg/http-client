@@ -103,7 +103,7 @@ nextPort = unsafePerformIO $ I.newIORef 15452
 
 getPort :: IO Int
 getPort = do
-    port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p)
+    port <- I.atomicModifyIORef nextPort $ \p -> (p + 1, p + 1)
     esocket <- try $ bindPort port "*4"
     case esocket of
         Left (_ :: IOException) -> getPort
