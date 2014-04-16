@@ -100,6 +100,7 @@ app req =
 
 nextPort :: I.IORef Int
 nextPort = unsafePerformIO $ I.newIORef 15452
+{-# NOINLINE nextPort #-}
 
 getPort :: IO Int
 getPort = do
