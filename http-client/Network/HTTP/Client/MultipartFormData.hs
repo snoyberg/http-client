@@ -87,21 +87,51 @@ instance Show Part where
             . showString " "
             . showString "<m (RequestBody m)>"
 
-partBS :: Text -> BS.ByteString -> Part
+-- | Make a 'Part' whose content is a strict 'BS.ByteString'.
+--
+-- The 'Part' does not have a file name or content type associated
+-- with it.
+partBS :: Text              -- ^ Name of the corresponding \<input\>.
+       -> BS.ByteString     -- ^ The body for this 'Part'.
+       -> Part
 partBS n b = Part n mempty mempty $ return $ RequestBodyBS b
 
-partLBS :: Text -> BL.ByteString -> Part
+-- | Make a 'Part' whose content is a lazy 'BL.ByteString'.
+--
+-- The 'Part' does not have a file name or content type associated
+-- with it.
+partLBS :: Text             -- ^ Name of the corresponding \<input\>.
+        -> BL.ByteString    -- ^ The body for this 'Part'.
+        -> Part
 partLBS n b = Part n mempty mempty $ return $ RequestBodyLBS b
 
--- | Make a 'Part' from a file, the entire file will reside in memory at once.
--- If you want constant memory usage use 'partFileSource'
-partFile :: Text -> FilePath -> Part
+-- | Make a 'Part' from a file.
+--
+-- The entire file will reside in memory at once.  If you want
+-- constant memory usage, use 'partFileSource'.
+--
+-- The 'FilePath' supplied will be used as the file name of the
+-- 'Part'. If you do not want to reveal this name to the server, you
+-- must remove it prior to uploading.
+--
+-- The 'Part' does not have a content type associated with it.
+partFile :: Text            -- ^ Name of the corresponding \<input\>.
+         -> FilePath        -- ^ The name of the local file to upload.
+         -> Part
 partFile n f =
     partFileRequestBodyM n f $ do
         liftM RequestBodyBS $ liftIO $ BS.readFile f
 
--- | Stream 'Part' from a file.
-partFileSource :: Text -> FilePath -> Part
+-- | Stream a 'Part' from a file.
+--
+-- The 'FilePath' supplied will be used as the file name of the
+-- 'Part'. If you do not want to reveal this name to the server, you
+-- must remove it prior to uploading.
+--
+-- The 'Part' does not have a content type associated with it.
+partFileSource :: Text      -- ^ Name of the corresponding \<input\>.
+               -> FilePath  -- ^ The name of the local file to upload.
+               -> Part
 partFileSource n f =
     partFileRequestBodyM n f $ do
         size <- liftIO $ withBinaryFile f ReadMode hFileSize
@@ -117,6 +147,12 @@ streamFile fp np =
 --
 -- Note that not all servers support this. Only use 'partFileSourceChunked'
 -- if you know the server you're sending to supports chunked request bodies.
+--
+-- The 'FilePath' supplied will be used as the file name of the
+-- 'Part'. If you do not want to reveal this name to the server, you
+-- must remove it prior to uploading.
+--
+-- The 'Part' does not have a content type associated with it.
 partFileSourceChunked :: Text -> FilePath -> Part
 partFileSourceChunked n f =
     partFileRequestBody n f $ do
@@ -128,7 +164,12 @@ partFileSourceChunked n f =
 --
 -- > -- empty upload form
 -- > partFileRequestBody "file" mempty mempty
-partFileRequestBody :: Text -> FilePath -> RequestBody -> Part
+--
+-- The 'Part' does not have a content type associated with it.
+partFileRequestBody :: Text        -- ^ Name of the corresponding \<input\>.
+                    -> FilePath    -- ^ File name to supply to the server.
+                    -> RequestBody -- ^ Data to upload.
+                    -> Part
 partFileRequestBody n f rqb =
     partFileRequestBodyM n f $ return rqb
 
@@ -137,7 +178,12 @@ partFileRequestBody n f rqb =
 -- > partFileRequestBodyM "cat_photo" "haskell-the-cat.jpg" $ do
 -- >     size <- fromInteger <$> withBinaryFile "haskell-the-cat.jpg" ReadMode hFileSize
 -- >     return $ RequestBodySource size $ CB.sourceFile "haskell-the-cat.jpg" $= CL.map fromByteString
-partFileRequestBodyM :: Text -> FilePath -> IO RequestBody -> Part
+--
+-- The 'Part' does not have a content type associated with it.
+partFileRequestBodyM :: Text        -- ^ Name of the corresponding \<input\>.
+                     -> FilePath    -- ^ File name to supply to the server.
+                     -> IO RequestBody -- ^ Action that will supply data to upload.
+                     -> Part
 partFileRequestBodyM n f rqb =
     Part n (Just f) (Just $ defaultMimeLookup $ pack f) rqb
 
@@ -145,7 +191,8 @@ partFileRequestBodyM n f rqb =
 cp :: BS.ByteString -> RequestBody
 cp bs = RequestBodyBuilder (fromIntegral $ BS.length bs) $ copyByteString bs
 
-renderPart :: BS.ByteString -> Part -> IO RequestBody
+renderPart :: BS.ByteString     -- ^ Boundary between parts.
+           -> Part -> IO RequestBody
 renderPart boundary (Part name mfilename mcontenttype get) = liftM render get
   where render renderBody =
             cp "--" <> cp boundary <> cp "\r\n"
@@ -165,7 +212,8 @@ renderPart boundary (Part name mfilename mcontenttype get) = liftM render get
          <> renderBody <> cp "\r\n"
 
 -- | Combine the 'Part's to form multipart/form-data body
-renderParts :: BS.ByteString -> [Part] -> IO RequestBody
+renderParts :: BS.ByteString    -- ^ Boundary between parts.
+            -> [Part] -> IO RequestBody
 renderParts boundary parts = (fin . mconcat) `liftM` mapM (renderPart boundary) parts
   where fin = (<> cp "--" <> cp boundary <> cp "--\r\n")
 
