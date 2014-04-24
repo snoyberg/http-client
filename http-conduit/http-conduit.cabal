@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         2.1.1
+version:         2.1.2
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -29,7 +29,7 @@ library
                  , conduit               >= 0.5.5   && < 1.2
                  , http-types            >= 0.7
                  , lifted-base           >= 0.1
-                 , http-client           >= 0.3     && < 0.4
+                 , http-client           >= 0.3.2   && < 0.4
                  , http-client-tls
                  , monad-control
                  , mtl

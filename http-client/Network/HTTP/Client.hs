@@ -56,6 +56,7 @@ module Network.HTTP.Client
     ( -- * Performing requests
       withResponse
     , httpLbs
+    , httpNoBody
     , responseOpen
     , responseClose
       -- * Connection manager

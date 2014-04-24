@@ -18,6 +18,7 @@ module Network.HTTP.Client.Conduit
       -- * General HTTP client interface
     , module Network.HTTP.Client
     , httpLbs
+    , httpNoBody
       -- * Lower-level conduit functions
     , requestBodySource
     , requestBodySourceChunked
@@ -40,7 +41,7 @@ import           Network.HTTP.Client          hiding (closeManager,
                                                defaultManagerSettings, httpLbs,
                                                newManager, responseClose,
                                                responseOpen, withManager,
-                                               withResponse, BodyReader, brRead, brConsume)
+                                               withResponse, BodyReader, brRead, brConsume, httpNoBody)
 import qualified Network.HTTP.Client          as H
 import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 
@@ -171,3 +172,17 @@ httpLbs req = do
     env <- ask
     let man = getHttpManager env
     liftIO $ H.httpLbs req man
+
+-- | Same as 'H.httpNoBody', except it uses the @Manager@ in the reader environment.
+--
+-- This can be more convenient that using 'withManager' as it avoids the need
+-- to specify the base monad for the response body.
+--
+-- Since 2.1.2
+httpNoBody :: (MonadIO m, HasHttpManager env, MonadReader env m)
+           => Request
+           -> m (Response ())
+httpNoBody req = do
+    env <- ask
+    let man = getHttpManager env
+    liftIO $ H.httpNoBody req man

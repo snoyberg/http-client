@@ -4,6 +4,7 @@
 module Network.HTTP.Client.Core
     ( withResponse
     , httpLbs
+    , httpNoBody
     , httpRaw
     , responseOpen
     , responseClose
@@ -57,6 +58,13 @@ httpLbs :: Request -> Manager -> IO (Response L.ByteString)
 httpLbs req man = withResponse req man $ \res -> do
     bss <- brConsume $ responseBody res
     return res { responseBody = L.fromChunks bss }
+
+-- | A convenient wrapper around 'withResponse' which ignores the response
+-- body. This is useful, for example, when performing a HEAD request.
+--
+-- Since 0.3.2
+httpNoBody :: Request -> Manager -> IO (Response ())
+httpNoBody req man = withResponse req man $ return . void
 
 -- | Get a 'Response' without any redirect following.
 httpRaw
