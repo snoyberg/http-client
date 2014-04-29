@@ -38,12 +38,8 @@ parseStatusHeaders conn = do
 
         status@(code, _) <- connectionReadLineWith conn bs >>= parseStatus 3
         if code == status100
-            then newline ExpectedBlankAfter100Continue >> getStatusLine
+            then connectionTryReadBlankLine conn >> getStatusLine
             else return status
-
-    newline exc = do
-        line <- connectionReadLine conn
-        unless (S.null line) $ throwIO exc
 
     parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus i bs | S.null bs && i > 0 = connectionReadLine conn >>= parseStatus (i - 1)

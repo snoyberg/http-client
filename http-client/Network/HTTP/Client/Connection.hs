@@ -4,6 +4,7 @@
 module Network.HTTP.Client.Connection
     ( connectionReadLine
     , connectionReadLineWith
+    , connectionTryReadBlankLine
     , dummyConnection
     , openSocketConnection
     , makeConnection
@@ -26,6 +27,26 @@ connectionReadLine conn = do
     bs <- connectionRead conn
     when (S.null bs) $ throwIO IncompleteHeaders
     connectionReadLineWith conn bs
+
+connectionTryReadBlankLine :: Connection -> IO ()
+connectionTryReadBlankLine conn = do
+    bs <- connectionRead conn
+    case S.uncons bs of
+        Nothing -> return ()
+        Just (10, bs') -> connectionUnread conn bs'
+        Just (13, bs') ->
+            case S.uncons bs' of
+                Nothing -> tryNL
+                Just (10, bs'') -> connectionUnread conn bs''
+                Just _ -> connectionUnread conn bs'
+        Just _ -> connectionUnread conn bs
+  where
+    tryNL = do
+        bs <- connectionRead conn
+        case S.uncons bs of
+            Nothing -> return ()
+            Just (10, bs') -> connectionUnread conn bs'
+            Just _ -> connectionUnread conn bs
 
 connectionReadLineWith :: Connection -> ByteString -> IO ByteString
 connectionReadLineWith conn bs0 =

@@ -12,6 +12,7 @@ import           Network.Socket            (accept, sClose)
 import           Network.Socket.ByteString (recv, sendAll)
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
+import qualified Data.ByteString           as S
 
 main :: IO ()
 main = hspec spec
@@ -30,6 +31,25 @@ redirectServer inner = bracket
             N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
             threadDelay 10000
             N.appWrite ad "hello\r\n"
+            threadDelay 10000
+
+bad100Server :: Bool -- ^ include extra newline as required by spec?
+             -> (Int -> IO a) -> IO a
+bad100Server correct inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (sClose . snd)
+    $ \(port, lsocket) -> withAsync
+        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+        (const $ inner port)
+  where
+    app ad = do
+        forkIO $ forever $ N.appRead ad
+        forever $ do
+            N.appWrite ad $ S.concat
+                [ "HTTP/1.1 100 Continue\r\n"
+                , if correct then "\r\n" else ""
+                , "HTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n"
+                ]
             threadDelay 10000
 
 spec :: Spec
@@ -74,3 +94,12 @@ spec = describe "Client" $ do
                 case e of
                     FailedConnectionException2 "127.0.0.1" port' False _ -> port == port'
                     _ -> False
+
+    describe "new lines after 100 $49" $ do
+        let test x = it (show x) $ bad100Server x $ \port -> do
+                req <- parseUrl $ "http://127.0.0.1:" ++ show port
+                withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
+                    x <- httpLbs req man
+                    responseBody x `shouldBe` "hello"
+        test False
+        test True
