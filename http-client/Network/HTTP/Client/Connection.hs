@@ -4,7 +4,7 @@
 module Network.HTTP.Client.Connection
     ( connectionReadLine
     , connectionReadLineWith
-    , connectionTryReadBlankLine
+    , connectionDropTillBlankLine
     , dummyConnection
     , openSocketConnection
     , makeConnection
@@ -21,6 +21,7 @@ import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Word (Word8)
+import Data.Function (fix)
 
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
@@ -28,25 +29,11 @@ connectionReadLine conn = do
     when (S.null bs) $ throwIO IncompleteHeaders
     connectionReadLineWith conn bs
 
-connectionTryReadBlankLine :: Connection -> IO ()
-connectionTryReadBlankLine conn = do
-    bs <- connectionRead conn
-    case S.uncons bs of
-        Nothing -> return ()
-        Just (10, bs') -> connectionUnread conn bs'
-        Just (13, bs') ->
-            case S.uncons bs' of
-                Nothing -> tryNL
-                Just (10, bs'') -> connectionUnread conn bs''
-                Just _ -> connectionUnread conn bs'
-        Just _ -> connectionUnread conn bs
-  where
-    tryNL = do
-        bs <- connectionRead conn
-        case S.uncons bs of
-            Nothing -> return ()
-            Just (10, bs') -> connectionUnread conn bs'
-            Just _ -> connectionUnread conn bs
+-- | Keep dropping input until a blank line is found.
+connectionDropTillBlankLine :: Connection -> IO ()
+connectionDropTillBlankLine conn = fix $ \loop -> do
+    bs <- connectionReadLine conn
+    unless (S.null bs) loop
 
 connectionReadLineWith :: Connection -> ByteString -> IO ByteString
 connectionReadLineWith conn bs0 =

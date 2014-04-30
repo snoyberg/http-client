@@ -33,9 +33,9 @@ redirectServer inner = bracket
             N.appWrite ad "hello\r\n"
             threadDelay 10000
 
-bad100Server :: Bool -- ^ include extra newline as required by spec?
+bad100Server :: Bool -- ^ include extra headers?
              -> (Int -> IO a) -> IO a
-bad100Server correct inner = bracket
+bad100Server extraHeaders inner = bracket
     (N.bindRandomPortTCP "*4")
     (sClose . snd)
     $ \(port, lsocket) -> withAsync
@@ -47,8 +47,8 @@ bad100Server correct inner = bracket
         forever $ do
             N.appWrite ad $ S.concat
                 [ "HTTP/1.1 100 Continue\r\n"
-                , if correct then "\r\n" else ""
-                , "HTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n"
+                , if extraHeaders then "foo:bar\r\nbaz: bin\r\n" else ""
+                , "\r\nHTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n"
                 ]
             threadDelay 10000
 
@@ -95,7 +95,7 @@ spec = describe "Client" $ do
                     FailedConnectionException2 "127.0.0.1" port' False _ -> port == port'
                     _ -> False
 
-    describe "new lines after 100 $49" $ do
+    describe "extra headers after 100 #49" $ do
         let test x = it (show x) $ bad100Server x $ \port -> do
                 req <- parseUrl $ "http://127.0.0.1:" ++ show port
                 withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do

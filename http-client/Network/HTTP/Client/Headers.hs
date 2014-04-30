@@ -38,7 +38,7 @@ parseStatusHeaders conn = do
 
         status@(code, _) <- connectionReadLineWith conn bs >>= parseStatus 3
         if code == status100
-            then connectionTryReadBlankLine conn >> getStatusLine
+            then connectionDropTillBlankLine conn >> getStatusLine
             else return status
 
     parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
