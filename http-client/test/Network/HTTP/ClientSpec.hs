@@ -5,7 +5,7 @@ import           Control.Concurrent        (forkIO, threadDelay)
 import           Control.Concurrent.Async  (withAsync)
 import           Control.Exception         (bracket)
 import           Control.Monad             (forever, replicateM_)
-import           Network                   (PortID (PortNumber), listenOn)
+import           Network                   (PortID (PortNumber), listenOn, withSocketsDo)
 import           Network.HTTP.Client
 import           Network.HTTP.Types        (status200)
 import           Network.Socket            (accept, sClose)
@@ -54,7 +54,7 @@ bad100Server extraHeaders inner = bracket
 
 spec :: Spec
 spec = describe "Client" $ do
-    it "works" $ do
+    it "works" $ withSocketsDo $ do
         req <- parseUrl "http://www.yesodweb.com/"
         man <- newManager defaultManagerSettings
         res <- httpLbs req man
