@@ -9,6 +9,7 @@ module Network.HTTP.Client.Body
     , brEmpty
     , brAddCleanup
     , brReadSome
+    , brRead
     ) where
 
 import Network.HTTP.Client.Connection
@@ -20,6 +21,13 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Control.Monad (unless, when)
 import qualified Data.Streaming.Zlib as Z
+
+-- ^ Get a single chunk of data from the response body, or an empty
+-- bytestring if no more data is available.
+--
+-- Since 0.1.0
+brRead :: BodyReader -> IO S.ByteString
+brRead = id
 
 brReadSome :: BodyReader -> Int -> IO L.ByteString
 brReadSome brRead =

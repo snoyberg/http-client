@@ -108,6 +108,7 @@ module Network.HTTP.Client
     , responseCookieJar
       -- ** Response body
     , BodyReader
+    , brRead
     , brConsume
       -- * Misc
     , HttpException (..)
