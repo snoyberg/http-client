@@ -43,7 +43,7 @@
 -- A note on exceptions: for the most part, all actions that perform I/O should
 -- be assumed to throw an @HttpException@ in the event of some problem, and all
 -- pure functions will be total. For example, @withResponse@, @httpLbs@, and
--- @brRead@ can all throw exceptions. Functions like @responseStatus@ and
+-- @BodyReader@ can all throw exceptions. Functions like @responseStatus@ and
 -- @applyBasicAuth@ are guaranteed to be total (or there\'s a bug in the
 -- library).
 --
@@ -108,7 +108,6 @@ module Network.HTTP.Client
     , responseCookieJar
       -- ** Response body
     , BodyReader
-    , brRead
     , brConsume
       -- * Misc
     , HttpException (..)

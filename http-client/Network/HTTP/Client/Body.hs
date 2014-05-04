@@ -22,7 +22,7 @@ import Control.Monad (unless, when)
 import qualified Data.Streaming.Zlib as Z
 
 brReadSome :: BodyReader -> Int -> IO L.ByteString
-brReadSome BodyReader {..} =
+brReadSome brRead =
     loop id
   where
     loop front rem
@@ -34,35 +34,29 @@ brReadSome BodyReader {..} =
                 else loop (front . (bs:)) (rem - S.length bs)
 
 brEmpty :: BodyReader
-brEmpty = BodyReader
-    { brRead = return S.empty
-    , brComplete = return True
-    }
+brEmpty = return S.empty
 
 brAddCleanup :: IO () -> BodyReader -> BodyReader
-brAddCleanup cleanup br = BodyReader
-    { brRead = do
-        bs <- brRead br
-        when (S.null bs) cleanup
-        return bs
-    , brComplete = brComplete br
-    }
+brAddCleanup cleanup brRead = do
+    bs <- brRead
+    when (S.null bs) cleanup
+    return bs
 
 -- | Strictly consume all remaining chunks of data from the stream.
 --
 -- Since 0.1.0
 brConsume :: BodyReader -> IO [S.ByteString]
-brConsume f =
+brConsume brRead =
     go id
   where
     go front = do
-        x <- brRead f
+        x <- brRead
         if S.null x
             then return $ front []
             else go (front . (x:))
 
 makeGzipReader :: BodyReader -> IO BodyReader
-makeGzipReader br = do
+makeGzipReader brRead = do
     inf <- Z.initInflate $ Z.WindowBits 31
     istate <- newIORef Nothing
     let goPopper popper = do
@@ -80,69 +74,55 @@ makeGzipReader br = do
                             return bs
                 Z.PRError e -> throwIO $ HttpZlibException e
         start = do
-            bs <- brRead br
+            bs <- brRead
             if S.null bs
                 then return S.empty
                 else do
                     popper <- Z.feedInflate inf bs
                     goPopper popper
-    return BodyReader
-        { brRead = do
-            state <- readIORef istate
-            case state of
-                Nothing -> start
-                Just popper -> goPopper popper
-        , brComplete = brComplete br
-        }
+    return $ do
+        state <- readIORef istate
+        case state of
+            Nothing -> start
+            Just popper -> goPopper popper
 
 makeUnlimitedReader :: Connection -> IO BodyReader
 makeUnlimitedReader Connection {..} = do
     icomplete <- newIORef False
-    return $! BodyReader
-        { brRead = do
-            bs <- connectionRead
-            when (S.null bs) $ writeIORef icomplete True
-            return bs
-        , brComplete = readIORef icomplete
-        }
+    return $ do
+        bs <- connectionRead
+        when (S.null bs) $ writeIORef icomplete True
+        return bs
 
 makeLengthReader :: Int -> Connection -> IO BodyReader
 makeLengthReader count0 Connection {..} = do
     icount <- newIORef count0
-    return $! BodyReader
-        { brRead = do
-            count <- readIORef icount
-            if count <= 0
-                then return empty
-                else do
-                    bs <- connectionRead
-                    when (S.null bs) $ throwIO $ ResponseBodyTooShort (fromIntegral count0) (fromIntegral $ count0 - count)
-                    case compare count $ S.length bs of
-                        LT -> do
-                            let (x, y) = S.splitAt count bs
-                            connectionUnread y
-                            writeIORef icount (-1)
-                            return x
-                        EQ -> do
-                            writeIORef icount (-1)
-                            return bs
-                        GT -> do
-                            writeIORef icount (count - S.length bs)
-                            return bs
-        , brComplete = fmap (== -1) $ readIORef icount
-        }
+    return $ do
+        count <- readIORef icount
+        if count <= 0
+            then return empty
+            else do
+                bs <- connectionRead
+                when (S.null bs) $ throwIO $ ResponseBodyTooShort (fromIntegral count0) (fromIntegral $ count0 - count)
+                case compare count $ S.length bs of
+                    LT -> do
+                        let (x, y) = S.splitAt count bs
+                        connectionUnread y
+                        writeIORef icount (-1)
+                        return x
+                    EQ -> do
+                        writeIORef icount (-1)
+                        return bs
+                    GT -> do
+                        writeIORef icount (count - S.length bs)
+                        return bs
 
 makeChunkedReader :: Bool -- ^ raw
                   -> Connection
                   -> IO BodyReader
 makeChunkedReader raw conn@Connection {..} = do
     icount <- newIORef 0
-    return $! BodyReader
-        { brRead = go icount
-        , brComplete = do
-            count <- readIORef icount
-            return $! count == -1
-        }
+    return $ go icount
   where
     go icount = do
         count0 <- readIORef icount
