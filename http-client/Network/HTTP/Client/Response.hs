@@ -8,16 +8,12 @@ module Network.HTTP.Client.Response
     , lbsResponse
     ) where
 
-import Control.Arrow (first)
-import Control.Monad (liftM, (>=>))
+import Control.Monad ((>=>))
 
 import Control.Exception (throwIO)
 
-import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
-
-import qualified Data.CaseInsensitive as CI
 
 import Data.Default.Class (def)
 
@@ -26,12 +22,10 @@ import Network.URI (parseURIReference)
 
 import Network.HTTP.Client.Types
 
-import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Util
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Headers
-import Network.HTTP.Client.Connection
 
 import System.Timeout (timeout)
 
@@ -96,7 +90,7 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
     let timeout' =
             case timeout'' of
                 Nothing -> id
-                Just t -> timeout t >=> maybe responseTimeout return
+                Just t -> timeout t >=> maybe (throwIO ResponseTimeout) return
     StatusHeaders s version hs <- timeout' $ parseStatusHeaders conn
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
 
@@ -132,5 +126,3 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
         , responseCookieJar = def
         , responseClose' = ResponseClose (cleanup False)
         }
-  where
-    responseTimeout = throwIO ResponseTimeout
