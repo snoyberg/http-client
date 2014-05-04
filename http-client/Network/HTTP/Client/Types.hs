@@ -4,7 +4,7 @@
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Types
-    ( BodyReader (..)
+    ( BodyReader
     , Connection (..)
     , StatusHeaders (..)
     , HttpException (..)
@@ -50,19 +50,15 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
 
--- | An abstraction for representing an incoming response body coming from the
--- server. Data provided by this abstraction has already been gunzipped and
+-- | An @IO@ action that represents an incoming response body coming from the
+-- server. Data provided by this action has already been gunzipped and
 -- de-chunked, and respects any content-length headers present.
 --
--- Since 0.1.0
-data BodyReader = BodyReader
-    { brRead :: !(IO S.ByteString)
-    -- ^ Get a single chunk of data from the response body, or an empty
-    -- bytestring if no more data is available.
-    --
-    -- Since 0.1.0
-    , brComplete :: !(IO Bool)
-    }
+-- The action gets a single chunk of data from the response body, or an empty
+-- bytestring if no more data is available.
+--
+-- Since 0.4.0
+type BodyReader = IO S.ByteString
 
 data Connection = Connection
     { connectionRead :: !(IO S.ByteString)
