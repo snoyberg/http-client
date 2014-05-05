@@ -13,6 +13,7 @@ import           Network.Socket.ByteString (recv, sendAll)
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
 import qualified Data.ByteString           as S
+import           Data.ByteString.Lazy.Char8 () -- orphan instance
 
 main :: IO ()
 main = hspec spec
