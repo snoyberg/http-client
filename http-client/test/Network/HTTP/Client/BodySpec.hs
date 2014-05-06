@@ -18,7 +18,7 @@ brComplete brRead = do
 
 spec :: Spec
 spec = do
-    describe "BodySpec" $ do
+    describe "makeChunkedReader" $ do
         it "chunked, single" $ do
             (conn, _, input) <- dummyConnection
                 [ "5\r\nhello\r\n6\r\n world\r\n0\r\nnot consumed"
@@ -61,6 +61,7 @@ spec = do
             S.concat input' `shouldBe` "not consumed"
             brComplete reader `shouldReturn` True
 
+    describe "makeLengthReader" $ do
         it "length, single" $ do
             (conn, _, input) <- dummyConnection
                 [ "hello world done"
