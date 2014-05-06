@@ -116,7 +116,7 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
                 body2 <- if needsGunzip req hs
                     then makeGzipReader body1
                     else return body1
-                return $ brAddCleanup (cleanup True) body2
+                brAddCleanup (cleanup True) body2
 
     return Response
         { responseStatus = s

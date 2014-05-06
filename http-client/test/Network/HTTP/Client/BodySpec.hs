@@ -2,6 +2,9 @@
 module Network.HTTP.Client.BodySpec where
 
 import Test.Hspec
+
+import Control.Applicative
+import Data.IORef
 import Network.HTTP.Client
 import Network.HTTP.Client.Internal
 import qualified Data.ByteString as S
@@ -12,12 +15,27 @@ main :: IO ()
 main = hspec spec
 
 brComplete :: BodyReader -> IO Bool
-brComplete brRead = do
-  xs <- brRead
+brComplete bodyReader = do
+  xs <- bodyReader
   return (xs == "")
 
 spec :: Spec
 spec = do
+    describe "brAddCleanup" $ do
+        it "adds a cleanup action" $ do
+            ref <- newIORef False
+            (conn, _, _) <- dummyConnection ["hello world done"]
+            _ <- makeLengthReader 11 conn >>= brAddCleanup (writeIORef ref True) >>= brConsume
+            readIORef ref `shouldReturn` True
+
+        it "runs cleanup action at most once" $ do
+            ref <- newIORef (0 :: Int)
+            (conn, _, _) <- dummyConnection ["hello world done"]
+            reader <- makeLengthReader 11 conn >>= brAddCleanup (modifyIORef ref succ)
+            _ <- brConsume reader
+            _ <- reader
+            readIORef ref `shouldReturn` 1
+
     describe "makeChunkedReader" $ do
         it "chunked, single" $ do
             (conn, _, input) <- dummyConnection
