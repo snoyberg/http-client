@@ -61,16 +61,16 @@ import Data.Streaming.Zlib (ZlibException)
 type BodyReader = IO S.ByteString
 
 data Connection = Connection
-    { connectionRead :: !(IO S.ByteString)
+    { connectionRead :: IO S.ByteString
       -- ^ If no more data, return empty.
-    , connectionUnread :: !(S.ByteString -> IO ())
+    , connectionUnread :: S.ByteString -> IO ()
       -- ^ Return data to be read next time.
-    , connectionWrite :: !(S.ByteString -> IO ())
+    , connectionWrite :: S.ByteString -> IO ()
       -- ^ Send data to server
-    , connectionClose :: !(IO ())
+    , connectionClose :: IO ()
     }
 
-data StatusHeaders = StatusHeaders !Status !HttpVersion !RequestHeaders
+data StatusHeaders = StatusHeaders Status HttpVersion RequestHeaders
     deriving (Show, Eq, Ord)
 
 data HttpException = StatusCodeException Status ResponseHeaders CookieJar
@@ -162,8 +162,8 @@ instance Monoid CookieJar where
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
 data Proxy = Proxy
-    { proxyHost :: !S.ByteString -- ^ The host name of the HTTP proxy.
-    , proxyPort :: !Int -- ^ The port number of the HTTP proxy.
+    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
+    , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
     deriving (Show, Read, Eq, Ord, T.Typeable)
 
@@ -177,11 +177,11 @@ data Proxy = Proxy
 --
 -- Since 0.1.0
 data RequestBody
-    = RequestBodyLBS !L.ByteString
-    | RequestBodyBS !S.ByteString
-    | RequestBodyBuilder !Int64 !Builder
-    | RequestBodyStream !Int64 !(GivesPopper ())
-    | RequestBodyStreamChunked !(GivesPopper ())
+    = RequestBodyLBS L.ByteString
+    | RequestBodyBS S.ByteString
+    | RequestBodyBuilder Int64 Builder
+    | RequestBodyStream Int64 (GivesPopper ())
+    | RequestBodyStreamChunked (GivesPopper ())
 instance Monoid RequestBody where
     mempty = RequestBodyBS S.empty
     mappend x0 y0 =
@@ -397,29 +397,29 @@ data ManagedConn = Fresh | Reused
 --
 -- Since 0.1.0
 data Response body = Response
-    { responseStatus :: !Status
+    { responseStatus :: Status
     -- ^ Status code of the response.
     --
     -- Since 0.1.0
-    , responseVersion :: !HttpVersion
+    , responseVersion :: HttpVersion
     -- ^ HTTP version used by the server.
     --
     -- Since 0.1.0
-    , responseHeaders :: !ResponseHeaders
+    , responseHeaders :: ResponseHeaders
     -- ^ Response headers sent by the server.
     --
     -- Since 0.1.0
-    , responseBody :: !body
+    , responseBody :: body
     -- ^ Response body sent by the server.
     --
     -- Since 0.1.0
-    , responseCookieJar :: !CookieJar
+    , responseCookieJar :: CookieJar
     -- ^ Cookies set on the client after interacting with the server. If
     -- cookies have been disabled by setting 'cookieJar' to @Nothing@, then
     -- this will always be empty.
     --
     -- Since 0.1.0
-    , responseClose' :: !ResponseClose
+    , responseClose' :: ResponseClose
     -- ^ Releases any resource held by this response. If the response body
     -- has not been fully read yet, doing so after this call will likely
     -- be impossible.
@@ -440,38 +440,38 @@ instance Eq ResponseClose where
 --
 -- Since 0.1.0
 data ManagerSettings = ManagerSettings
-    { managerConnCount :: !Int
+    { managerConnCount :: Int
       -- ^ Number of connections to a single host to keep alive. Default: 10.
       --
       -- Since 0.1.0
-    , managerRawConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
+    , managerRawConnection :: IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create an insecure connection.
       --
       -- Since 0.1.0
     -- FIXME in the future, combine managerTlsConnection and managerTlsProxyConnection
-    , managerTlsConnection :: !(IO (Maybe NS.HostAddress -> String -> Int -> IO Connection))
+    , managerTlsConnection :: IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
       --
       -- Since 0.1.0
-    , managerTlsProxyConnection :: !(IO (S.ByteString -> (Connection -> IO ()) -> Maybe NS.HostAddress -> String -> Int -> IO Connection))
+    , managerTlsProxyConnection :: IO (S.ByteString -> (Connection -> IO ()) -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create a TLS proxy connection. Default behavior: throw an exception that TLS is not supported.
       --
       -- Since 0.2.2
-    , managerResponseTimeout :: !(Maybe Int)
+    , managerResponseTimeout :: Maybe Int
       -- ^ Default timeout (in microseconds) to be applied to requests which do
       -- not provide a timeout value.
       --
       -- Default is 5 seconds
       --
       -- Since 0.1.0
-    , managerRetryableException :: !(SomeException -> Bool)
+    , managerRetryableException :: SomeException -> Bool
     -- ^ Exceptions for which we should retry our request if we were reusing an
     -- already open connection. In the case of IOExceptions, for example, we
     -- assume that the connection was closed on the server and therefore open a
     -- new one.
     --
     -- Since 0.1.0
-    , managerWrapIOException :: !(forall a. IO a -> IO a)
+    , managerWrapIOException :: forall a. IO a -> IO a
     -- ^ Action wrapped around all attempted @Request@s, usually used to wrap
     -- up exceptions in library-specific types.
     --
@@ -486,30 +486,30 @@ data ManagerSettings = ManagerSettings
 --
 -- Since 0.1.0
 data Manager = Manager
-    { mConns :: !(I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection))))
+    { mConns :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection)))
     -- ^ @Nothing@ indicates that the manager is closed.
-    , mMaxConns :: !Int
+    , mMaxConns :: Int
     -- ^ This is a per-@ConnKey@ value.
-    , mResponseTimeout :: !(Maybe Int)
+    , mResponseTimeout :: Maybe Int
     -- ^ Copied from 'managerResponseTimeout'
-    , mRawConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
-    , mTlsConnection :: !(Maybe NS.HostAddress -> String -> Int -> IO Connection)
-    , mTlsProxyConnection :: !(S.ByteString -> (Connection -> IO ()) -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
-    , mRetryableException :: !(SomeException -> Bool)
-    , mWrapIOException :: !(forall a. IO a -> IO a)
+    , mRawConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
+    , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
+    , mTlsProxyConnection :: S.ByteString -> (Connection -> IO ()) -> Maybe NS.HostAddress -> String -> Int -> IO Connection
+    , mRetryableException :: SomeException -> Bool
+    , mWrapIOException :: forall a. IO a -> IO a
     }
 
 data NonEmptyList a =
-    One !a !UTCTime |
-    Cons !a !Int !UTCTime !(NonEmptyList a)
+    One a UTCTime |
+    Cons a Int UTCTime (NonEmptyList a)
 
 -- | Hostname or resolved host address.
 data ConnHost =
-    HostName !Text |
-    HostAddress !NS.HostAddress
+    HostName Text |
+    HostAddress NS.HostAddress
     deriving (Eq, Show, Ord)
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
-data ConnKey = ConnKey !ConnHost !Int !Bool
+data ConnKey = ConnKey ConnHost Int Bool
     deriving (Eq, Show, Ord)
