@@ -361,8 +361,9 @@ data Request = Request
     --
     -- Since 0.1.0
     , responseTimeout :: Maybe Int
-    -- ^ Number of microseconds to wait for a response. If @Nothing@, will wait
-    -- indefinitely. Default: 5 seconds.
+    -- ^ Number of microseconds to wait for a response. If
+    -- @Nothing@, will wait indefinitely. Default: use
+    -- 'managerResponseTimeout' (which by default is 5 seconds).
     --
     -- Since 0.1.0
     , getConnectionWrapper :: Maybe Int
