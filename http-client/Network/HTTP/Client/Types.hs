@@ -69,9 +69,10 @@ data Connection = Connection
       -- ^ Send data to server
     , connectionClose :: IO ()
     }
+    deriving T.Typeable
 
 data StatusHeaders = StatusHeaders Status HttpVersion RequestHeaders
-    deriving (Show, Eq, Ord)
+    deriving (Show, Eq, Ord, T.Typeable)
 
 data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | InvalidUrlException String String
@@ -124,10 +125,10 @@ data Cookie = Cookie
   , cookie_secure_only :: Bool
   , cookie_http_only :: Bool
   }
-  deriving (Read, Show)
+  deriving (Read, Show, T.Typeable)
 
 newtype CookieJar = CJ { expose :: [Cookie] }
-  deriving (Read, Show)
+  deriving (Read, Show, T.Typeable)
 
 -- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
 instance Eq Cookie where
@@ -182,6 +183,7 @@ data RequestBody
     | RequestBodyBuilder Int64 Builder
     | RequestBodyStream Int64 (GivesPopper ())
     | RequestBodyStreamChunked (GivesPopper ())
+    deriving T.Typeable
 instance Monoid RequestBody where
     mempty = RequestBodyBS S.empty
     mappend x0 y0 =
@@ -387,8 +389,10 @@ data Request = Request
     --
     -- Since 0.1.0
     }
+    deriving T.Typeable
 
 data ConnReuse = Reuse | DontReuse
+    deriving T.Typeable
 
 type ConnRelease = ConnReuse -> IO ()
 
@@ -480,6 +484,7 @@ data ManagerSettings = ManagerSettings
     --
     -- Since 0.1.0
     }
+    deriving T.Typeable
 
 -- | Keeps track of open connections for keep-alive.
 --
@@ -499,18 +504,20 @@ data Manager = Manager
     , mRetryableException :: SomeException -> Bool
     , mWrapIOException :: forall a. IO a -> IO a
     }
+    deriving T.Typeable
 
 data NonEmptyList a =
     One a UTCTime |
     Cons a Int UTCTime (NonEmptyList a)
+    deriving T.Typeable
 
 -- | Hostname or resolved host address.
 data ConnHost =
     HostName Text |
     HostAddress NS.HostAddress
-    deriving (Eq, Show, Ord)
+    deriving (Eq, Show, Ord, T.Typeable)
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
 data ConnKey = ConnKey ConnHost Int Bool
-    deriving (Eq, Show, Ord)
+    deriving (Eq, Show, Ord, T.Typeable)
