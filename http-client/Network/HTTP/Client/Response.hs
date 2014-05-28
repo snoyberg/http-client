@@ -66,6 +66,7 @@ getRedirectedRequest req hs cookie_jar code
                     { method = "GET"
                     , requestBody = RequestBodyBS ""
                     , cookieJar = cookie_jar'
+                    , requestHeaders = filter ((/= hContentType) . fst) $ requestHeaders req'
                     }
                 else req' {cookieJar = cookie_jar'}
     | otherwise = Nothing
