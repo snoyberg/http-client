@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         2.1.2
+version:         2.1.2.1
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -60,8 +60,9 @@ test-suite test
                  , case-insensitive
                  , lifted-base
                  , network
-                 , wai >= 2.0 && < 2.2
-                 , warp >= 2.0 && < 2.2
+                 , wai >= 3.0 && < 3.1
+                 , warp >= 3.0 && < 3.1
+                 , wai-conduit
                  , http-types
                  , cookie
                  , network-conduit >= 0.6

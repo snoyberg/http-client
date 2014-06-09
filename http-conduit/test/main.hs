@@ -7,6 +7,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
+import Network.Wai.Conduit (responseSource, sourceRequestBody)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop)
 import Network.HTTP.Conduit hiding (port)
@@ -72,7 +73,7 @@ cookie = Cookie { cookie_name = "key"
 cookie_jar :: CookieJar
 cookie_jar = createCookieJar [cookie]
 
-app :: Application
+app :: Wai.Request -> IO Wai.Response
 app req =
     case pathInfo req of
         [] ->
@@ -112,10 +113,10 @@ getPort = do
             sClose socket
             return port
 
-withApp :: Application -> (Int -> IO ()) -> IO ()
+withApp :: (Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
 withApp app' f = withApp' (const app') f
 
-withApp' :: (Int -> Application) -> (Int -> IO ()) -> IO ()
+withApp' :: (Int -> Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
 withApp' app' f = do
     port <- getPort
     baton <- newEmptyMVar
@@ -123,14 +124,18 @@ withApp' app' f = do
         (forkIO $ runSettings defaultSettings
             { settingsPort = port
             , settingsBeforeMainLoop = putMVar baton ()
-            } (app' port) `onException` putMVar baton ())
+            } (app'' port) `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
+  where
+    app'' port req sendResponse = do
+        res <- app' port req
+        sendResponse res
 
-withAppTls :: Application -> (Int -> IO ()) -> IO ()
+withAppTls :: (Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
 withAppTls app' f = withAppTls' (const app') f
 
-withAppTls' :: (Int -> Application) -> (Int -> IO ()) -> IO ()
+withAppTls' :: (Int -> Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
 withAppTls' app' f = do
     port <- getPort
     baton <- newEmptyMVar
@@ -138,9 +143,13 @@ withAppTls' app' f = do
         (forkIO $ WT.runTLS WT.defaultTlsSettings defaultSettings
             { settingsPort = port
             , settingsBeforeMainLoop = putMVar baton ()
-            } (app' port) `onException` putMVar baton ())
+            } (app'' port) `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
+  where
+    app'' port req sendResponse = do
+        res <- app' port req
+        sendResponse res
 
 main :: IO ()
 main = withSocketsDo $ do
@@ -471,7 +480,7 @@ redir =
 
 echo :: (Int -> IO ()) -> IO ()
 echo = withApp $ \req -> do
-    bss <- Wai.requestBody req $$ CL.consume
+    bss <- sourceRequestBody req $$ CL.consume
     return $ responseLBS status200 [] $ L.fromChunks bss
 
 noStatusMessage :: (Int -> IO ()) -> IO ()
