@@ -40,6 +40,7 @@ mkManagerSettings tls sock = defaultManagerSettings
                             -- we open a new connection under these circumstances, we
                             -- check for the NoResponseDataReceived exception.
                             Just NoResponseDataReceived -> True
+                            Just IncompleteHeaders -> True
                             _ -> False
     , managerWrapIOException =
         let wrapper se =

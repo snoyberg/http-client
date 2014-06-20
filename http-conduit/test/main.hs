@@ -9,7 +9,7 @@ import Test.HUnit
 import Network.Wai hiding (requestBody)
 import Network.Wai.Conduit (responseSource, sourceRequestBody)
 import qualified Network.Wai as Wai
-import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop)
+import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop, Settings, setTimeout)
 import Network.HTTP.Conduit hiding (port)
 import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Client.MultipartFormData
@@ -117,14 +117,20 @@ withApp :: (Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
 withApp app' f = withApp' (const app') f
 
 withApp' :: (Int -> Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
-withApp' app' f = do
+withApp' = withAppSettings id
+
+withAppSettings :: (Settings -> Settings)
+                -> (Int -> Wai.Request -> IO Wai.Response)
+                -> (Int -> IO ())
+                -> IO ()
+withAppSettings modSettings app' f = do
     port <- getPort
     baton <- newEmptyMVar
     bracket
-        (forkIO $ runSettings defaultSettings
+        (forkIO $ runSettings (modSettings defaultSettings
             { settingsPort = port
             , settingsBeforeMainLoop = putMVar baton ()
-            } (app'' port) `onException` putMVar baton ())
+            }) (app'' port) `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
   where
@@ -413,6 +419,20 @@ main = withSocketsDo $ do
             withManager $ \man -> do
                 _ <- http req man
                 return ()
+
+    it "reuse/connection close tries again" $ do
+        withAppSettings (setTimeout 1) (const app) $ \port -> do
+            req <- parseUrl $ "http://localhost:" ++ show port
+            withManager $ \man -> do
+                res1 <- httpLbs req man
+                liftIO $ threadDelay 3000000
+                res2 <- httpLbs req man
+                let f res = res
+                        { NHC.responseHeaders = filter (not . isDate) (NHC.responseHeaders res)
+                        }
+                    isDate ("date", _) = True
+                    isDate _ = False
+                liftIO $ f res2 `shouldBe` f res1
 
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
