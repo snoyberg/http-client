@@ -89,8 +89,8 @@
 -- >
 -- > main = withSocketsDo
 -- >      $ simpleHttp "http://www.haskell.org/" >>= L.putStr
--- >
--- > Cookies are implemented according to RFC 6265.
+--
+-- Cookies are implemented according to RFC 6265.
 --
 -- Note that by default, the functions in this package will throw exceptions
 -- for non-2xx status codes. If you would like to avoid this, you should use
