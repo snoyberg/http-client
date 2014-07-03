@@ -243,6 +243,8 @@ addProxy hst prt req =
 -- password) to the given 'Request'. Ignore error handling:
 --
 -- > applyBasicProxyAuth "user" "pass" <$> parseUrl "http://example.org"
+--
+-- Since 0.3.4
 
 applyBasicProxyAuth :: S.ByteString -> S.ByteString -> Request -> Request
 applyBasicProxyAuth user passwd req =
