@@ -89,6 +89,7 @@ module Network.HTTP.Client
     , requestHeaders
     , requestBody
     , proxy
+    , applyBasicProxyAuth
     , decompress
     , redirectCount
     , checkStatus

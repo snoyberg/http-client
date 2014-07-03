@@ -14,6 +14,7 @@ module Network.HTTP.Client.Request
     , alwaysDecompress
     , addProxy
     , applyBasicAuth
+    , applyBasicProxyAuth
     , urlEncodedBody
     , needsGunzip
     , requestBuilder
@@ -230,7 +231,6 @@ applyBasicAuth user passwd req =
     authHeader = (CI.mk "Authorization", basic)
     basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
 
-
 -- | Add a proxy to the Request so that the Request when executed will use
 -- the provided proxy.
 --
@@ -238,6 +238,18 @@ applyBasicAuth user passwd req =
 addProxy :: S.ByteString -> Int -> Request -> Request
 addProxy hst prt req =
     req { proxy = Just $ Proxy hst prt }
+
+-- | Add a Proxy-Authorization header (with the specified username and
+-- password) to the given 'Request'. Ignore error handling:
+--
+-- > applyBasicProxyAuth "user" "pass" <$> parseUrl "http://example.org"
+
+applyBasicProxyAuth :: S.ByteString -> S.ByteString -> Request -> Request
+applyBasicProxyAuth user passwd req =
+    req { requestHeaders = authHeader : requestHeaders req }
+  where
+    authHeader = (CI.mk "Proxy-Authorization", basic)
+    basic = S8.append "Basic " (B64.encode $ S8.concat [ user , ":", passwd ])
 
 -- | Add url-encoded parameters to the 'Request'.
 --
