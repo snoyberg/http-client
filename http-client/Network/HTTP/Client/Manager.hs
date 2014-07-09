@@ -55,7 +55,7 @@ defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
     , managerRawConnection = return openSocketConnection
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
-    , managerTlsProxyConnection = return $ \_ _ _ _ _ -> throwIO TlsNotSupported
+    , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwIO TlsNotSupported
     , managerResponseTimeout = Just 30000000
     , managerRetryableException = \e ->
         case fromException e of
@@ -361,4 +361,4 @@ getConn req m
                         sh@(StatusHeaders status _ _) <- parseStatusHeaders conn
                         unless (status == status200) $
                             throwIO $ ProxyConnectException ultHost ultPort $ Left $ S8.pack $ show sh
-                 in mTlsProxyConnection m connstr parse
+                 in mTlsProxyConnection m connstr parse (S8.unpack ultHost)

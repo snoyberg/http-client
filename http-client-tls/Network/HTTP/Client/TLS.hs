@@ -79,10 +79,10 @@ getTlsConnection tls sock = do
 getTlsProxyConnection
     :: NC.TLSSettings
     -> Maybe NC.SockSettings
-    -> IO (S.ByteString -> (Connection -> IO ()) -> Maybe HostAddress -> String -> Int -> IO Connection)
+    -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsProxyConnection tls sock = do
     context <- NC.initConnectionContext
-    return $ \connstr checkConn _ha host port -> do
+    return $ \connstr checkConn serverName _ha host port -> do
         --error $ show (connstr, host, port)
         conn <- NC.connectTo context NC.ConnectionParams
             { NC.connectionHostname = host
@@ -96,7 +96,7 @@ getTlsProxyConnection tls sock = do
 
         checkConn conn'
 
-        NC.connectionSetSecure context conn tls
+        NC.connectionSetSecure context (conn { NC.connectionID = (serverName, fromIntegral port) }) tls
 
         return conn'
 
