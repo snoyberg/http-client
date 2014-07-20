@@ -150,6 +150,7 @@ module Network.HTTP.Conduit
     , responseTimeout
     , cookieJar
     , getConnectionWrapper
+    , HCC.setQueryString
       -- *** Request body
     , requestBodySource
     , requestBodySourceChunked

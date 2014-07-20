@@ -434,6 +434,24 @@ main = withSocketsDo $ do
                     isDate _ = False
                 liftIO $ f res2 `shouldBe` f res1
 
+    it "setQueryString" $ do
+        ref <- I.newIORef undefined
+        let app' req = do
+                I.writeIORef ref $ Wai.queryString req
+                return $ responseLBS status200 [] ""
+        withApp app' $ \port -> do
+            let qs =
+                    [ ("foo", Just "bar")
+                    , (TE.encodeUtf8 "שלום", Just "hola")
+                    , ("noval", Nothing)
+                    ]
+            withManager $ \man -> do
+                req <- parseUrl $ "http://localhost:" ++ show port
+                _ <- httpLbs (setQueryString qs req) man
+                return ()
+            res <- I.readIORef ref
+            res `shouldBe` qs
+
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
     port <- getPort

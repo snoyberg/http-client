@@ -78,6 +78,7 @@ module Network.HTTP.Client
     , applyBasicAuth
     , urlEncodedBody
     , getUri
+    , setQueryString
       -- ** Request type and fields
     , Request
     , method

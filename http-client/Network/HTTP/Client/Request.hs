@@ -19,6 +19,7 @@ module Network.HTTP.Client.Request
     , needsGunzip
     , requestBuilder
     , useDefaultTimeout
+    , setQueryString
     ) where
 
 import Data.Maybe (fromMaybe, isJust)
@@ -366,3 +367,9 @@ requestBuilder req Connection {..} =
         <> fromByteString ": "
         <> fromByteString v
         <> fromByteString "\r\n"
+
+-- | Set the query string to the given key/value pairs.
+--
+-- Since 0.3.6
+setQueryString :: [(S.ByteString, Maybe S.ByteString)] -> Request -> Request
+setQueryString qs req = req { queryString = W.renderQuery False qs }
