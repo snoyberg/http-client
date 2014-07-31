@@ -8,7 +8,6 @@ module Network.HTTP.Client.Core
     , httpRaw
     , responseOpen
     , responseClose
-    , applyCheckStatus
     , httpRedirect
     ) where
 
@@ -150,7 +149,7 @@ responseOpen req0 manager = mWrapIOException manager $ do
         if redirectCount req0 == 0
             then httpRaw req0 manager
             else go (redirectCount req0) req0
-    maybe (return res) throwIO =<< applyCheckStatus (checkStatus req0) res
+    maybe (return res) throwIO =<< applyCheckStatus req0 (checkStatus req0) res
   where
     go count req' = httpRedirect
       count
@@ -162,10 +161,11 @@ responseOpen req0 manager = mWrapIOException manager $ do
 
 -- | Apply 'Request'\'s 'checkStatus' and return resulting exception if any.
 applyCheckStatus
-    :: (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException)
+    :: Request
+    -> (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException)
     -> Response BodyReader
     -> IO (Maybe SomeException)
-applyCheckStatus checkStatus' res =
+applyCheckStatus req checkStatus' res =
     case checkStatus' (responseStatus res) (responseHeaders res) (responseCookieJar res) of
         Nothing -> return Nothing
         Just exc -> do
@@ -174,7 +174,13 @@ applyCheckStatus checkStatus' res =
                     Just (StatusCodeException s hdrs cookie_jar) -> do
                         lbs <- brReadSome (responseBody res) 1024
                         return $ toException $ StatusCodeException s (hdrs ++
-                            [("X-Response-Body-Start", toStrict' lbs)]) cookie_jar
+                            [ ("X-Response-Body-Start", toStrict' lbs)
+                            , ("X-Request-URL", S.concat
+                                [ method req
+                                , " "
+                                , S8.pack $ show $ getUri req
+                                ])
+                            ]) cookie_jar
                     _ -> return exc
             responseClose res
             return (Just exc')
