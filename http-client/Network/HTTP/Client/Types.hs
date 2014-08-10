@@ -483,6 +483,16 @@ data ManagerSettings = ManagerSettings
     -- Default: wrap all @IOException@s in the @InternalIOException@ constructor.
     --
     -- Since 0.1.0
+    , managerIdleConnectionCount :: Int
+    -- ^ Total number of idle connection to keep open at a given time.
+    --
+    -- This limit helps deal with the case where you are making a large number
+    -- of connections to different hosts. Without this limit, you could run out
+    -- of file descriptors.
+    --
+    -- Default: 512
+    --
+    -- Since 0.3.7
     }
     deriving T.Typeable
 
@@ -492,7 +502,7 @@ data ManagerSettings = ManagerSettings
 --
 -- Since 0.1.0
 data Manager = Manager
-    { mConns :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection)))
+    { mConns :: I.IORef (Maybe (Int, Map.Map ConnKey (NonEmptyList Connection)))
     -- ^ @Nothing@ indicates that the manager is closed.
     , mMaxConns :: Int
     -- ^ This is a per-@ConnKey@ value.
@@ -503,6 +513,7 @@ data Manager = Manager
     , mTlsProxyConnection :: S.ByteString -> (Connection -> IO ()) -> String -> Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mRetryableException :: SomeException -> Bool
     , mWrapIOException :: forall a. IO a -> IO a
+    , mIdleConnectionCount :: Int
     }
     deriving T.Typeable
 

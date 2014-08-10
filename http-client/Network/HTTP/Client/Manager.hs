@@ -76,6 +76,7 @@ defaultManagerSettings = ManagerSettings
                     Just e -> toException $ InternalIOException e
                     Nothing -> se
          in handle $ throwIO . wrapper
+    , managerIdleConnectionCount = 512
     }
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
@@ -83,11 +84,13 @@ takeSocket man key =
     I.atomicModifyIORef (mConns man) go
   where
     go Nothing = (Nothing, Nothing)
-    go (Just m) =
+    go (Just (idleCount, m)) =
         case Map.lookup key m of
-            Nothing -> (Just m, Nothing)
-            Just (One a _) -> (Just $ Map.delete key m, Just a)
-            Just (Cons a _ _ rest) -> (Just $ Map.insert key rest m, Just a)
+            Nothing -> (Just (idleCount, m), Nothing)
+            Just (One a _) -> cnt' `seq` (Just (cnt', Map.delete key m), Just a)
+            Just (Cons a _ _ rest) -> cnt' `seq` (Just (cnt', Map.insert key rest m), Just a)
+      where
+        cnt' = idleCount - 1
 
 putSocket :: Manager -> ConnKey -> Connection -> IO ()
 putSocket man key ci = do
@@ -96,12 +99,16 @@ putSocket man key ci = do
     maybe (return ()) connectionClose msock
   where
     go _ Nothing = (Nothing, Just ci)
-    go now (Just m) =
-        case Map.lookup key m of
-            Nothing -> (Just $ Map.insert key (One ci now) m, Nothing)
+    go now (Just (idleCount, m))
+        | idleCount >= mIdleConnectionCount man = (Just (idleCount, m), Just ci)
+        | otherwise = case Map.lookup key m of
+            Nothing ->
+                let cnt' = idleCount + 1
+                 in cnt' `seq` (Just (cnt', Map.insert key (One ci now) m), Nothing)
             Just l ->
                 let (l', mx) = addToList now (mMaxConns man) ci l
-                 in (Just $ Map.insert key l' m, mx)
+                    cnt' = idleCount + maybe 0 (const 1) mx
+                 in cnt' `seq` (Just (cnt', Map.insert key l' m), mx)
 
 -- | Add a new element to the list, up to the given maximum number. If we're
 -- already at the maximum, return the new value as leftover.
@@ -128,7 +135,7 @@ newManager ms = do
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
-    mapRef <- I.newIORef (Just Map.empty)
+    mapRef <- I.newIORef (Just (0, Map.empty))
     wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
     _ <- forkIO $ reap wmapRef
     let manager = Manager
@@ -140,11 +147,12 @@ newManager ms = do
             , mTlsProxyConnection = tlsProxyConnection
             , mRetryableException = managerRetryableException ms
             , mWrapIOException = managerWrapIOException ms
+            , mIdleConnectionCount = managerIdleConnectionCount ms
             }
     return manager
 
 -- | Collect and destroy any stale connections.
-reap :: Weak (I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection))))
+reap :: Weak (I.IORef (Maybe (Int, Map.Map ConnKey (NonEmptyList Connection))))
      -> IO ()
 reap wmapRef =
     mask_ loop
@@ -166,9 +174,9 @@ reap wmapRef =
                 mapM_ safeConnClose toDestroy
                 loop
     findStaleWrap _ Nothing = (Nothing, Nothing)
-    findStaleWrap isNotStale (Just m) =
+    findStaleWrap isNotStale (Just (idleCount, m)) =
         let (x, y) = findStale isNotStale m
-         in (Just x, Just y)
+         in (Just (idleCount - length y, x), Just y)
     findStale isNotStale =
         findStale' id id . Map.toList
       where
@@ -244,11 +252,11 @@ neFromList xs =
 closeManager :: Manager -> IO ()
 closeManager = closeManager' . mConns
 
-closeManager' :: I.IORef (Maybe (Map.Map ConnKey (NonEmptyList Connection)))
+closeManager' :: I.IORef (Maybe (Int, Map.Map ConnKey (NonEmptyList Connection)))
               -> IO ()
 closeManager' connsRef = mask_ $ do
     m <- I.atomicModifyIORef connsRef $ \x -> (Nothing, x)
-    mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] Map.elems m
+    mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] (Map.elems . snd) m
 
 -- | Create, use and close a 'Manager'.
 --

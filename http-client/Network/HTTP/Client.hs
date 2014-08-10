@@ -30,9 +30,9 @@
 -- and will never make more than one connection to a single host, then sharing
 -- a @Manager@ will result in idle connections being kept open longer than
 -- necessary. In such a situation, it makes sense to use @withManager@ around
--- each new request, to avoid running out of file descriptors. (Future versions
--- of http-client will automatically close connections when too many idle
--- connections are open.)
+-- each new request, to avoid running out of file descriptors. (Note that the
+-- 'managerIdleConnectionCount' setting mitigates the risk of leaking too many
+-- file descriptors.)
 --
 -- The next core component is a @Request@, which represents a single HTTP
 -- request to be sent to a specific server. @Request@s allow for many settings
@@ -84,6 +84,7 @@ module Network.HTTP.Client
     , managerResponseTimeout
     , managerRetryableException
     , managerWrapIOException
+    , managerIdleConnectionCount
       -- * Request
     , parseUrl
     , applyBasicAuth
