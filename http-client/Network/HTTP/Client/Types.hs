@@ -22,6 +22,7 @@ module Network.HTTP.Client.Types
     , Response (..)
     , ResponseClose (..)
     , Manager (..)
+    , ConnsMap (..)
     , ManagerSettings (..)
     , NonEmptyList (..)
     , ConnHost (..)
@@ -502,7 +503,7 @@ data ManagerSettings = ManagerSettings
 --
 -- Since 0.1.0
 data Manager = Manager
-    { mConns :: I.IORef (Maybe (Int, Map.Map ConnKey (NonEmptyList Connection)))
+    { mConns :: I.IORef ConnsMap
     -- ^ @Nothing@ indicates that the manager is closed.
     , mMaxConns :: Int
     -- ^ This is a per-@ConnKey@ value.
@@ -516,6 +517,10 @@ data Manager = Manager
     , mIdleConnectionCount :: Int
     }
     deriving T.Typeable
+
+data ConnsMap
+    = ManagerClosed
+    | ManagerOpen {-# UNPACK #-} !Int !(Map.Map ConnKey (NonEmptyList Connection))
 
 data NonEmptyList a =
     One a UTCTime |

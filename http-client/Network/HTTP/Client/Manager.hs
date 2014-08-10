@@ -31,7 +31,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (unless)
+import Control.Monad (unless, join)
 import Control.Exception (mask_, SomeException, bracket, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
@@ -83,32 +83,35 @@ takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
 takeSocket man key =
     I.atomicModifyIORef (mConns man) go
   where
-    go Nothing = (Nothing, Nothing)
-    go (Just (idleCount, m)) =
+    go ManagerClosed = (ManagerClosed, Nothing)
+    go mcOrig@(ManagerOpen idleCount m) =
         case Map.lookup key m of
-            Nothing -> (Just (idleCount, m), Nothing)
-            Just (One a _) -> cnt' `seq` (Just (cnt', Map.delete key m), Just a)
-            Just (Cons a _ _ rest) -> cnt' `seq` (Just (cnt', Map.insert key rest m), Just a)
-      where
-        cnt' = idleCount - 1
+            Nothing -> (mcOrig, Nothing)
+            Just (One a _) ->
+                let mc = ManagerOpen (idleCount - 1) (Map.delete key m)
+                 in mc `seq` (mc, Just a)
+            Just (Cons a _ _ rest) ->
+                let mc = ManagerOpen (idleCount - 1) (Map.insert key rest m)
+                 in mc `seq` (mc, Just a)
 
 putSocket :: Manager -> ConnKey -> Connection -> IO ()
 putSocket man key ci = do
     now <- getCurrentTime
-    msock <- I.atomicModifyIORef (mConns man) (go now)
-    maybe (return ()) connectionClose msock
+    join $ I.atomicModifyIORef (mConns man) (go now)
   where
-    go _ Nothing = (Nothing, Just ci)
-    go now (Just (idleCount, m))
-        | idleCount >= mIdleConnectionCount man = (Just (idleCount, m), Just ci)
+    go _ ManagerClosed = (ManagerClosed , connectionClose ci)
+    go now mc@(ManagerOpen idleCount m)
+        | idleCount >= mIdleConnectionCount man = (mc, connectionClose ci)
         | otherwise = case Map.lookup key m of
             Nothing ->
                 let cnt' = idleCount + 1
-                 in cnt' `seq` (Just (cnt', Map.insert key (One ci now) m), Nothing)
+                    m' = ManagerOpen cnt' (Map.insert key (One ci now) m)
+                 in m' `seq` (m', return ())
             Just l ->
                 let (l', mx) = addToList now (mMaxConns man) ci l
                     cnt' = idleCount + maybe 0 (const 1) mx
-                 in cnt' `seq` (Just (cnt', Map.insert key l' m), mx)
+                    m' = ManagerOpen cnt' (Map.insert key l' m)
+                 in m' `seq` (m', maybe (return ()) connectionClose mx)
 
 -- | Add a new element to the list, up to the given maximum number. If we're
 -- already at the maximum, return the new value as leftover.
@@ -135,7 +138,7 @@ newManager ms = do
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
-    mapRef <- I.newIORef (Just (0, Map.empty))
+    mapRef <- I.newIORef $! ManagerOpen 0 Map.empty
     wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
     _ <- forkIO $ reap wmapRef
     let manager = Manager
@@ -152,8 +155,7 @@ newManager ms = do
     return manager
 
 -- | Collect and destroy any stale connections.
-reap :: Weak (I.IORef (Maybe (Int, Map.Map ConnKey (NonEmptyList Connection))))
-     -> IO ()
+reap :: Weak (I.IORef ConnsMap) -> IO ()
 reap wmapRef =
     mask_ loop
   where
@@ -167,16 +169,13 @@ reap wmapRef =
     goMapRef mapRef = do
         now <- getCurrentTime
         let isNotStale time = 30 `addUTCTime` time >= now
-        mtoDestroy <- I.atomicModifyIORef mapRef (findStaleWrap isNotStale)
-        case mtoDestroy of
-            Nothing -> return () -- manager is closed
-            Just toDestroy -> do
-                mapM_ safeConnClose toDestroy
-                loop
-    findStaleWrap _ Nothing = (Nothing, Nothing)
-    findStaleWrap isNotStale (Just (idleCount, m)) =
+        toDestroy <- I.atomicModifyIORef mapRef (findStaleWrap isNotStale)
+        mapM_ safeConnClose toDestroy
+        loop
+    findStaleWrap _ ManagerClosed = (ManagerClosed, [])
+    findStaleWrap isNotStale (ManagerOpen idleCount m) =
         let (x, y) = findStale isNotStale m
-         in (Just (idleCount - length y, x), Just y)
+         in (ManagerOpen (idleCount - length y) x, y)
     findStale isNotStale =
         findStale' id id . Map.toList
       where
@@ -252,11 +251,13 @@ neFromList xs =
 closeManager :: Manager -> IO ()
 closeManager = closeManager' . mConns
 
-closeManager' :: I.IORef (Maybe (Int, Map.Map ConnKey (NonEmptyList Connection)))
+closeManager' :: I.IORef ConnsMap
               -> IO ()
 closeManager' connsRef = mask_ $ do
-    m <- I.atomicModifyIORef connsRef $ \x -> (Nothing, x)
-    mapM_ (nonEmptyMapM_ safeConnClose) $ maybe [] (Map.elems . snd) m
+    !m <- I.atomicModifyIORef connsRef $ \x -> (ManagerClosed, x)
+    case m of
+        ManagerClosed -> return ()
+        ManagerOpen _ m -> mapM_ (nonEmptyMapM_ safeConnClose) $ Map.elems m
 
 -- | Create, use and close a 'Manager'.
 --
