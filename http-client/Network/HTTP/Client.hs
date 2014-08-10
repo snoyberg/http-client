@@ -23,6 +23,17 @@
 -- 'withManager' 'defaultManagerSettings'
 -- @
 --
+-- While generally speaking it is a good idea to share a single @Manager@
+-- throughout your application, there are cases where it makes more sense to
+-- create and destroy @Manager@s more frequently. As an example, if you have an
+-- application which will make a large number of requests to different hosts,
+-- and will never make more than one connection to a single host, then sharing
+-- a @Manager@ will result in idle connections being kept open longer than
+-- necessary. In such a situation, it makes sense to use @withManager@ around
+-- each new request, to avoid running out of file descriptors. (Future versions
+-- of http-client will automatically close connections when too many idle
+-- connections are open.)
+--
 -- The next core component is a @Request@, which represents a single HTTP
 -- request to be sent to a specific server. @Request@s allow for many settings
 -- to control exact how they function, but usually the simplest approach for
