@@ -366,7 +366,7 @@ data Request = Request
     , responseTimeout :: Maybe Int
     -- ^ Number of microseconds to wait for a response. If
     -- @Nothing@, will wait indefinitely. Default: use
-    -- 'managerResponseTimeout' (which by default is 5 seconds).
+    -- 'managerResponseTimeout' (which by default is 30 seconds).
     --
     -- Since 0.1.0
     , getConnectionWrapper :: Maybe Int
@@ -467,7 +467,7 @@ data ManagerSettings = ManagerSettings
       -- ^ Default timeout (in microseconds) to be applied to requests which do
       -- not provide a timeout value.
       --
-      -- Default is 5 seconds
+      -- Default is 30 seconds
       --
       -- Since 0.1.0
     , managerRetryableException :: SomeException -> Bool
