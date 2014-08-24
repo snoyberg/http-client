@@ -49,6 +49,7 @@
 -- > import Data.Time.Clock
 -- > import Data.Time.Calendar
 -- > import qualified Control.Exception as E
+-- > import Network.HTTP.Types.Status (statusCode)
 -- >
 -- > past :: UTCTime
 -- > past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -73,9 +74,9 @@
 -- > main = withSocketsDo $ do
 -- >      request' <- parseUrl "http://example.com/secret-page"
 -- >      let request = request' { cookieJar = Just $ createCookieJar [cookie] }
--- >      E.catch (withManager $ httpLbs request)
+-- >      (fmap Just (withManager $ httpLbs request)) `E.catch`
 -- >              (\(StatusCodeException s _ _) ->
--- >                if statusCode==403 then putStrLn "login failed" else return ())
+-- >                if statusCode s==403 then (putStrLn "login failed" >> return Nothing) else return Nothing)
 --
 -- Any network code on Windows requires some initialization, and the network
 -- library provides withSocketsDo to perform it. Therefore, proper usage of
