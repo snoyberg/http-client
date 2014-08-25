@@ -114,7 +114,7 @@ module Network.HTTP.Client
     , NeedsPopper
     , GivesPopper
       -- * Response
-    , Response
+    , Response(..)
     , responseStatus
     , responseVersion
     , responseHeaders
