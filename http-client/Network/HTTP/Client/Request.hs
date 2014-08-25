@@ -372,4 +372,4 @@ requestBuilder req Connection {..} =
 --
 -- Since 0.3.6
 setQueryString :: [(S.ByteString, Maybe S.ByteString)] -> Request -> Request
-setQueryString qs req = req { queryString = W.renderQuery False qs }
+setQueryString qs req = req { queryString = W.renderQuery True qs }
