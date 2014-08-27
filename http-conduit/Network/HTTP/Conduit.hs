@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                   #-}
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
@@ -305,9 +306,15 @@ http :: MonadResource m
      -> m (Response (ResumableSource m S.ByteString))
 http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
+#if MIN_VERSION_conduit(1, 2, 0)
+    let rsrc = CI.ResumableSource
+            (flip CI.unConduitM CI.Done $ HCC.bodyReaderSource $ responseBody res)
+            (release key)
+#else
     let rsrc = CI.ResumableSource
             (HCC.bodyReaderSource $ responseBody res)
             (release key)
+#endif
     return res { responseBody = rsrc }
 
 requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody
