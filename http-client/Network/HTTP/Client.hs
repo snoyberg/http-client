@@ -85,6 +85,8 @@ module Network.HTTP.Client
     , managerRetryableException
     , managerWrapIOException
     , managerIdleConnectionCount
+      -- *** Helpers
+    , rawConnectionModifySocket
       -- * Request
     , parseUrl
     , applyBasicAuth

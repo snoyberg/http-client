@@ -101,11 +101,12 @@ socketConnection socket = makeConnection
     (sendAll socket)
     (sClose socket)
 
-openSocketConnection :: Maybe HostAddress
+openSocketConnection :: (Socket -> IO ())
+                     -> Maybe HostAddress
                      -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
-openSocketConnection hostAddress host port = do
+openSocketConnection tweakSocket hostAddress host port = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
@@ -132,6 +133,7 @@ openSocketConnection hostAddress host port = do
             (\sock -> do
                 NS.setSocketOption sock NS.NoDelay 1
                 NS.connect sock (NS.addrAddress addr)
+                tweakSocket sock
                 socketConnection sock)
 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a

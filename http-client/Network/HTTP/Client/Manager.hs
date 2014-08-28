@@ -12,6 +12,7 @@ module Network.HTTP.Client.Manager
     , getConn
     , failedConnectionException
     , defaultManagerSettings
+    , rawConnectionModifySocket
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -47,13 +48,22 @@ import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
 
+-- | A value for the @managerRawConnection@ setting, but also allows you to
+-- modify the underlying @Socket@ to set additional settings. For a motivating
+-- use case, see: <https://github.com/snoyberg/http-client/issues/71>.
+--
+-- Since 0.3.8
+rawConnectionModifySocket :: (NS.Socket -> IO ())
+                          -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
+rawConnectionModifySocket = return . openSocketConnection
+
 -- | Default value for @ManagerSettings@.
 --
 -- Since 0.1.0
 defaultManagerSettings :: ManagerSettings
 defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
-    , managerRawConnection = return openSocketConnection
+    , managerRawConnection = return $ openSocketConnection (const $ return ())
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
     , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwIO TlsNotSupported
     , managerResponseTimeout = Just 30000000
