@@ -44,11 +44,15 @@ brReadSome brRead =
 brEmpty :: BodyReader
 brEmpty = return S.empty
 
-brAddCleanup :: IO () -> BodyReader -> BodyReader
+brAddCleanup :: IO () -> BodyReader -> IO BodyReader
 brAddCleanup cleanup brRead = do
-    bs <- brRead
-    when (S.null bs) cleanup
-    return bs
+    ref <- newIORef False
+    return $ do
+        bs <- brRead
+        when (S.null bs) $ do
+            done <- atomicModifyIORef ref $ (,) True
+            unless done cleanup
+        return bs
 
 -- | Strictly consume all remaining chunks of data from the stream.
 --
