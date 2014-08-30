@@ -8,6 +8,7 @@ module Network.HTTP.Client.Core
     , httpRaw
     , responseOpen
     , responseClose
+    , applyCheckStatus
     , httpRedirect
     ) where
 
