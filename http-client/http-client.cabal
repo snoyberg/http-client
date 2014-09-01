@@ -67,6 +67,7 @@ test-suite spec
                        Network.HTTP.Client.BodySpec
                        Network.HTTP.Client.HeadersSpec
                        Network.HTTP.Client.RequestSpec
+                       Network.HTTP.Client.RequestBodySpec
   build-depends:       base
                      , http-client
                      , hspec
