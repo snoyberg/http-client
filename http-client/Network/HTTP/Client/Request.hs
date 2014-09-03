@@ -31,7 +31,7 @@ import Numeric (showHex)
 
 import Data.Default.Class (Default (def))
 
-import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO)
+import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar)
 
 import qualified Data.ByteString as S
@@ -291,8 +291,11 @@ requestBuilder req Connection {..} =
             RequestBodyLBS lbs -> (Just $ L.length lbs, writeBuilder $ builder `mappend` fromLazyByteString lbs)
             RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, writeBuilder $ builder `mappend` fromByteString bs)
             RequestBodyBuilder i b -> (Just $ i, writeBuilder $ builder `mappend` b)
-            RequestBodyStream i stream -> (Just i, writeBuilder builder >> writeStream False stream)
-            RequestBodyStreamChunked stream -> (Nothing, writeBuilder builder >> writeStream True stream)
+
+            -- See https://github.com/snoyberg/http-client/issues/74 for usage
+            -- of flush here.
+            RequestBodyStream i stream -> (Just i, writeBuilder (builder `mappend` flush) >> writeStream False stream)
+            RequestBodyStreamChunked stream -> (Nothing, writeBuilder (builder `mappend` flush) >> writeStream True stream)
 
     writeStream isChunked withStream =
         withStream loop
