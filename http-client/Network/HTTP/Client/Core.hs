@@ -10,7 +10,6 @@ module Network.HTTP.Client.Core
     , responseClose
     , applyCheckStatus
     , httpRedirect
-    , cacheRequestBody
     ) where
 
 import Network.HTTP.Types
@@ -26,9 +25,7 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import Data.Monoid
-import Control.Monad (void, unless)
-import Data.Word (Word)
-import Data.IORef
+import Control.Monad (void)
 
 -- | Perform a @Request@ using a connection acquired from the given @Manager@,
 -- and then provide the @Response@ to the given function. This function is
@@ -227,46 +224,3 @@ httpRedirect count0 http' req0 = go count0 req0 []
 -- Since 0.1.0
 responseClose :: Response a -> IO ()
 responseClose = runResponseClose . responseClose'
-
--- | Cache a request body so it can be sent multiple times. This is necessary
--- if your provided request body cannot naturally be used multiple times, since
--- http-client will ocassionally need to send bodies twice (e.g., redirects,
--- broken reused connections.
---
--- The first argument indicates after how many bytes to switch over to storing
--- the cache on disk instead of in memory. If you'd like to always use memory,
--- provide @maxBound@ as an argument, but be aware that that's rather dangerous
--- for memory exhaustion.
---
--- Since 0.3.9
-cacheRequestBody :: Word -- ^ byte cutoff for memory storage
-                 -> RequestBody
-                 -> IO RequestBody
-cacheRequestBody len (RequestBodyStream x y) = RequestBodyStream x `fmap` cacheP len y
-cacheRequestBody len (RequestBodyStreamChunked y) = RequestBodyStreamChunked `fmap` cacheP len y
-cacheRequestBody _ x = return x
-
-data CacheState = CSMemory {-# UNPACK #-} !Word ([S.ByteString] -> [S.ByteString])
-                | CSComplete [S.ByteString]
-cacheP :: Word -> GivesPopper () -> IO (GivesPopper ())
-cacheP maxMem inner = do
-    ref0 <- newIORef Nothing
-    return $ \needs -> do
-        cs <- readIORef ref0
-        case cs of
-            -- FIXME does not yet implement file-based storage
-            Nothing -> do
-                ref <- newIORef id
-                inner $ \popper -> needs $ do
-                    bs <- popper
-                    unless (S.null bs) $
-                        atomicModifyIORef ref $ \front -> (front . (bs:), ())
-                    return bs
-                front <- readIORef ref
-                writeIORef ref0 $ Just $ front []
-            Just bss0 -> do
-                ref <- newIORef bss0
-                needs $ atomicModifyIORef ref $ \bss ->
-                    case bss of
-                        [] -> ([], S.empty)
-                        bs:bss' -> (bss', bs)

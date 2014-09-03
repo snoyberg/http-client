@@ -115,7 +115,6 @@ module Network.HTTP.Client
     , Popper
     , NeedsPopper
     , GivesPopper
-    , cacheRequestBody
       -- * Response
     , Response
     , responseStatus
