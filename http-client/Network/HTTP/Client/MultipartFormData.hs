@@ -96,9 +96,9 @@ instance Show Part where
             . showString " "
             . showsPrec 11 c
             . showString " "
-            . showString "<m (RequestBody m)>"
-            . showString " "
             . showsPrec 11 h
+            . showString " "
+            . showString "<m (RequestBody m)>"
 
 -- | Make a 'Part' whose content is a strict 'BS.ByteString'.
 --
