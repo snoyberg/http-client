@@ -23,7 +23,7 @@
 module Network.HTTP.Client.MultipartFormData
     (
     -- * Part type
-     Part(..)
+     Part()
     -- * Constructing parts
     ,partBS
     ,partLBS
@@ -32,6 +32,8 @@ module Network.HTTP.Client.MultipartFormData
     ,partFileSourceChunked
     ,partFileRequestBody
     ,partFileRequestBodyM
+    -- * Headers
+    ,addPartHeaders
     -- * Building form data
     ,formDataBody
     ,formDataBodyWithBoundary
@@ -45,8 +47,9 @@ module Network.HTTP.Client.MultipartFormData
 
 import Network.HTTP.Client
 import Network.Mime
-import Network.HTTP.Types (hContentType, methodPost)
+import Network.HTTP.Types (hContentType, methodPost, Header())
 import Data.Monoid ((<>))
+import Data.Foldable (foldMap)
 
 import Blaze.ByteString.Builder
 
@@ -54,6 +57,8 @@ import Data.Text
 import qualified Data.Text.Encoding as TE
 import qualified Data.ByteString.Lazy as BL
 import qualified Data.ByteString as BS
+
+import qualified Data.CaseInsensitive as CI
 
 import Control.Monad.Trans.State.Strict (state, runState)
 import Control.Monad.IO.Class
@@ -72,12 +77,13 @@ data Part = Part
     { partName :: Text -- ^ Name of the corresponding \<input\>
     , partFilename :: Maybe String -- ^ A file name, if this is an attached file
     , partContentType :: Maybe MimeType -- ^ Content type
+    , partHeaders :: [Header] -- ^ Lis of additional headers
     , partGetBody :: IO RequestBody -- ^ Action in m which returns the body
                                    -- of a message.
     }
 
 instance Show Part where
-    showsPrec d (Part n f c _) =
+    showsPrec d (Part n f c h _) =
         showParen (d>=11) $ showString "Part "
             . showsPrec 11 n
             . showString " "
@@ -86,6 +92,8 @@ instance Show Part where
             . showsPrec 11 c
             . showString " "
             . showString "<m (RequestBody m)>"
+            . showString " "
+            . showsPrec 11 h
 
 -- | Make a 'Part' whose content is a strict 'BS.ByteString'.
 --
@@ -94,7 +102,7 @@ instance Show Part where
 partBS :: Text              -- ^ Name of the corresponding \<input\>.
        -> BS.ByteString     -- ^ The body for this 'Part'.
        -> Part
-partBS n b = Part n mempty mempty $ return $ RequestBodyBS b
+partBS n b = Part n mempty mempty mempty $ return $ RequestBodyBS b
 
 -- | Make a 'Part' whose content is a lazy 'BL.ByteString'.
 --
@@ -103,7 +111,7 @@ partBS n b = Part n mempty mempty $ return $ RequestBodyBS b
 partLBS :: Text             -- ^ Name of the corresponding \<input\>.
         -> BL.ByteString    -- ^ The body for this 'Part'.
         -> Part
-partLBS n b = Part n mempty mempty $ return $ RequestBodyLBS b
+partLBS n b = Part n mempty mempty mempty $ return $ RequestBodyLBS b
 
 -- | Make a 'Part' from a file.
 --
@@ -185,15 +193,19 @@ partFileRequestBodyM :: Text        -- ^ Name of the corresponding \<input\>.
                      -> IO RequestBody -- ^ Action that will supply data to upload.
                      -> Part
 partFileRequestBodyM n f rqb =
-    Part n (Just f) (Just $ defaultMimeLookup $ pack f) rqb
+    Part n (Just f) (Just $ defaultMimeLookup $ pack f) mempty rqb
 
 {-# INLINE cp #-}
 cp :: BS.ByteString -> RequestBody
 cp bs = RequestBodyBuilder (fromIntegral $ BS.length bs) $ copyByteString bs
 
+-- | Add a list of additional headers to this 'Part'.
+addPartHeaders :: Part -> [Header] -> Part
+addPartHeaders p hs = p { partHeaders = partHeaders p <> hs }
+
 renderPart :: BS.ByteString     -- ^ Boundary between parts.
            -> Part -> IO RequestBody
-renderPart boundary (Part name mfilename mcontenttype get) = liftM render get
+renderPart boundary (Part name mfilename mcontenttype hdrs get) = liftM render get
   where render renderBody =
             cp "--" <> cp boundary <> cp "\r\n"
          <> cp "Content-Disposition: form-data; name=\""
@@ -208,6 +220,11 @@ renderPart boundary (Part name mfilename mcontenttype get) = liftM render get
                         <> cp "Content-Type: "
                         <> cp ct
                 _ -> mempty)
+         <> foldMap (\(k, v) ->
+               cp "\r\n"
+            <> cp (CI.original k)
+            <> cp ": "
+            <> cp v) hdrs
          <> cp "\r\n\r\n"
          <> renderBody <> cp "\r\n"
 
