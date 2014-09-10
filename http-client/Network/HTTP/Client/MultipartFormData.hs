@@ -24,6 +24,11 @@ module Network.HTTP.Client.MultipartFormData
     (
     -- * Part type
      Part()
+    ,partName
+    ,partFilename
+    ,partContentType
+    ,partHeaders
+    ,partGetBody
     -- * Constructing parts
     ,partBS
     ,partLBS
@@ -77,7 +82,7 @@ data Part = Part
     { partName :: Text -- ^ Name of the corresponding \<input\>
     , partFilename :: Maybe String -- ^ A file name, if this is an attached file
     , partContentType :: Maybe MimeType -- ^ Content type
-    , partHeaders :: [Header] -- ^ Lis of additional headers
+    , partHeaders :: [Header] -- ^ List of additional headers
     , partGetBody :: IO RequestBody -- ^ Action in m which returns the body
                                    -- of a message.
     }
