@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.3.8.2
+version:             0.4.0
 synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
 description:         This codebase has been refactored from http-conduit.
 homepage:            https://github.com/snoyberg/http-client
@@ -9,7 +9,7 @@ author:              Michael Snoyman
 maintainer:          michael@snoyman.com
 category:            Network
 build-type:          Simple
-extra-source-files:  README.md
+extra-source-files:  README.md ChangeLog.md
 cabal-version:       >=1.10
 
 flag network-uri

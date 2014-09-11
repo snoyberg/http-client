@@ -23,7 +23,7 @@
 module Network.HTTP.Client.MultipartFormData
     (
     -- * Part type
-     Part()
+     Part
     ,partName
     ,partFilename
     ,partContentType
