@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         2.1.4.3
+version:         2.1.4.4
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -55,7 +55,7 @@ test-suite test
                  , bytestring
                  , text
                  , transformers
-                 , conduit
+                 , conduit >= 1.1
                  , utf8-string
                  , case-insensitive
                  , lifted-base
@@ -65,7 +65,6 @@ test-suite test
                  , wai-conduit
                  , http-types
                  , cookie
-                 , network-conduit >= 0.6
                  , http-client
                  , http-conduit
                  , conduit-extra
