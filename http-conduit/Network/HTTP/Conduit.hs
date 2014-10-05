@@ -202,7 +202,7 @@ module Network.HTTP.Conduit
 
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ResumableSource, ($$+-), await, ($$++), ($$+), Source)
+import           Data.Conduit                 (ResumableSource, ($$+-), await, ($$++), ($$+), Source, addCleanup)
 import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
@@ -308,11 +308,11 @@ http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
 #if MIN_VERSION_conduit(1, 2, 0)
     let rsrc = CI.ResumableSource
-            (flip CI.unConduitM CI.Done $ HCC.bodyReaderSource $ responseBody res)
+            (flip CI.unConduitM CI.Done $ addCleanup (const $ release key) $ HCC.bodyReaderSource $ responseBody res)
             (release key)
 #else
     let rsrc = CI.ResumableSource
-            (HCC.bodyReaderSource $ responseBody res)
+            (addCleanup (const $ release key) $ HCC.bodyReaderSource $ responseBody res)
             (release key)
 #endif
     return res { responseBody = rsrc }
