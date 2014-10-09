@@ -173,7 +173,7 @@ defaultRedirectHandler manager req = do
     let mNextReq = redirReq req res
     case mNextReq of
       Nothing -> return $ Right res
-      Just nextReq -> Left . (,req) <$> defaultMapRes res
+      Just nextReq -> Left . (,nextReq) <$> defaultMapRes res
 
  where
    redirReq req (Response status _ headers _ jar _  ) =
