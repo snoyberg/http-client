@@ -8,6 +8,7 @@ module Network.HTTP.Client.Core
     , httpNoBody
     , httpRaw
     , responseOpen
+    , responseOpen'
     , responseClose
     , applyCheckStatus
     , httpRedirect
@@ -162,30 +163,7 @@ responseOpen' req0 manager = mWrapIOException manager $ do
             else go (redirectCount req0) req0
     maybe (return res) throwIO =<< applyCheckStatus req0 (checkStatus req0) lastRes
   where
-    go count req' = httpRedirect count (defaultRedirectHandler manager) id req'
-
-defaultRedirectHandler
-     :: Manager
-     -> Request
-     -> IO (Either (Response L.ByteString, Request) (Response BodyReader))
-defaultRedirectHandler manager req = do
-    res <- httpRaw req manager
-    let mNextReq = redirReq req res
-    case mNextReq of
-      Nothing -> return $ Right res
-      Just nextReq -> Left . (,nextReq) <$> defaultMapRes res
-
- where
-   redirReq req (Response status _ headers _ jar _  ) =
-       getRedirectedRequest req headers jar (statusCode status)
-
-   -- By default allow the original connection to return to the connection pool
-   -- immediately by flushing the body.  If the response body is too large,
-   -- don't flush, but instead just close the connection.
-   defaultMapRes :: Response BodyReader -> IO (Response L.ByteString)
-   defaultMapRes res = flip finally (responseClose res) $ do
-     let maxFlush = 1024
-     T.mapM (flip brReadSome maxFlush) res
+    go count req' = httpRedirect' count (defaultRedirectHandler manager) id req'
 
 -- | Apply 'Request'\'s 'checkStatus' and return resulting exception if any.
 applyCheckStatus
@@ -219,19 +197,39 @@ applyCheckStatus req checkStatus' res =
     toStrict' = S.concat . L.toChunks
 #endif
 
--- | Redirect logic.
+-- | @httpRedirect c f req0@ will call @f@ with the current request until it
+-- returns Nothing in the 'snd' element of the tupel and return 'fst' of the
+-- same tupel. The loop is executad at most @c@ times after which a
+-- 'TooManyRedirects' exception will be thrown.
 httpRedirect
      :: Int -- ^ 'redirectCount'
+     -> (Request -> IO (Response BodyReader, Maybe Request))
+     -- ^ Function which performs a request and returns a response, and possibly
+     -- another request if there's a redirect.
+     -> Request
+     -> IO (Response BodyReader)
+httpRedirect count0 http req0 =
+    snd . snd <$> httpRedirect' count0 http' id req0
+ where
+   http' req = do
+     (res, mNextReq) <- http req
+     case mNextReq of
+       Nothing -> return $ Right res
+       Just nextReq -> Left . (,nextReq) <$> defaultMapRes res
+
+-- | @httpRedirect'@ is like 'httpRedirect' but keeps track of intermediary
+-- responses.
+httpRedirect'
+     :: Int -- ^ 'redirectCount'
      -> (Request -> IO (Either (Response b, Request) (Response c)))
-     -- ^ Function which performs a request and either returns returns a
-     -- response and another request if there is a redirect or returns the final
-     -- response.
+     -- ^ Function which performs a request and either returns a response and
+     -- another request if there is a redirect or returns the final response.
      -> (b -> L.ByteString)
      -- ^ Function to turn the body of intermediary responses into a bytestring
      -- for inclusion in a 'TooManyRedirects' exception.
      -> Request
      -> IO ([(Request, Response b)], (Request, Response c))
-httpRedirect count0 http' bodyToBS req0 =
+httpRedirect' count0 http' bodyToBS req0 =
     go count0 req0 []
   where
     go count _ rs | count < 0 =
@@ -252,3 +250,27 @@ httpRedirect count0 http' bodyToBS req0 =
 -- Since 0.1.0
 responseClose :: Response a -> IO ()
 responseClose = runResponseClose . responseClose'
+
+-- | Default function to be used as the second argument for 'httpRedirect''
+defaultRedirectHandler
+     :: Manager
+     -> Request
+     -> IO (Either (Response L.ByteString, Request) (Response BodyReader))
+defaultRedirectHandler manager req = do
+    res <- httpRaw req manager
+    let mNextReq = redirReq req res
+    case mNextReq of
+      Nothing -> return $ Right res
+      Just nextReq -> Left . (,nextReq) <$> defaultMapRes res
+
+ where
+   redirReq req (Response status _ headers _ jar _  ) =
+       getRedirectedRequest req headers jar (statusCode status)
+
+-- | By default allow the original connection to return to the connection pool
+-- immediately by flushing the body.  If the response body is too large, don't
+-- flush, but instead just close the connection.
+defaultMapRes :: Response BodyReader -> IO (Response L.ByteString)
+defaultMapRes res = flip finally (responseClose res) $ do
+  let maxFlush = 1024
+  T.mapM (flip brReadSome maxFlush) res
