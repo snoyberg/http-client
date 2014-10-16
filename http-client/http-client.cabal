@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.4.0.1
+version:             0.4.1
 synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
 description:         This codebase has been refactored from http-conduit.
 homepage:            https://github.com/snoyberg/http-client
@@ -51,6 +51,7 @@ library
                      , random
                      , filepath
                      , mime-types
+                     , ghc-prim
   if flag(network-uri)
     build-depends: network >= 2.6, network-uri >= 2.6
   else

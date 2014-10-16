@@ -1,3 +1,8 @@
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE DeriveGeneric #-}
 -- | This is the main entry point for using http-client. Used by itself, this
 -- module provides low-level access for streaming request and response bodies,
 -- and only non-secure HTTP connections. Helper packages such as http-conduit
@@ -70,6 +75,13 @@ module Network.HTTP.Client
     , httpNoBody
     , responseOpen
     , responseClose
+      -- ** Tracking redirect history
+    , withResponseHistory
+    , responseOpenHistory
+    , HistoriedResponse
+    , hrRedirects
+    , hrFinalRequest
+    , hrFinalResponse
       -- * Connection manager
     , Manager
     , newManager
@@ -142,3 +154,76 @@ import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Types
+
+import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
+import qualified Data.ByteString.Lazy as L
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
+import Network.HTTP.Types (statusCode)
+import GHC.Generics (Generic)
+import Data.Typeable (Typeable)
+import Control.Exception (bracket)
+
+-- | A datatype holding information on redirected requests and the final response.
+--
+-- Since 0.4.1
+data HistoriedResponse body = HistoriedResponse
+    { hrRedirects :: [(Request, Response L.ByteString)]
+    -- ^ Requests which resulted in a redirect, together with their responses.
+    -- The response contains the first 1024 bytes of the body.
+    --
+    -- Since 0.4.1
+    , hrFinalRequest :: Request
+    -- ^ The final request performed.
+    --
+    -- Since 0.4.1
+    , hrFinalResponse :: Response body
+    -- ^ The response from the final request.
+    --
+    -- Since 0.4.1
+    }
+    deriving (Functor, Traversable, Foldable, Show, Typeable, Generic)
+
+-- | A variant of @responseOpen@ which keeps a history of all redirects
+-- performed in the interim, together with the first 1024 bytes of their
+-- response bodies.
+--
+-- Since 0.4.1
+responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
+responseOpenHistory req0 man = do
+    reqRef <- newIORef req0
+    historyRef <- newIORef id
+    let go req = do
+            res <- httpRaw req man
+            case getRedirectedRequest
+                    req
+                    (responseHeaders res)
+                    (responseCookieJar res)
+                    (statusCode $ responseStatus res) of
+                Nothing -> return (res, Nothing)
+                Just req' -> do
+                    writeIORef reqRef req'
+                    body <- brReadSome (responseBody res) 1024
+                    modifyIORef historyRef (. ((req, res { responseBody = body }):))
+                    return (res, Just req')
+    res <- httpRedirect (redirectCount req0) go req0
+    reqFinal <- readIORef reqRef
+    history <- readIORef historyRef
+    return HistoriedResponse
+        { hrRedirects = history []
+        , hrFinalRequest = reqFinal
+        , hrFinalResponse = res
+        }
+
+-- | A variant of @withResponse@ which keeps a history of all redirects
+-- performed in the interim, together with the first 1024 bytes of their
+-- response bodies.
+--
+-- Since 0.4.1
+withResponseHistory :: Request
+                    -> Manager
+                    -> (HistoriedResponse BodyReader -> IO a)
+                    -> IO a
+withResponseHistory req man = bracket
+    (responseOpenHistory req man)
+    (responseClose . hrFinalResponse)
