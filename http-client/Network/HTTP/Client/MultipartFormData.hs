@@ -3,14 +3,14 @@
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- > import Network
--- > import Network.HTTP.Conduit
--- > import Network.HTTP.Conduit.MultipartFormData
+-- > import Network.HTTP.Client
+-- > import Network.HTTP.Client.MultipartFormData
 -- >
 -- > import Data.Text.Encoding as TE
 -- >
 -- > import Control.Monad
 -- >
--- > main = withSocketsDo $ withManager $ \m -> do
+-- > main = withSocketsDo $ void $ withManager defaultManagerSettings $ \m -> do
 -- >     req1 <- parseUrl "http://random-cat-photo.net/cat.jpg"
 -- >     res <- httpLbs req1 m
 -- >     req2 <- parseUrl "http://example.org/~friedrich/blog/addPost.hs"
