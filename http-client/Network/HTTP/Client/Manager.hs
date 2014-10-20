@@ -32,7 +32,7 @@ import Data.Text (Text)
 import qualified Data.Text as T
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (unless, join)
+import Control.Monad (unless, join, when, void)
 import Control.Exception (mask_, SomeException, bracket, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
@@ -47,6 +47,7 @@ import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
+import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
 
 -- | A value for the @managerRawConnection@ setting, but also allows you to
 -- modify the underlying @Socket@ to set additional settings. For a motivating
@@ -112,6 +113,7 @@ putSocket :: Manager -> ConnKey -> Connection -> IO ()
 putSocket man key ci = do
     now <- getCurrentTime
     join $ I.atomicModifyIORef (mConns man) (go now)
+    void $ tryPutMVar (mConnsBaton man) ()
   where
     go _ ManagerClosed = (ManagerClosed , connectionClose ci)
     go now mc@(ManagerOpen idleCount m)
@@ -153,10 +155,12 @@ newManager ms = do
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
     mapRef <- I.newIORef $! ManagerOpen 0 Map.empty
+    baton <- newEmptyMVar
     wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
-    _ <- forkIO $ reap wmapRef
+    _ <- forkIO $ reap baton wmapRef
     let manager = Manager
             { mConns = mapRef
+            , mConnsBaton = baton
             , mMaxConns = managerConnCount ms
             , mResponseTimeout = managerResponseTimeout ms
             , mRawConnection = rawConnection
@@ -169,8 +173,8 @@ newManager ms = do
     return manager
 
 -- | Collect and destroy any stale connections.
-reap :: Weak (I.IORef ConnsMap) -> IO ()
-reap wmapRef =
+reap :: MVar () -> Weak (I.IORef ConnsMap) -> IO ()
+reap baton wmapRef =
     mask_ loop
   where
     loop = do
@@ -183,8 +187,13 @@ reap wmapRef =
     goMapRef mapRef = do
         now <- getCurrentTime
         let isNotStale time = 30 `addUTCTime` time >= now
-        toDestroy <- I.atomicModifyIORef mapRef (findStaleWrap isNotStale)
+        (newMap, toDestroy) <- I.atomicModifyIORef mapRef $ \m ->
+            let (newMap, toDestroy) = findStaleWrap isNotStale m
+             in (newMap, (newMap, toDestroy))
         mapM_ safeConnClose toDestroy
+        case newMap of
+            ManagerOpen _ m | not $ Map.null m -> return ()
+            _ -> takeMVar baton
         loop
     findStaleWrap _ ManagerClosed = (ManagerClosed, [])
     findStaleWrap isNotStale (ManagerOpen idleCount m) =
