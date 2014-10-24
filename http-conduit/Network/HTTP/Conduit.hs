@@ -246,6 +246,10 @@ import           Network.HTTP.Client.Internal (Cookie (..), CookieJar (..),
 -- usage, you'll need to use @conduit@ packages's
 -- 'C.Source' returned by 'http'.
 --
+-- This function will 'throwIO' an 'HttpException' for any
+-- response with a non-2xx status code (besides 3xx redirects up
+-- to a limit of 10 redirects).
+--
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
 httpLbs :: MonadIO m => Request -> Manager -> m (Response L.ByteString)
