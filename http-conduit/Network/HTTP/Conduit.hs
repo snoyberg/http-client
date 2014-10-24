@@ -248,7 +248,8 @@ import           Network.HTTP.Client.Internal (Cookie (..), CookieJar (..),
 --
 -- This function will 'throwIO' an 'HttpException' for any
 -- response with a non-2xx status code (besides 3xx redirects up
--- to a limit of 10 redirects).
+-- to a limit of 10 redirects). This behavior can be modified by
+-- changing the 'checkStatus' field of your request.
 --
 -- Note: Unlike previous versions, this function will perform redirects, as
 -- specified by the 'redirectCount' setting.
