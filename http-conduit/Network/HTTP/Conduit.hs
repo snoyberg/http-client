@@ -124,6 +124,9 @@
 -- >     let settings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
 -- >     res <- withManagerSettings settings $ httpLbs request
 -- >     print res
+--
+-- For more information, please be sure to read the documentation in the
+-- "Network.HTTP.Client" module.
 
 module Network.HTTP.Conduit
     ( -- * Perform a request

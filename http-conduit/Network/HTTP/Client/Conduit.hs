@@ -2,6 +2,9 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes            #-}
 -- | A new, experimental API to replace "Network.HTTP.Conduit".
+--
+-- For more information, please be sure to read the documentation in the
+-- "Network.HTTP.Client" module.
 module Network.HTTP.Client.Conduit
     ( -- * Conduit-specific interface
       withResponse

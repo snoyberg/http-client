@@ -68,6 +68,12 @@
 -- the case of an invalid URI. In addition, if you leverage the @IsString@
 -- instance of the @Request@ value via @OverloadedStrings@, an invalid URI will
 -- result in a partial value. Caveat emptor!
+--
+-- Non-2xx responses: the default behavior of all functions in http-client is
+-- to automatically perform up to 10 redirects (response codes 301, 302, 303,
+-- and 307), and to throw a 'StatusCodeException' on all responses whose status
+-- are not in the 2xx range. These behaviors can be overridden by the
+-- 'redirectCount' and 'checkStatus' settings on a request, respectively.
 module Network.HTTP.Client
     ( -- * Performing requests
       withResponse
