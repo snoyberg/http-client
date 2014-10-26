@@ -18,7 +18,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.Default.Class (def)
 
 import qualified Network.HTTP.Types as W
-import Network.URI (parseURIReference)
+import Network.URI (parseURIReference, escapeURIString, isAllowedInURI)
 
 import Network.HTTP.Client.Types
 
@@ -56,7 +56,8 @@ getRedirectedRequest :: Request -> W.ResponseHeaders -> CookieJar -> Int -> Mayb
 getRedirectedRequest req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
-        req' <- setUriRelative req =<< parseURIReference (S8.unpack l')
+        let l = escapeURIString isAllowedInURI (S8.unpack l')
+        req' <- setUriRelative req =<< parseURIReference l
         return $
             if code == 302 || code == 303
                 -- According to the spec, this should *only* be for status code
