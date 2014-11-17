@@ -32,7 +32,7 @@ import Numeric (showHex)
 import Data.Default.Class (Default (def))
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
-import Blaze.ByteString.Builder.Char8 (fromChar)
+import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
 
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
@@ -203,6 +203,7 @@ instance Default Request where
                                 then throwIO exc
                                 else return (Just remainingTime, res)
         , cookieJar = Just def
+        , requestHttpVersion = W.http11
         }
 
 instance IsString Request where
@@ -359,7 +360,13 @@ requestBuilder req Connection {..} =
                     Nothing -> mempty
                     Just ('?', _) -> fromByteString $ queryString req
                     _ -> fromChar '?' <> fromByteString (queryString req))
-            <> fromByteString " HTTP/1.1\r\n"
+            <> (case requestHttpVersion req of
+                    W.HttpVersion 1 1 -> fromByteString " HTTP/1.1\r\n"
+                    W.HttpVersion 1 0 -> fromByteString " HTTP/1.0\r\n"
+                    version ->
+                        fromChar ' ' <>
+                        fromShow version <>
+                        fromByteString "\r\n")
             <> foldr
                 (\a b -> headerPairToBuilder a <> b)
                 (fromByteString "\r\n")

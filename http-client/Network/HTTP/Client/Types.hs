@@ -390,6 +390,13 @@ data Request = Request
     -- empty.
     --
     -- Since 0.1.0
+
+    , requestHttpVersion :: HttpVersion
+    -- ^ HTTP version to send to server.
+    --
+    -- Default: HTTP 1.1
+    --
+    -- Since 0.4.3
     }
     deriving T.Typeable
 
