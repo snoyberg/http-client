@@ -154,6 +154,7 @@ module Network.HTTP.Conduit
     , checkStatus
     , responseTimeout
     , cookieJar
+    , requestVersion
     , getConnectionWrapper
     , HCC.setQueryString
       -- *** Request body

@@ -391,7 +391,7 @@ data Request = Request
     --
     -- Since 0.1.0
 
-    , requestHttpVersion :: HttpVersion
+    , requestVersion :: HttpVersion
     -- ^ HTTP version to send to server.
     --
     -- Default: HTTP 1.1

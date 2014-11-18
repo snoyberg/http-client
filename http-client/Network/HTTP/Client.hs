@@ -128,7 +128,7 @@ module Network.HTTP.Client
     , checkStatus
     , responseTimeout
     , cookieJar
-    , requestHttpVersion
+    , requestVersion
       -- ** Request body
     , RequestBody (..)
     , Popper

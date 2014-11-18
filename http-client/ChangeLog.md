@@ -1,6 +1,6 @@
 ## 0.4.3
 
-Add `requestHttpVersion` field to `Request`.
+Add `requestVersion` field to `Request`.
 
 ## 0.4.2
 

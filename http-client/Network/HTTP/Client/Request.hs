@@ -157,6 +157,7 @@ instance Show Request where
         , "  rawBody              = " ++ show (rawBody x)
         , "  redirectCount        = " ++ show (redirectCount x)
         , "  responseTimeout      = " ++ show (responseTimeout x)
+        , "  requestVersion       = " ++ show (requestVersion x)
         , "}"
         ]
 
@@ -203,7 +204,7 @@ instance Default Request where
                                 then throwIO exc
                                 else return (Just remainingTime, res)
         , cookieJar = Just def
-        , requestHttpVersion = W.http11
+        , requestVersion = W.http11
         }
 
 instance IsString Request where
@@ -360,7 +361,7 @@ requestBuilder req Connection {..} =
                     Nothing -> mempty
                     Just ('?', _) -> fromByteString $ queryString req
                     _ -> fromChar '?' <> fromByteString (queryString req))
-            <> (case requestHttpVersion req of
+            <> (case requestVersion req of
                     W.HttpVersion 1 1 -> fromByteString " HTTP/1.1\r\n"
                     W.HttpVersion 1 0 -> fromByteString " HTTP/1.0\r\n"
                     version ->
