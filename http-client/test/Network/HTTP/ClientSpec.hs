@@ -104,3 +104,10 @@ spec = describe "Client" $ do
                     responseBody x `shouldBe` "hello"
         test False
         test True
+
+    it "managerModifyRequest" $ do
+        let modify req = return req { port = 80 }
+            settings = defaultManagerSettings { managerModifyRequest = modify }
+        withManager settings $ \man -> do
+            res <- httpLbs "http://httpbin.org:1234" man
+            responseStatus res `shouldBe` status200

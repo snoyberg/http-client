@@ -103,6 +103,7 @@ module Network.HTTP.Client
     , managerRetryableException
     , managerWrapIOException
     , managerIdleConnectionCount
+    , managerModifyRequest
       -- *** Helpers
     , rawConnectionModifySocket
       -- * Request

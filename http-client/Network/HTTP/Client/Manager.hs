@@ -92,6 +92,7 @@ defaultManagerSettings = ManagerSettings
                     Nothing -> se
          in handle $ throwIO . wrapper
     , managerIdleConnectionCount = 512
+    , managerModifyRequest = return
     }
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
@@ -169,6 +170,7 @@ newManager ms = do
             , mRetryableException = managerRetryableException ms
             , mWrapIOException = managerWrapIOException ms
             , mIdleConnectionCount = managerIdleConnectionCount ms
+            , mModifyRequest = managerModifyRequest ms
             }
     return manager
 

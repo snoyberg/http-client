@@ -502,6 +502,12 @@ data ManagerSettings = ManagerSettings
     -- Default: 512
     --
     -- Since 0.3.7
+    , managerModifyRequest :: Request -> IO Request
+    -- ^ Perform the given modification to a @Request@ before performing it.
+    --
+    -- Default: no modification
+    --
+    -- Since 0.4.4
     }
     deriving T.Typeable
 
@@ -529,6 +535,7 @@ data Manager = Manager
     , mRetryableException :: SomeException -> Bool
     , mWrapIOException :: forall a. IO a -> IO a
     , mIdleConnectionCount :: Int
+    , mModifyRequest :: Request -> IO Request
     }
     deriving T.Typeable
 

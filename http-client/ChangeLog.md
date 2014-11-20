@@ -1,3 +1,7 @@
+## 0.4.4
+
+Add `managerModifyRequest` field to `ManagerSettings`.
+
 ## 0.4.3
 
 Add `requestVersion` field to `Request`.

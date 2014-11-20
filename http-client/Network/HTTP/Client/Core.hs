@@ -71,7 +71,8 @@ httpRaw
      :: Request
      -> Manager
      -> IO (Response BodyReader)
-httpRaw req' m = do
+httpRaw req0 m = do
+    req' <- mModifyRequest m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
             now <- getCurrentTime
