@@ -95,18 +95,19 @@ makeConnection r w c = do
         , connectionClose = c
         }
 
-socketConnection :: Socket -> IO Connection
-socketConnection socket = makeConnection
-    (recv socket 4096)
+socketConnection :: Socket -> Int -> IO Connection
+socketConnection socket chunksize = makeConnection
+    (recv socket chunksize)
     (sendAll socket)
     (sClose socket)
 
 openSocketConnection :: (Socket -> IO ())
+                     -> Int -- ^ chunk size
                      -> Maybe HostAddress
                      -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
-openSocketConnection tweakSocket hostAddress host port = do
+openSocketConnection tweakSocket chunksize hostAddress host port = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
@@ -134,7 +135,7 @@ openSocketConnection tweakSocket hostAddress host port = do
                 NS.setSocketOption sock NS.NoDelay 1
                 NS.connect sock (NS.addrAddress addr)
                 tweakSocket sock
-                socketConnection sock)
+                socketConnection sock chunksize)
 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
 firstSuccessful []     _  = error "getAddrInfo returned empty list"

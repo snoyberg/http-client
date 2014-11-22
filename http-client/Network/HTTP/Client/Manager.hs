@@ -55,7 +55,7 @@ import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
 --
 -- Since 0.3.8
 rawConnectionModifySocket :: (NS.Socket -> IO ())
-                          -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
+                          -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocket = return . openSocketConnection
 
 -- | Default value for @ManagerSettings@.
@@ -68,7 +68,7 @@ rawConnectionModifySocket = return . openSocketConnection
 defaultManagerSettings :: ManagerSettings
 defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
-    , managerRawConnection = return $ openSocketConnection (const $ return ())
+    , managerRawConnection = return $ openSocketConnection (const $ return ()) 8192
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
     , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwIO TlsNotSupported
     , managerResponseTimeout = Just 30000000
