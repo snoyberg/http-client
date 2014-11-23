@@ -7,6 +7,7 @@ module Network.HTTP.Client.Connection
     , connectionDropTillBlankLine
     , dummyConnection
     , openSocketConnection
+    , openSocketConnectionSize
     , makeConnection
     ) where
 
@@ -102,12 +103,19 @@ socketConnection socket chunksize = makeConnection
     (sClose socket)
 
 openSocketConnection :: (Socket -> IO ())
-                     -> Int -- ^ chunk size
                      -> Maybe HostAddress
                      -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
-openSocketConnection tweakSocket chunksize hostAddress host port = do
+openSocketConnection f = openSocketConnectionSize f 8192
+
+openSocketConnectionSize :: (Socket -> IO ())
+                         -> Int -- ^ chunk size
+                         -> Maybe HostAddress
+                         -> String -- ^ host
+                         -> Int -- ^ port
+                         -> IO Connection
+openSocketConnectionSize tweakSocket chunksize hostAddress host port = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream

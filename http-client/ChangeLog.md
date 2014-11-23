@@ -1,3 +1,7 @@
+## 0.4.5
+
+Add `openSocketConnectionSize` and increase default chunk size to 8192.
+
 ## 0.4.4
 
 Add `managerModifyRequest` field to `ManagerSettings`.
