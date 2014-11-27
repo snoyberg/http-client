@@ -397,6 +397,13 @@ data Request = Request
     -- Default: HTTP 1.1
     --
     -- Since 0.4.3
+
+    , onRequestBodyException :: SomeException -> IO ()
+    -- ^ How to deal with exceptions thrown while sending the request.
+    --
+    -- Default: ignore @IOException@s, rethrow all other exceptions.
+    --
+    -- Since: 0.4.6
     }
     deriving T.Typeable
 

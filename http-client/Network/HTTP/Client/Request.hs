@@ -2,6 +2,7 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -42,7 +43,8 @@ import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
 
 import Control.Monad.IO.Class (liftIO)
-import Control.Exception (Exception, toException, throw, throwIO)
+import Control.Exception (Exception, toException, throw, throwIO, IOException)
+import qualified Control.Exception as E
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
@@ -53,6 +55,7 @@ import Network.HTTP.Client.Util (readDec, (<>))
 import System.Timeout (timeout)
 import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
+import Data.IORef
 
 -- | Convert a URL into a 'Request'.
 --
@@ -205,6 +208,10 @@ instance Default Request where
                                 else return (Just remainingTime, res)
         , cookieJar = Just def
         , requestVersion = W.http11
+        , onRequestBodyException = \se ->
+            case E.fromException se of
+                Just (_ :: IOException) -> return ()
+                Nothing -> throwIO se
         }
 
 instance IsString Request where
@@ -286,18 +293,33 @@ requestBuilder :: Request -> Connection -> IO ()
 requestBuilder req Connection {..} =
     bodySource
   where
+    checkBadSend f = f `E.catch` onRequestBodyException req
+
     writeBuilder = toByteStringIO connectionWrite
 
     (contentLength, bodySource) =
         case requestBody req of
-            RequestBodyLBS lbs -> (Just $ L.length lbs, writeBuilder $ builder `mappend` fromLazyByteString lbs)
-            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs, writeBuilder $ builder `mappend` fromByteString bs)
-            RequestBodyBuilder i b -> (Just $ i, writeBuilder $ builder `mappend` b)
+            RequestBodyLBS lbs -> (Just $ L.length lbs,
+                checkBadSend $ writeBuilder
+                             $ builder `mappend` fromLazyByteString lbs)
+            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs,
+                checkBadSend $ writeBuilder
+                             $ builder `mappend` fromByteString bs)
+            RequestBodyBuilder i b -> (Just i,
+                checkBadSend $ writeBuilder $ builder `mappend` b)
 
             -- See https://github.com/snoyberg/http-client/issues/74 for usage
             -- of flush here.
-            RequestBodyStream i stream -> (Just i, writeBuilder (builder `mappend` flush) >> writeStream False stream)
-            RequestBodyStreamChunked stream -> (Nothing, writeBuilder (builder `mappend` flush) >> writeStream True stream)
+            RequestBodyStream i stream -> (Just i, do
+                -- Don't check for a bad send on the headers themselves.
+                -- Ideally, we'd do the same thing for the other request body
+                -- types, but it would also introduce a performance hit since
+                -- we couldn't merge request headers and bodies together.
+                writeBuilder (builder `mappend` flush)
+                checkBadSend $ writeStream False stream)
+            RequestBodyStreamChunked stream -> (Nothing, do
+                writeBuilder (builder `mappend` flush)
+                checkBadSend $ writeStream True stream)
 
     writeStream isChunked withStream =
         withStream loop

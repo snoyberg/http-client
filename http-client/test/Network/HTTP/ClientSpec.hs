@@ -1,18 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
+import           Blaze.ByteString.Builder  (fromByteString)
 import           Control.Concurrent        (forkIO, threadDelay)
 import           Control.Concurrent.Async  (withAsync)
 import           Control.Exception         (bracket)
 import           Control.Monad             (forever, replicateM_)
+import           Data.Monoid               (mappend)
 import           Network                   (PortID (PortNumber), listenOn, withSocketsDo)
 import           Network.HTTP.Client
-import           Network.HTTP.Types        (status200)
+import           Network.HTTP.Types        (status200, status413)
 import           Network.Socket            (accept, sClose)
 import           Network.Socket.ByteString (recv, sendAll)
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
 import qualified Data.ByteString           as S
+import qualified Data.ByteString.Lazy      as L
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
 
 main :: IO ()
@@ -52,6 +55,24 @@ bad100Server extraHeaders inner = bracket
                 , "\r\nHTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n"
                 ]
             threadDelay 10000
+
+earlyClose413 :: (Int -> IO a) -> IO a
+earlyClose413 inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (sClose . snd)
+    $ \(port, lsocket) -> withAsync
+        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+        (const $ inner port)
+  where
+    app ad = do
+        let readHeaders front = do
+                newBS <- N.appRead ad
+                let bs = S.append front newBS
+                if "\r\n\r\n" `S.isInfixOf` bs
+                    then return ()
+                    else readHeaders bs
+        readHeaders S.empty
+        N.appWrite ad "HTTP/1.1 413 Too Large\r\ncontent-length: 7\r\n\r\ngoodbye"
 
 spec :: Spec
 spec = describe "Client" $ do
@@ -111,3 +132,14 @@ spec = describe "Client" $ do
         withManager settings $ \man -> do
             res <- httpLbs "http://httpbin.org:1234" man
             responseStatus res `shouldBe` status200
+
+    it "early close on a 413" $ earlyClose413 $ \port' -> do
+        withManager defaultManagerSettings $ \man -> do
+            res <- flip httpLbs man "http://localhost"
+                { port = port'
+                , checkStatus = \_ _ _ -> Nothing
+                , requestBody = RequestBodyStreamChunked
+                    ($ return (S.replicate 100000 65))
+                }
+            responseBody res `shouldBe` "goodbye"
+            responseStatus res `shouldBe` status413

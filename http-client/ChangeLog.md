@@ -1,3 +1,9 @@
+## 0.4.6
+
+Add `onRequestBodyException` to `Request` to allow for recovering from
+exceptions when sending the request. Most useful for servers which terminate
+the connection after sending a response body without flushing the request body.
+
 ## 0.4.5
 
 Add `openSocketConnectionSize` and increase default chunk size to 8192.
