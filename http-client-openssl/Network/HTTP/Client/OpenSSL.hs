@@ -28,7 +28,9 @@ opensslManagerSettings mkContext = defaultManagerSettings
         return $ \_ha host port -> do
             -- Copied/modified from openssl-streams
             let hints      = N.defaultHints
-                                { N.addrFlags = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
+                                { N.addrFlags      = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
+                                , N.addrFamily     = N.AF_INET
+                                , N.addrSocketType = N.Stream
                                 }
             (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host) (Just $ show port)
 
@@ -37,12 +39,13 @@ opensslManagerSettings mkContext = defaultManagerSettings
             let protocol   = N.addrProtocol addrInfo
             let address    = N.addrAddress addrInfo
 
-            sock <- N.socket family socketType protocol
-            N.connect sock address
-            ssl <- SSL.connection ctx sock
-            SSL.connect ssl
-            makeConnection
-                (SSL.read ssl 32752)
-                (SSL.write ssl)
-                (N.sClose sock)
+            bracketOnError (N.socket family socketType protocol) (N.close)
+                $ \sock -> do
+                    N.connect sock address
+                    ssl <- SSL.connection ctx sock
+                    SSL.connect ssl
+                    makeConnection
+                        (SSL.read ssl 32752)
+                        (SSL.write ssl)
+                        (N.close sock)
     }
