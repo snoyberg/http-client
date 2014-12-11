@@ -1,5 +1,5 @@
 name:                http-client-openssl
-version:             0.2.0.0
+version:             0.2.0.1
 synopsis:            http-client backend using the OpenSSL library.
 description:         Intended for use by higher-level libraries.
 homepage:            https://github.com/snoyberg/http-client
@@ -10,6 +10,7 @@ maintainer:          michael@snoyman.com
 category:            Network
 build-type:          Simple
 cabal-version:       >=1.10
+extra-source-files:  ChangeLog.md
 
 library
   exposed-modules:     Network.HTTP.Client.OpenSSL
