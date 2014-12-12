@@ -19,7 +19,7 @@ spec = describe "ResponseSpec" $ do
     let getResponse' conn = getResponse (const $ return ()) Nothing req conn
         Just req = parseUrl "http://localhost"
     it "basic" $ do
-        (conn, getOutput, getInput) <- dummyConnection
+        (conn, _, _) <- dummyConnection
             [ "HTTP/1.1 200 OK\r\n"
             , "Key1: Value1\r\n"
             , "Content-length: 11\r\n\r\n"
@@ -37,7 +37,7 @@ spec = describe "ResponseSpec" $ do
         pieces <- brConsume responseBody
         pieces `shouldBe` ["Hello", " W", "orld"]
     it "no length" $ do
-        (conn, getOutput, getInput) <- dummyConnection
+        (conn, _, _) <- dummyConnection
             [ "HTTP/1.1 200 OK\r\n"
             , "Key1: Value1\r\n\r\n"
             , "Hello"
@@ -53,7 +53,7 @@ spec = describe "ResponseSpec" $ do
         pieces <- brConsume responseBody
         pieces `shouldBe` ["Hello", " W", "orld\r\nHTTP/1.1"]
     it "chunked" $ do
-        (conn, getOutput, getInput) <- dummyConnection
+        (conn, _, _) <- dummyConnection
             [ "HTTP/1.1 200 OK\r\n"
             , "Key1: Value1\r\n"
             , "Transfer-encoding: chunked\r\n\r\n"
@@ -71,7 +71,7 @@ spec = describe "ResponseSpec" $ do
         pieces <- brConsume responseBody
         pieces `shouldBe` ["Hello", " W", "orld"]
     it "gzip" $ do
-        (conn, getOutput, getInput) <- dummyConnection
+        (conn, _, _) <- dummyConnection
             $ "HTTP/1.1 200 OK\r\n"
             : "Key1: Value1\r\n"
             : "Content-Encoding: gzip\r\n\r\n"

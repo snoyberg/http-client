@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Client.HeadersSpec where
 
-import           Network.HTTP.Client
 import           Network.HTTP.Client.Internal
 import           Network.HTTP.Types
 import           Test.Hspec
@@ -20,7 +19,7 @@ spec = describe "HeadersSpec" $ do
                 , "baz:bin\r\n\r"
                 , "\nignored"
                 ]
-        (connection, getOutput, getInput) <- dummyConnection input
+        (connection, _, _) <- dummyConnection input
         statusHeaders <- parseStatusHeaders connection
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
             [ ("foo", "bar")

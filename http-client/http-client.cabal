@@ -64,6 +64,32 @@ test-suite spec
   hs-source-dirs:      test
   default-language:    Haskell2010
   other-modules:       Network.HTTP.ClientSpec
+  build-depends:       base
+                     , http-client
+                     , hspec
+                     , monad-control
+                     , bytestring
+                     , text
+                     , http-types
+                     , blaze-builder
+                     , time
+                     , network
+                     , containers
+                     , transformers
+                     , deepseq
+                     , case-insensitive
+                     , base64-bytestring
+                     , zlib
+                     , async
+                     , streaming-commons >= 0.1.1
+
+
+test-suite spec-nonet
+  main-is:             Spec.hs
+  type:                exitcode-stdio-1.0
+  hs-source-dirs:      test-nonet
+  default-language:    Haskell2010
+  other-modules:       Network.HTTP.ClientSpec
                        Network.HTTP.Client.ResponseSpec
                        Network.HTTP.Client.BodySpec
                        Network.HTTP.Client.HeadersSpec
