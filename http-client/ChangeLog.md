@@ -1,3 +1,7 @@
+## 0.4.6.1
+
+Separate tests not requiring internet access. [#93](https://github.com/snoyberg/http-client/pull/93)
+
 ## 0.4.6
 
 Add `onRequestBodyException` to `Request` to allow for recovering from
