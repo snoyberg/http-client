@@ -13,7 +13,7 @@ main = hspec spec
 spec :: Spec
 spec = describe "Client" $ do
     it "works" $ withSocketsDo $ do
-        req <- parseUrl "http://www.yesodweb.com/"
+        req <- parseUrl "http://httpbin.org/"
         man <- newManager defaultManagerSettings
         res <- httpLbs req man
         responseStatus res `shouldBe` status200
