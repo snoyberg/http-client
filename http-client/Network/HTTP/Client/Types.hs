@@ -27,6 +27,7 @@ module Network.HTTP.Client.Types
     , NonEmptyList (..)
     , ConnHost (..)
     , ConnKey (..)
+    , ProxyOverride (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -109,6 +110,10 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- ^
                    --
                    -- Since 0.3
+                   | InvalidProxyEnvironmentVariable Text Text
+                   -- ^ Environment name and value
+                   --
+                   -- Since 0.4.7
     deriving (Show, T.Typeable)
 instance Exception HttpException
 
@@ -515,6 +520,26 @@ data ManagerSettings = ManagerSettings
     -- Default: no modification
     --
     -- Since 0.4.4
+    , managerProxyInsecure :: ProxyOverride
+    -- ^ How HTTP proxy server settings should be discovered.
+    --
+    -- Default: respect the @proxy@ value on the @Request@ itself.
+    --
+    -- Since 0.4.7
+    , managerProxySecure :: ProxyOverride
+    -- ^ How HTTPS proxy server settings should be discovered.
+    --
+    -- Default: respect the @proxy@ value on the @Request@ itself.
+    --
+    -- Since 0.4.7
+    }
+    deriving T.Typeable
+
+-- | How the HTTP proxy server settings should be discovered.
+--
+-- Since 0.4.7
+newtype ProxyOverride = ProxyOverride
+    { runProxyOverride :: Bool -> IO (Request -> Request)
     }
     deriving T.Typeable
 
@@ -543,6 +568,8 @@ data Manager = Manager
     , mWrapIOException :: forall a. IO a -> IO a
     , mIdleConnectionCount :: Int
     , mModifyRequest :: Request -> IO Request
+    , mSetProxy :: Request -> Request
+    -- ^ See 'managerProxy'
     }
     deriving T.Typeable
 

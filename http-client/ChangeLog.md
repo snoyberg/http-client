@@ -1,3 +1,7 @@
+## 0.4.7
+
+* [Support http\_proxy and https\_proxy environment variables](https://github.com/snoyberg/http-client/issues/94)
+
 ## 0.4.6.1
 
 Separate tests not requiring internet access. [#93](https://github.com/snoyberg/http-client/pull/93)

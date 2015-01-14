@@ -13,6 +13,10 @@ module Network.HTTP.Client.Manager
     , failedConnectionException
     , defaultManagerSettings
     , rawConnectionModifySocket
+    , proxyFromRequest
+    , noProxy
+    , useProxy
+    , proxyEnvironment
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -30,6 +34,7 @@ import qualified Blaze.ByteString.Builder as Blaze
 
 import Data.Text (Text)
 import qualified Data.Text as T
+import Data.Text.Read (decimal)
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (unless, join, when, void)
@@ -48,6 +53,9 @@ import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
 import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
+import System.Environment (getEnvironment)
+import qualified Network.URI as U
+import Control.Monad (guard)
 
 -- | A value for the @managerRawConnection@ setting, but also allows you to
 -- modify the underlying @Socket@ to set additional settings. For a motivating
@@ -100,6 +108,8 @@ defaultManagerSettings = ManagerSettings
          in handle $ throwIO . wrapper
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
+    , managerProxyInsecure = proxyFromRequest
+    , managerProxySecure = proxyFromRequest
     }
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
@@ -165,6 +175,10 @@ newManager ms = do
     mapRef <- I.newIORef $! ManagerOpen 0 Map.empty
     baton <- newEmptyMVar
     wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
+
+    httpProxy <- runProxyOverride (managerProxyInsecure ms) False
+    httpsProxy <- runProxyOverride (managerProxySecure ms) True
+
     _ <- forkIO $ reap baton wmapRef
     let manager = Manager
             { mConns = mapRef
@@ -178,6 +192,10 @@ newManager ms = do
             , mWrapIOException = managerWrapIOException ms
             , mIdleConnectionCount = managerIdleConnectionCount ms
             , mModifyRequest = managerModifyRequest ms
+            , mSetProxy = \req ->
+                if secure req
+                    then httpsProxy req
+                    else httpProxy req
             }
     return manager
 
@@ -403,3 +421,72 @@ getConn req m
                         unless (status == status200) $
                             throwIO $ ProxyConnectException ultHost ultPort $ Left $ S8.pack $ show sh
                  in mTlsProxyConnection m connstr parse (S8.unpack ultHost)
+
+-- | Get the proxy settings from the @Request@ itself.
+--
+-- Since 0.4.7
+proxyFromRequest :: ProxyOverride
+proxyFromRequest = ProxyOverride $ const $ return id
+
+-- | Never connect using a proxy, regardless of the proxy value in the @Request@.
+--
+-- Since 0.4.7
+noProxy :: ProxyOverride
+noProxy = ProxyOverride $ const $ return $ \req -> req { proxy = Nothing }
+
+-- | Use the given proxy settings, regardless of the proxy value in the @Request@.
+--
+-- Since 0.4.7
+useProxy :: Proxy -> ProxyOverride
+useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
+
+-- | Get the proxy settings from the default environment variable (@http_proxy@
+-- for insecure, @https_proxy@ for secure). If no variable is set, then fall
+-- back to the given value. @Nothing@ is equivalent to 'noProxy', @Just@ is
+-- equivalent to 'useProxy'.
+--
+-- Since 0.4.7
+proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
+                 -> ProxyOverride
+proxyEnvironment mp = ProxyOverride $ \secure ->
+    envHelper (if secure then "https_proxy" else "http_proxy") mp
+
+-- | Same as 'proxyEnvironment', but instead of default environment variable
+-- names, allows you to set your own name.
+--
+-- Since 0.4.7
+proxyEnvironmentNamed
+    :: Text -- ^ environment variable name
+    -> Maybe Proxy -- ^ fallback if no environment set
+    -> ProxyOverride
+proxyEnvironmentNamed name mp = ProxyOverride $ const $ envHelper name mp
+
+envHelper :: Text -> Maybe Proxy -> IO (Request -> Request)
+envHelper name mp = do
+    env <- getEnvironment
+    case lookup (T.unpack name) env of
+        Nothing -> return $ \req -> req { proxy = mp }
+        Just str -> do
+            let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
+            p <- maybe invalid return $ do
+                uri <- U.parseURI str
+
+                guard $ U.uriScheme uri == "http:"
+                guard $ null (U.uriPath uri) || U.uriPath uri == "/"
+                guard $ null $ U.uriQuery uri
+                guard $ null $ U.uriFragment uri
+
+                auth <- U.uriAuthority uri
+                guard $ null $ U.uriUserInfo auth
+
+                port <-
+                    case U.uriPort auth of
+                        "" -> Just 80
+                        ':':rest ->
+                            case decimal $ T.pack rest of
+                                Right (p, "") -> Just p
+                                _ -> Nothing
+                        _ -> Nothing
+
+                Just $ Proxy (S8.pack $ U.uriRegName auth) port
+            return $ \req -> req { proxy = Just p }

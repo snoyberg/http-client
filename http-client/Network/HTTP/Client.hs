@@ -104,6 +104,15 @@ module Network.HTTP.Client
     , managerWrapIOException
     , managerIdleConnectionCount
     , managerModifyRequest
+      -- *** Manager proxy settings
+    , managerSetProxy
+    , managerSetInsecureProxy
+    , managerSetSecureProxy
+    , ProxyOverride
+    , proxyFromRequest
+    , noProxy
+    , useProxy
+    , proxyEnvironment
       -- *** Helpers
     , rawConnectionModifySocket
       -- * Request
@@ -163,6 +172,7 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Types
 
+import Data.Text (Text)
 import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
 import qualified Data.ByteString.Lazy as L
 import Data.Foldable (Foldable)
@@ -235,3 +245,22 @@ withResponseHistory :: Request
 withResponseHistory req man = bracket
     (responseOpenHistory req man)
     (responseClose . hrFinalResponse)
+
+-- | Set the proxy override value, only for HTTP (insecure) connections.
+--
+-- Since 0.4.7
+managerSetInsecureProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
+managerSetInsecureProxy po m = m { managerProxyInsecure = po }
+
+-- | Set the proxy override value, only for HTTPS (secure) connections.
+--
+-- Since 0.4.7
+managerSetSecureProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
+managerSetSecureProxy po m = m { managerProxySecure = po }
+
+-- | Set the proxy override value, for both HTTP (insecure) and HTTPS
+-- (insecure) connections.
+--
+-- Since 0.4.7
+managerSetProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
+managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
