@@ -76,7 +76,7 @@ rawConnectionModifySocketSize = return . openSocketConnectionSize
 -- | Default value for @ManagerSettings@.
 --
 -- Note that this value does /not/ have support for SSL/TLS. If you need to
--- make any https connections, please use the network-client-tls package, which
+-- make any https connections, please use the http-client-tls package, which
 -- provides a @tlsManagerSettings@ value.
 --
 -- Since 0.1.0
