@@ -113,6 +113,8 @@ module Network.HTTP.Client
     , noProxy
     , useProxy
     , proxyEnvironment
+    , proxyEnvironmentNamed
+    , defaultProxy
       -- *** Helpers
     , rawConnectionModifySocket
       -- * Request

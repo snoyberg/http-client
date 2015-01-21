@@ -17,6 +17,8 @@ module Network.HTTP.Client.Manager
     , noProxy
     , useProxy
     , proxyEnvironment
+    , proxyEnvironmentNamed
+    , defaultProxy
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -108,8 +110,8 @@ defaultManagerSettings = ManagerSettings
          in handle $ throwIO . wrapper
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
-    , managerProxyInsecure = proxyFromRequest
-    , managerProxySecure = proxyFromRequest
+    , managerProxyInsecure = defaultProxy
+    , managerProxySecure = defaultProxy
     }
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
@@ -449,7 +451,12 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
                  -> ProxyOverride
 proxyEnvironment mp = ProxyOverride $ \secure ->
-    envHelper (if secure then "https_proxy" else "http_proxy") mp
+    envHelper (envName secure) $ maybe EHNoProxy EHUseProxy mp
+
+envName :: Bool -- ^ secure?
+        -> Text
+envName False = "http_proxy"
+envName True = "https_proxy"
 
 -- | Same as 'proxyEnvironment', but instead of default environment variable
 -- names, allows you to set your own name.
@@ -459,13 +466,30 @@ proxyEnvironmentNamed
     :: Text -- ^ environment variable name
     -> Maybe Proxy -- ^ fallback if no environment set
     -> ProxyOverride
-proxyEnvironmentNamed name mp = ProxyOverride $ const $ envHelper name mp
+proxyEnvironmentNamed name =
+    ProxyOverride . const . envHelper name
+                  . maybe EHNoProxy EHUseProxy
 
-envHelper :: Text -> Maybe Proxy -> IO (Request -> Request)
-envHelper name mp = do
+-- | The default proxy settings for a manager. In particular: if the @http_proxy@ (or @https_proxy@) environment variable is set, use it. Otherwise, use the values in the @Request@.
+--
+-- Since 0.4.7
+defaultProxy :: ProxyOverride
+defaultProxy = ProxyOverride $ \secure ->
+    envHelper (envName secure) EHFromRequest
+
+data EnvHelper = EHFromRequest
+               | EHNoProxy
+               | EHUseProxy Proxy
+
+envHelper :: Text -> EnvHelper -> IO (Request -> Request)
+envHelper name eh = do
     env <- getEnvironment
     case lookup (T.unpack name) env of
-        Nothing -> return $ \req -> req { proxy = mp }
+        Nothing -> return $
+            case eh of
+                EHFromRequest -> id
+                EHNoProxy     -> \req -> req { proxy = Nothing }
+                EHUseProxy p  -> \req -> req { proxy = Just p  }
         Just str -> do
             let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
             p <- maybe invalid return $ do
