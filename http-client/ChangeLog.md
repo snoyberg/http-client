@@ -1,6 +1,7 @@
 ## 0.4.7
 
 * [Support http\_proxy and https\_proxy environment variables](https://github.com/snoyberg/http-client/issues/94)
+* [More efficient `timeout` usage #98](https://github.com/snoyberg/http-client/issues/98)
 
 ## 0.4.6.1
 

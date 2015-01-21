@@ -8,10 +8,6 @@ module Network.HTTP.Client.Response
     , lbsResponse
     ) where
 
-import Control.Monad ((>=>))
-
-import Control.Exception (throwIO)
-
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
@@ -26,8 +22,6 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Util
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Headers
-
-import System.Timeout (timeout)
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -92,7 +86,7 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
     let timeout' =
             case timeout'' of
                 Nothing -> id
-                Just t -> timeout t >=> maybe (throwIO ResponseTimeout) return
+                Just t -> timeout ResponseTimeout t
     StatusHeaders s version hs <- timeout' $ parseStatusHeaders conn
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
 

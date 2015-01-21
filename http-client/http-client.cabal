@@ -94,6 +94,11 @@ test-suite spec-nonet
                        Network.HTTP.Client.BodySpec
                        Network.HTTP.Client.HeadersSpec
                        Network.HTTP.Client.RequestSpec
+
+  -- One test uses the multi-threaded runtime, the other doesn't, to
+  -- test the two branches of the timeout code in the .Util module.
+  ghc-options:         -threaded
+
   build-depends:       base
                      , http-client
                      , hspec

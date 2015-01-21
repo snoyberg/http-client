@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
 module Network.HTTP.Client.Util
@@ -7,6 +8,7 @@ module Network.HTTP.Client.Util
     , readDec
     , hasNoBody
     , fromStrict
+    , timeout
     ) where
 
 import Data.Monoid (Monoid, mappend)
@@ -21,6 +23,12 @@ import qualified Data.ByteString as S
 
 import qualified Data.Text as T
 import qualified Data.Text.Read
+
+import qualified GHC.Event as E
+import Control.Exception (throwTo, bracket, Exception, throwIO, IOException, handle)
+import Control.Concurrent (myThreadId)
+import qualified System.Timeout as T
+import System.IO.Unsafe (unsafePerformIO)
 
 #if MIN_VERSION_base(4,3,0)
 import Data.ByteString (hGetSome)
@@ -82,3 +90,30 @@ hasNoBody _ i = 100 <= i && i < 200
 fromStrict :: S.ByteString -> L.ByteString
 fromStrict x = L.fromChunks [x]
 #endif
+
+timeout :: Exception e => e -> Int -> IO a -> IO a
+timeout e usec action =
+    -- It would be nice if there was a non-partial version of
+    -- E.getSystemTimerManager...
+    handle (\(_ :: IOException) -> timeoutST e usec action) $ do
+        tm <- E.getSystemTimerManager
+        timeoutMT tm e usec action
+
+-- | Single threaded
+timeoutST :: Exception e => e -> Int -> IO a -> IO a
+timeoutST e usec action =
+    T.timeout usec action >>= maybe (throwIO e) return
+
+-- | Multi threaded
+--timeoutMT :: Exception e => E.TimerManager -> e -> Int -> IO a -> IO a
+timeoutMT man e usec action = do
+    tid <- myThreadId
+    bracket
+        (E.registerTimeout
+            man
+            usec
+            -- FIXME should we forkIO the call to throwTo to avoid
+            -- being blocked by a masked thread?
+            (throwTo tid e))
+        (E.unregisterTimeout man)
+        (const action)
