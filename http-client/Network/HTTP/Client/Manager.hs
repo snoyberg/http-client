@@ -39,7 +39,7 @@ import qualified Data.Text as T
 import Data.Text.Read (decimal)
 
 import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (unless, join, when, void)
+import Control.Monad (unless, join, when, void, mplus)
 import Control.Exception (mask_, SomeException, bracket, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
@@ -494,6 +494,7 @@ envHelper name eh = do
             let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
             p <- maybe invalid return $ do
                 uri <- U.parseURI str
+                       `mplus` U.parseURI ("http://" ++ str)
 
                 guard $ U.uriScheme uri == "http:"
                 guard $ null (U.uriPath uri) || U.uriPath uri == "/"
