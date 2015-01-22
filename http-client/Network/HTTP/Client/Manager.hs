@@ -494,7 +494,7 @@ envHelper name eh = do
             let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
             p <- maybe invalid return $ do
                 uri <- U.parseURI str
-                       `mplus` U.parseURI ("http://" ++ str)
+                uri <- if U.uriScheme uri == "http:" then return uri else U.parseURI $ "http://" ++ str
 
                 guard $ U.uriScheme uri == "http:"
                 guard $ null (U.uriPath uri) || U.uriPath uri == "/"
