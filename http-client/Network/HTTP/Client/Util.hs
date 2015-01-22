@@ -92,12 +92,13 @@ fromStrict x = L.fromChunks [x]
 #endif
 
 timeout :: Exception e => e -> Int -> IO a -> IO a
-timeout e usec action =
+timeout e usec action = do
     -- It would be nice if there was a non-partial version of
     -- E.getSystemTimerManager...
-    handle (\(_ :: IOException) -> timeoutST e usec action) $ do
+    timeout' <- handle (\(_ :: IOException) -> return timeoutST) $ do
         tm <- E.getSystemTimerManager
-        timeoutMT tm e usec action
+        return $ timeoutMT tm
+    timeout' e usec action
 
 -- | Single threaded
 timeoutST :: Exception e => e -> Int -> IO a -> IO a
