@@ -1,3 +1,7 @@
+## 0.4.7.1
+
+* Fix for shared connections in proxy servers [#103](https://github.com/snoyberg/http-client/issues/103)
+
 ## 0.4.7
 
 * [Support http\_proxy and https\_proxy environment variables](https://github.com/snoyberg/http-client/issues/94)
