@@ -391,7 +391,7 @@ getConn req m
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
     | S8.null h = throwIO $ InvalidDestinationHost h
     | otherwise =
-        getManagedConn m (ConnKey connKeyHost connport (secure req)) $
+        getManagedConn m (ConnKey connKeyHost connport (host req) (port req) (secure req)) $
             wrapConnectExc $ go connaddr connhost connport
   where
     h = host req

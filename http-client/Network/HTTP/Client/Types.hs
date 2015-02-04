@@ -590,5 +590,5 @@ data ConnHost =
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
-data ConnKey = ConnKey ConnHost Int Bool
+data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
     deriving (Eq, Show, Ord, T.Typeable)
