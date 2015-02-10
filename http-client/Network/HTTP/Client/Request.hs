@@ -49,10 +49,10 @@ import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
 import Network.HTTP.Client.Types
+import Network.HTTP.Client.Util
 import Network.HTTP.Client.Connection
 
 import Network.HTTP.Client.Util (readDec, (<>))
-import System.Timeout (timeout)
 import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.IORef

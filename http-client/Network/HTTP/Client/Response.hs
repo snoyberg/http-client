@@ -27,8 +27,6 @@ import Network.HTTP.Client.Util
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Headers
 
-import System.Timeout (timeout)
-
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
 -- redirection, and the redirection code itself. This function returns 'Nothing'

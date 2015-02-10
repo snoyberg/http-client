@@ -1,12 +1,18 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE TupleSections #-}
 module Network.HTTP.Client.Util
     ( hGetSome
     , (<>)
     , readDec
     , hasNoBody
     , fromStrict
+    , timeout
+    , newTimeoutManager
+    , TimeoutManager
     ) where
 
 import Data.Monoid (Monoid, mappend)
@@ -21,6 +27,16 @@ import qualified Data.ByteString as S
 
 import qualified Data.Text as T
 import qualified Data.Text.Read
+--import System.Timeout (timeout)
+
+import System.Clock
+import System.IO.Unsafe (unsafePerformIO)
+import Control.Exception (mask_, Exception, throwTo, try, finally, SomeException, assert)
+import Control.Monad (join, when, void)
+import Control.Concurrent (myThreadId, threadDelay, forkIO)
+import Data.IORef
+import Data.Function (fix)
+import Data.Typeable (Typeable)
 
 #if MIN_VERSION_base(4,3,0)
 import Data.ByteString (hGetSome)
@@ -82,3 +98,71 @@ hasNoBody _ i = 100 <= i && i < 200
 fromStrict :: S.ByteString -> L.ByteString
 fromStrict x = L.fromChunks [x]
 #endif
+
+data TimeoutHandler = TimeoutHandler {-# UNPACK #-} !TimeSpec (IO ())
+newtype TimeoutManager = TimeoutManager (IORef ([TimeoutHandler], Bool))
+
+newTimeoutManager :: IO TimeoutManager
+newTimeoutManager = fmap TimeoutManager $ newIORef ([], False)
+
+timeoutManager :: TimeoutManager
+timeoutManager = unsafePerformIO newTimeoutManager
+{-# NOINLINE timeoutManager #-}
+
+spawnWorker :: TimeoutManager -> IO ()
+spawnWorker (TimeoutManager ref) = void $ forkIO $ fix $ \loop -> do
+    threadDelay 500000
+    join $ atomicModifyIORef ref $ \(hs, isCleaning) -> assert (not isCleaning) $
+        if null hs
+            then (([], False), return ())
+            else (([], True), ) $ do
+                now <- getTime Monotonic
+                front <- go now id hs
+                atomicModifyIORef ref $ \(hs', isCleaning') ->
+                    assert isCleaning' $ ((front hs', False), ())
+                loop
+  where
+    go now =
+        go'
+      where
+        go' front [] = return front
+        go' front (h@(TimeoutHandler time action):hs)
+            | time < now = do
+                _ :: Either SomeException () <- try action
+                go' front hs
+            | otherwise = go' (front . (h:)) hs
+
+addHandler :: TimeoutManager -> TimeoutHandler -> IO ()
+addHandler man@(TimeoutManager ref) h = mask_ $ join $ atomicModifyIORef ref
+    $ \(hs, isCleaning) ->
+        let hs' = h : hs
+            action
+                | isCleaning || not (null hs) = return ()
+                | otherwise = spawnWorker man
+         in ((hs', isCleaning), action)
+
+timeout delayU inner = do
+    TimeSpec nowS nowN <- getTime Monotonic
+    let (delayS, delayU') = delayU `quotRem` 1000000
+        delayN = delayU' * 1000
+        stopN' = nowN + delayN
+        stopS' = nowS + delayS
+        (stopN, stopS)
+            | stopN' > 1000000000 = (stopN' - 1000000000, stopS' + 1)
+            | otherwise = (stopN', stopS')
+        toStop = TimeSpec stopS stopN
+    toThrow <- newIORef True
+    tid <- myThreadId
+    let handler = TimeoutHandler toStop $ do
+            toThrow' <- readIORef toThrow
+            when toThrow' $ throwTo tid TimeoutTrigerred
+    eres <- try $ do
+        addHandler timeoutManager handler
+        inner `finally` writeIORef toThrow False
+    return $ case eres of
+        Left TimeoutTrigerred -> Nothing
+        Right x -> Just x
+
+data TimeoutTrigerred = TimeoutTrigerred
+    deriving (Show, Typeable)
+instance Exception TimeoutTrigerred
