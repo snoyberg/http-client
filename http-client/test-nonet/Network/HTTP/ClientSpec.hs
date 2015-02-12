@@ -1,17 +1,21 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
-import           Control.Concurrent        (forkIO, threadDelay)
-import           Control.Concurrent.Async  (withAsync)
-import           Control.Exception         (bracket)
-import           Control.Monad             (forever, replicateM_)
+import           Control.Concurrent           (forkIO, threadDelay)
+import           Control.Concurrent.Async     (withAsync)
+import           Control.Exception            (bracket, try)
+import           Control.Monad                (forever, replicateM_)
+import           Data.Either                  (isRight)
 import           Network.HTTP.Client
-import           Network.HTTP.Types        (status413)
-import           Network.Socket            (sClose)
+import           Network.HTTP.Client.Internal (runProxyOverride)
+import           Network.HTTP.Types           (status413)
+import           Network.Socket               (sClose)
+import           System.Environment.Compat    (lookupEnv, setEnv, unsetEnv)
 import           Test.Hspec
-import qualified Data.Streaming.Network    as N
-import qualified Data.ByteString           as S
-import           Data.ByteString.Lazy.Char8 () -- orphan instance
+import qualified Data.Streaming.Network       as N
+import qualified Data.ByteString              as S
+import           Data.ByteString.Lazy.Char8   () -- orphan instance
+
 
 main :: IO ()
 main = hspec spec
@@ -68,6 +72,17 @@ earlyClose413 inner = bracket
                     else readHeaders bs
         readHeaders S.empty
         N.appWrite ad "HTTP/1.1 413 Too Large\r\ncontent-length: 7\r\n\r\ngoodbye"
+
+-- | Store the environment variable for "https_proxy" and re-establish
+-- the value at the end of the block so that we don't change global state.
+withHttpsProxy :: (Maybe String -> IO ()) -> IO ()
+withHttpsProxy = bracket getInitialProxySetting resetProxySetting
+  where
+    getInitialProxySetting = lookupEnv "https_proxy"
+    resetProxySetting initialProxy = do
+      case initialProxy of
+          Nothing -> unsetEnv "https_proxy"
+          Just p  -> setEnv   "https_proxy" p
 
 spec :: Spec
 spec = describe "Client" $ do
@@ -126,3 +141,33 @@ spec = describe "Client" $ do
                 }
             responseBody res `shouldBe` "goodbye"
             responseStatus res `shouldBe` status413
+
+    it "allows a proxy prefixed by 'http' from the environment" $
+      withHttpsProxy $ \_ -> do
+        setEnv "https_proxy" "http://localhost:3333"
+        res <- try
+               (runProxyOverride
+                (proxyEnvironment Nothing) True) :: IO (Either HttpException
+                                                        (Request -> Request))
+
+        (isRight res) `shouldBe` True
+
+    it "allows a proxy prefixed by 'https' from the environment" $
+      withHttpsProxy $ \_ -> do
+        setEnv "https_proxy" "https://localhost:3333"
+        res <- try
+               (runProxyOverride
+                (proxyEnvironment Nothing) True) :: IO (Either HttpException
+                                                        (Request -> Request))
+
+        (isRight res) `shouldBe` True
+
+    it "does not allow a proxy prefixed by 'ftp' from the environment" $
+      withHttpsProxy $ \_ -> do
+        setEnv "https_proxy" "ftp://localhost:3333"
+        res <- try
+               (runProxyOverride
+                (proxyEnvironment Nothing) True) :: IO (Either HttpException
+                                                        (Request -> Request))
+
+        (isRight res) `shouldBe` False

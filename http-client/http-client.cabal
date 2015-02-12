@@ -97,6 +97,7 @@ test-suite spec-nonet
   build-depends:       base
                      , http-client
                      , hspec
+                     , base-compat
                      , monad-control
                      , bytestring
                      , text
