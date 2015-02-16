@@ -1,7 +1,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
-    ( opensslManagerSettings
+    ( defaultOpensslManagerSettings
+    , opensslManagerSettings
     , defaultMakeContext
     , withOpenSSL
     ) where
@@ -14,6 +15,11 @@ import OpenSSL
 import qualified Network.Socket as N
 import qualified OpenSSL.Session       as SSL
 import OpenSSL.X509.SystemStore (contextLoadSystemCerts)
+
+-- | A sane default value for 'ManagerSettings' that enables server
+-- certificate verification.
+defaultOpensslManagerSettings :: ManagerSettings
+defaultOpensslManagerSettings = opensslManagerSettings defaultMakeContext
 
 -- | Note that it is the caller's responsibility to pass in an appropriate
 -- context.
