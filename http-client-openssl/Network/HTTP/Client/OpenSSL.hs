@@ -2,7 +2,7 @@
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
     ( opensslManagerSettings
-    -- , defaultMakeContext
+    , defaultMakeContext
     , withOpenSSL
     ) where
 
@@ -13,14 +13,10 @@ import Network.Socket (HostAddress)
 import OpenSSL
 import qualified Network.Socket as N
 import qualified OpenSSL.Session       as SSL
-
--- | FIXME This needs better defaults
-defaultMakeContext :: IO SSL.SSLContext
-defaultMakeContext = SSL.context
+import OpenSSL.X509.SystemStore (contextLoadSystemCerts)
 
 -- | Note that it is the caller's responsibility to pass in an appropriate
--- context. Future versions of http-client-openssl will hopefully include a
--- sane, safe default.
+-- context.
 opensslManagerSettings :: IO SSL.SSLContext -> ManagerSettings
 opensslManagerSettings mkContext = defaultManagerSettings
     { managerTlsConnection = do
@@ -49,3 +45,12 @@ opensslManagerSettings mkContext = defaultManagerSettings
                         (SSL.write ssl)
                         (N.close sock)
     }
+
+-- | Make a new context that uses the system's trust anchors to verify
+-- server certificates.
+defaultMakeContext :: IO SSL.SSLContext
+defaultMakeContext = do
+    ctx <- SSL.context
+    SSL.contextSetVerificationMode ctx (SSL.VerifyPeer True False Nothing)
+    contextLoadSystemCerts ctx
+    return ctx
