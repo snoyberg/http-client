@@ -155,14 +155,14 @@ timeout delayU inner = do
     tid <- myThreadId
     let handler = TimeoutHandler toStop $ do
             toThrow' <- readIORef toThrow
-            when toThrow' $ throwTo tid TimeoutTrigerred
+            when toThrow' $ throwTo tid TimeoutTriggered
     eres <- try $ do
         addHandler timeoutManager handler
         inner `finally` writeIORef toThrow False
     return $ case eres of
-        Left TimeoutTrigerred -> Nothing
+        Left TimeoutTriggered -> Nothing
         Right x -> Just x
 
-data TimeoutTrigerred = TimeoutTrigerred
+data TimeoutTriggered = TimeoutTriggered
     deriving (Show, Typeable)
-instance Exception TimeoutTrigerred
+instance Exception TimeoutTriggered
