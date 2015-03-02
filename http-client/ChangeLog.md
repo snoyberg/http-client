@@ -1,3 +1,7 @@
+## 0.4.7.2
+
+* Improved `timeout` implementation for high contention cases [#98](https://github.com/snoyberg/http-client/issues/98)
+
 ## 0.4.7.1
 
 * Fix for shared connections in proxy servers [#103](https://github.com/snoyberg/http-client/issues/103)
