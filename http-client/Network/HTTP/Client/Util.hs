@@ -141,6 +141,11 @@ addHandler man@(TimeoutManager ref) h = mask_ $ join $ atomicModifyIORef ref
                 | otherwise = spawnWorker man
          in ((hs', isCleaning), action)
 
+-- | Has same semantics as @System.Timeout.timeout@, but implemented in such a
+-- way to avoid high-concurrency contention issues. See:
+--
+-- https://github.com/snoyberg/http-client/issues/98
+timeout :: Int -> IO a -> IO (Maybe a)
 timeout delayU inner = do
     TimeSpec nowS nowN <- getTime Monotonic
     let (delayS, delayU') = delayU `quotRem` 1000000
