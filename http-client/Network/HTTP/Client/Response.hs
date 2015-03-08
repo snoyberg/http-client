@@ -8,7 +8,7 @@ module Network.HTTP.Client.Response
     , lbsResponse
     ) where
 
-import Control.Monad ((>=>))
+import Control.Monad ((>=>), when)
 
 import Control.Exception (throwIO)
 
@@ -16,6 +16,8 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import Data.Default.Class (def)
+
+import Data.Maybe (isJust)
 
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference, escapeURIString, isAllowedInURI)
@@ -93,10 +95,15 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
                 Just t -> timeout t >=> maybe (throwIO ResponseTimeout) return
     StatusHeaders s version hs <- timeout' $ parseStatusHeaders conn
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
+        isChunked = ("transfer-encoding", "chunked") `elem` hs
 
         -- should we put this connection back into the connection manager?
         toPut = Just "close" /= lookup "connection" hs && version > W.HttpVersion 1 0
         cleanup bodyConsumed = connRelease $ if toPut && bodyConsumed then Reuse else DontReuse
+
+    when (isJust mcl && isChunked) $ do
+        cleanup False
+        throwIO ResponseLengthAndChunkingBothUsed
 
     body <-
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
@@ -105,7 +112,6 @@ getResponse connRelease timeout'' req@(Request {..}) conn = do
                 cleanup True
                 return brEmpty
             else do
-                let isChunked = ("transfer-encoding", "chunked") `elem` hs
                 body1 <-
                     if isChunked
                         then makeChunkedReader rawBody conn

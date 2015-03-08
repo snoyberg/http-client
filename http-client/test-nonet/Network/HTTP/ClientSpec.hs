@@ -4,7 +4,7 @@ module Network.HTTP.ClientSpec where
 import           Control.Concurrent        (forkIO, threadDelay)
 import           Control.Concurrent.Async  (withAsync)
 import           Control.Exception         (bracket)
-import           Control.Monad             (forever, replicateM_)
+import           Control.Monad             (forever, replicateM_, void)
 import           Network.HTTP.Client
 import           Network.HTTP.Types        (status413)
 import           Network.Socket            (sClose)
@@ -69,6 +69,28 @@ earlyClose413 inner = bracket
         readHeaders S.empty
         N.appWrite ad "HTTP/1.1 413 Too Large\r\ncontent-length: 7\r\n\r\ngoodbye"
 
+-- Make sure we detect bad situations like
+-- https://github.com/yesodweb/wai/issues/346 better than we did previously, so
+-- that misreporting like https://github.com/snoyberg/http-client/issues/108
+-- doesn't occur.
+lengthAndChunked :: (Int -> IO a) -> IO a
+lengthAndChunked inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (sClose . snd)
+    $ \(port, lsocket) -> withAsync
+        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+        (const $ inner port)
+  where
+    app ad = do
+        let readHeaders front = do
+                newBS <- N.appRead ad
+                let bs = S.append front newBS
+                if "\r\n\r\n" `S.isInfixOf` bs
+                    then return ()
+                    else readHeaders bs
+        readHeaders S.empty
+        N.appWrite ad "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransfer-encoding: chunked\r\n\r\n0"
+
 spec :: Spec
 spec = describe "Client" $ do
     describe "fails on empty hostnames #40" $ do
@@ -126,3 +148,12 @@ spec = describe "Client" $ do
                 }
             responseBody res `shouldBe` "goodbye"
             responseStatus res `shouldBe` status413
+
+    it "length and chunking #108" $ lengthAndChunked $ \port' -> do
+        withManager defaultManagerSettings $ \man -> do
+            (void $ flip httpLbs man "http://localhost"
+                { port = port'
+                , checkStatus = \_ _ _ -> Nothing
+                , requestBody = RequestBodyStreamChunked
+                    ($ return (S.replicate 100000 65))
+                }) `shouldThrow` (\e -> case e of { ResponseLengthAndChunkingBothUsed -> True; _ -> False})

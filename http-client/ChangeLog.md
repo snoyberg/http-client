@@ -1,3 +1,7 @@
+## 0.4.8
+
+* Add the `ResponseLengthAndChunkingBothUsed` exception constructor [#108](https://github.com/snoyberg/http-client/issues/108)
+
 ## 0.4.7.2
 
 * Improved `timeout` implementation for high contention cases [#98](https://github.com/snoyberg/http-client/issues/98)
