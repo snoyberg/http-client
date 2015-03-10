@@ -171,6 +171,7 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 -- Since 0.1.0
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
+    NS.withSocketsDo $ return ()
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
