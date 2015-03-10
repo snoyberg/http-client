@@ -21,12 +21,16 @@ module Network.HTTP.Client.Request
     , requestBuilder
     , useDefaultTimeout
     , setQueryString
+    , streamFile
+    , observedStreamFile
     ) where
 
+import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
+import Control.Applicative ((<$>))
 import Control.Monad (when, unless)
 import Numeric (showHex)
 
@@ -38,6 +42,7 @@ import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
+import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 import qualified Network.HTTP.Types as W
 import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
@@ -56,6 +61,10 @@ import Network.HTTP.Client.Util (readDec, (<>))
 import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.IORef
+
+import qualified System.PosixCompat.Files as Posix
+import System.IO
+
 
 -- | Convert a URL into a 'Request'.
 --
@@ -406,3 +415,43 @@ requestBuilder req Connection {..} =
 -- Since 0.3.6
 setQueryString :: [(S.ByteString, Maybe S.ByteString)] -> Request -> Request
 setQueryString qs req = req { queryString = W.renderQuery True qs }
+
+-- | Send a file as the request body.
+--
+-- It is expected that the file size does not change between calling
+-- `streamFile` and making any requests using this request body.
+--
+-- Since TODO
+streamFile :: FilePath -> IO RequestBody
+streamFile = observedStreamFile (\_ -> return ())
+
+-- | Send a file as the request body, while observing streaming progress via
+-- a `PopObserver`. Observations are made between reading and sending a chunk.
+--
+-- It is expected that the file size does not change between calling
+-- `observedStreamFile` and making any requests using this request body.
+--
+-- Since TODO
+observedStreamFile :: (StreamFileStatus -> IO ()) -> FilePath -> IO RequestBody
+observedStreamFile obs path = do
+    status <- Posix.getFileStatus path
+
+    let size :: Int64
+        size = fromIntegral $ Posix.fileSize status
+
+        filePopper :: Handle -> Popper
+        filePopper h = do
+            bs <- S.hGetSome h defaultChunkSize
+            currentPosition <- fromIntegral <$> hTell h
+            obs $ StreamFileStatus
+                { fileSize = size
+                , readSoFar = currentPosition
+                , thisChunkSize = S.length bs
+                }
+            return bs
+
+        givesFilePopper :: GivesPopper ()
+        givesFilePopper k = withFile path ReadMode $ \h -> do
+            k (filePopper h)
+
+    return $ RequestBodyStream size givesFilePopper

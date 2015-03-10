@@ -50,7 +50,7 @@ module Network.HTTP.Client.MultipartFormData
     ,renderPart
     ) where
 
-import Network.HTTP.Client
+import Network.HTTP.Client hiding (streamFile)
 import Network.Mime
 import Network.HTTP.Types (hContentType, methodPost, Header())
 import Data.Monoid ((<>))
