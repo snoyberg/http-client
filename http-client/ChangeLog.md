@@ -1,3 +1,7 @@
+## 0.4.8.1
+
+* Automatically call withSocketsDo everywhere [#107](https://github.com/snoyberg/http-client/issues/107)
+
 ## 0.4.8
 
 * Add the `ResponseLengthAndChunkingBothUsed` exception constructor [#108](https://github.com/snoyberg/http-client/issues/108)
