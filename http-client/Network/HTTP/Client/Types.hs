@@ -601,6 +601,8 @@ data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
     deriving (Eq, Show, Ord, T.Typeable)
 
 -- | Status of streaming a request body from a file.
+--
+-- Since TODO
 data StreamFileStatus = StreamFileStatus
     { fileSize :: Int64
     , readSoFar :: Int64

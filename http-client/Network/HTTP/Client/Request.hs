@@ -62,7 +62,6 @@ import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.IORef
 
-import qualified System.PosixCompat.Files as Posix
 import System.IO
 
 
@@ -434,12 +433,9 @@ streamFile = observedStreamFile (\_ -> return ())
 -- Since TODO
 observedStreamFile :: (StreamFileStatus -> IO ()) -> FilePath -> IO RequestBody
 observedStreamFile obs path = do
-    status <- Posix.getFileStatus path
+    size <- fromIntegral <$> withBinaryFile path ReadMode hFileSize
 
-    let size :: Int64
-        size = fromIntegral $ Posix.fileSize status
-
-        filePopper :: Handle -> Popper
+    let filePopper :: Handle -> Popper
         filePopper h = do
             bs <- S.hGetSome h defaultChunkSize
             currentPosition <- fromIntegral <$> hTell h
@@ -451,7 +447,7 @@ observedStreamFile obs path = do
             return bs
 
         givesFilePopper :: GivesPopper ()
-        givesFilePopper k = withFile path ReadMode $ \h -> do
+        givesFilePopper k = withBinaryFile path ReadMode $ \h -> do
             k (filePopper h)
 
     return $ RequestBodyStream size givesFilePopper
