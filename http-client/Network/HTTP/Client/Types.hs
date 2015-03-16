@@ -602,7 +602,7 @@ data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
 
 -- | Status of streaming a request body from a file.
 --
--- Since TODO
+-- Since 0.4.9
 data StreamFileStatus = StreamFileStatus
     { fileSize :: Int64
     , readSoFar :: Int64

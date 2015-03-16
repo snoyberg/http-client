@@ -420,7 +420,7 @@ setQueryString qs req = req { queryString = W.renderQuery True qs }
 -- It is expected that the file size does not change between calling
 -- `streamFile` and making any requests using this request body.
 --
--- Since TODO
+-- Since 0.4.9
 streamFile :: FilePath -> IO RequestBody
 streamFile = observedStreamFile (\_ -> return ())
 
@@ -430,7 +430,7 @@ streamFile = observedStreamFile (\_ -> return ())
 -- It is expected that the file size does not change between calling
 -- `observedStreamFile` and making any requests using this request body.
 --
--- Since TODO
+-- Since 0.4.9
 observedStreamFile :: (StreamFileStatus -> IO ()) -> FilePath -> IO RequestBody
 observedStreamFile obs path = do
     size <- fromIntegral <$> withBinaryFile path ReadMode hFileSize
