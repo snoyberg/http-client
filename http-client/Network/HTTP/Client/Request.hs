@@ -62,7 +62,7 @@ import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
 import Data.IORef
 
-import System.IO
+import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 
 
 -- | Convert a URL into a 'Request'.

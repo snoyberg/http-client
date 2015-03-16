@@ -95,7 +95,7 @@ test-suite spec-nonet
                        Network.HTTP.Client.BodySpec
                        Network.HTTP.Client.HeadersSpec
                        Network.HTTP.Client.RequestSpec
-                       Network.Http.Client.RequestBodySpec.hs
+                       Network.HTTP.Client.RequestBodySpec
   build-depends:       base
                      , http-client
                      , hspec
