@@ -9,9 +9,10 @@ import Data.IORef
 import qualified Data.ByteString as BS
 import Network.HTTP.Client (streamFile, parseUrl, requestBody)
 import Network.HTTP.Client.Internal (dummyConnection, Connection, connectionWrite, requestBuilder)
+import System.Directory (getTemporaryDirectory)
 
 spec :: Spec
-spec = describe "sourceFile" $ it "works" $ withTmpFile $ \(path, h) -> do
+spec = describe "streamFile" $ it "works" $ withTmpFile $ \(path, h) -> do
     replicateM_ 5000 $ BS.hPut h "Hello, world!\r\n"
     hClose h
 
@@ -25,9 +26,10 @@ spec = describe "sourceFile" $ it "works" $ withTmpFile $ \(path, h) -> do
         requestBuilder req conn
         hIsEOF h' `shouldReturn` True
   where
-
     withTmpFile = bracket getTmpFile closeTmpFile
-    getTmpFile = openBinaryTempFile "/tmp" "request-body-stream-file"
+    getTmpFile = do
+        tmp <- getTemporaryDirectory
+        openBinaryTempFile tmp "request-body-stream-file"
     closeTmpFile (_, h) = hClose h
 
     firstReadBS = "GET / HTTP/1.1\r\nHost: example.com\r\nAccept-Encoding: gzip\r\nContent-Length: 75000\r\n\r\n"
