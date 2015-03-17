@@ -146,6 +146,9 @@ module Network.HTTP.Client
     , Popper
     , NeedsPopper
     , GivesPopper
+    , streamFile
+    , observedStreamFile
+    , StreamFileStatus (..)
       -- * Response
     , Response
     , responseStatus

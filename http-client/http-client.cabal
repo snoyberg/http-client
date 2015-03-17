@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.4.8.1
+version:             0.4.9
 synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client
@@ -95,6 +95,7 @@ test-suite spec-nonet
                        Network.HTTP.Client.BodySpec
                        Network.HTTP.Client.HeadersSpec
                        Network.HTTP.Client.RequestSpec
+                       Network.HTTP.Client.RequestBodySpec
   build-depends:       base
                      , http-client
                      , hspec
@@ -113,3 +114,4 @@ test-suite spec-nonet
                      , zlib
                      , async
                      , streaming-commons >= 0.1.1
+                     , directory

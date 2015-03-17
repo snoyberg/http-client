@@ -1,3 +1,7 @@
+## 0.4.9
+
+* Add RequestBody smart constructors `streamFile` and `streamFileObserved`, the latter with accompanying type `StreamFileStatus`.
+
 ## 0.4.8.1
 
 * Automatically call withSocketsDo everywhere [#107](https://github.com/snoyberg/http-client/issues/107)

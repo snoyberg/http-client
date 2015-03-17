@@ -28,6 +28,7 @@ module Network.HTTP.Client.Types
     , ConnHost (..)
     , ConnKey (..)
     , ProxyOverride (..)
+    , StreamFileStatus (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -597,4 +598,14 @@ data ConnHost =
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
 data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
+    deriving (Eq, Show, Ord, T.Typeable)
+
+-- | Status of streaming a request body from a file.
+--
+-- Since 0.4.9
+data StreamFileStatus = StreamFileStatus
+    { fileSize :: Int64
+    , readSoFar :: Int64
+    , thisChunkSize :: Int
+    }
     deriving (Eq, Show, Ord, T.Typeable)
