@@ -39,8 +39,8 @@ parseStatusHeaders conn timeout' cont
         next = nextStatusHeaders >>= maybe next return
 
     getStatusContinue sendBody = do
-        sh <- withTimeout nextStatusHeaders
-        case sh of
+        status <- withTimeout nextStatusHeaders
+        case status of
             Just  s -> return s
             Nothing -> sendBody >> getStatusNoContinue
 
