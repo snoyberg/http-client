@@ -11,6 +11,7 @@ import           Network.Socket            (sClose)
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
 import qualified Data.ByteString           as S
+import qualified Data.ByteString.Lazy      as SL
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
 
 main :: IO ()
@@ -74,7 +75,16 @@ earlyClose413 inner = bracket
 -- that misreporting like https://github.com/snoyberg/http-client/issues/108
 -- doesn't occur.
 lengthAndChunked :: (Int -> IO a) -> IO a
-lengthAndChunked inner = bracket
+lengthAndChunked = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 24\r\ntransfer-encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\ne\r\n in\r\n\r\nchunks.\r\n0\r\n\r\n"
+
+lengthZeroAndChunked :: (Int -> IO a) -> IO a
+lengthZeroAndChunked = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransfer-encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\ne\r\n in\r\n\r\nchunks.\r\n0\r\n\r\n"
+
+lengthZeroAndChunkZero :: (Int -> IO a) -> IO a
+lengthZeroAndChunkZero = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransfer-encoding: chunked\r\n\r\n0\r\n\r\n"
+
+serveWith :: S.ByteString -> (Int -> IO a) -> IO a
+serveWith resp inner = bracket
     (N.bindRandomPortTCP "*4")
     (sClose . snd)
     $ \(port, lsocket) -> withAsync
@@ -89,7 +99,14 @@ lengthAndChunked inner = bracket
                     then return ()
                     else readHeaders bs
         readHeaders S.empty
-        N.appWrite ad "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransfer-encoding: chunked\r\n\r\n0"
+        N.appWrite ad resp
+
+getChunkedResponse :: Int -> Manager -> IO (Response SL.ByteString)
+getChunkedResponse port' man = flip httpLbs man "http://localhost"
+  { port        = port'
+  , checkStatus = \_ _ _ -> Nothing
+  , requestBody = RequestBodyStreamChunked ($ return (S.replicate 100000 65))
+  }
 
 spec :: Spec
 spec = describe "Client" $ do
@@ -140,20 +157,21 @@ spec = describe "Client" $ do
 
     it "early close on a 413" $ earlyClose413 $ \port' -> do
         withManager defaultManagerSettings $ \man -> do
-            res <- flip httpLbs man "http://localhost"
-                { port = port'
-                , checkStatus = \_ _ _ -> Nothing
-                , requestBody = RequestBodyStreamChunked
-                    ($ return (S.replicate 100000 65))
-                }
+            res <- getChunkedResponse port' man
             responseBody res `shouldBe` "goodbye"
             responseStatus res `shouldBe` status413
 
-    it "length and chunking #108" $ lengthAndChunked $ \port' -> do
+    it "length zero and chunking zero #108" $ lengthZeroAndChunkZero $ \port' -> do
         withManager defaultManagerSettings $ \man -> do
-            (void $ flip httpLbs man "http://localhost"
-                { port = port'
-                , checkStatus = \_ _ _ -> Nothing
-                , requestBody = RequestBodyStreamChunked
-                    ($ return (S.replicate 100000 65))
-                }) `shouldThrow` (\e -> case e of { ResponseLengthAndChunkingBothUsed -> True; _ -> False})
+            res <- getChunkedResponse port' man
+            responseBody res `shouldBe` ""
+
+    it "length zero and chunking" $ lengthZeroAndChunked $ \port' -> do
+        withManager defaultManagerSettings $ \man -> do
+            res <- getChunkedResponse port' man
+            responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
+
+    it "length and chunking" $ lengthAndChunked $ \port' -> do
+        withManager defaultManagerSettings $ \man -> do
+            res <- getChunkedResponse port' man
+            responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."

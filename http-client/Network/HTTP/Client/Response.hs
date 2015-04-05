@@ -98,13 +98,9 @@ getResponse connRelease timeout' req@(Request {..}) conn cont = do
         toPut = Just "close" /= lookup "connection" hs && version > W.HttpVersion 1 0
         cleanup bodyConsumed = connRelease $ if toPut && bodyConsumed then Reuse else DontReuse
 
-    when (isJust mcl && isChunked) $ do
-        cleanup False
-        throwIO ResponseLengthAndChunkingBothUsed
-
     body <-
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
-        if hasNoBody method (W.statusCode s) || mcl == Just 0
+        if hasNoBody method (W.statusCode s) || (mcl == Just 0 && not isChunked)
             then do
                 cleanup True
                 return brEmpty
