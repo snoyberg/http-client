@@ -16,7 +16,7 @@ main = hspec spec
 
 spec :: Spec
 spec = describe "ResponseSpec" $ do
-    let getResponse' conn = getResponse (const $ return ()) Nothing req conn
+    let getResponse' conn = getResponse (const $ return ()) Nothing req conn Nothing
         Just req = parseUrl "http://localhost"
     it "basic" $ do
         (conn, _, _) <- dummyConnection

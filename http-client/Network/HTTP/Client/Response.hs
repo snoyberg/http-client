@@ -87,13 +87,10 @@ getResponse :: ConnRelease
             -> Maybe Int
             -> Request
             -> Connection
+            -> Maybe (IO ()) -- ^ Action to run in case of a '100 Continue'.
             -> IO (Response BodyReader)
-getResponse connRelease timeout'' req@(Request {..}) conn = do
-    let timeout' =
-            case timeout'' of
-                Nothing -> id
-                Just t -> timeout t >=> maybe (throwIO ResponseTimeout) return
-    StatusHeaders s version hs <- timeout' $ parseStatusHeaders conn
+getResponse connRelease timeout' req@(Request {..}) conn cont = do
+    StatusHeaders s version hs <- parseStatusHeaders conn timeout' cont
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
         isChunked = ("transfer-encoding", "chunked") `elem` hs
 

@@ -64,7 +64,6 @@ import Data.IORef
 
 import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 
-
 -- | Convert a URL into a 'Request'.
 --
 -- This defaults some of the values in 'Request', such as setting 'method' to
@@ -297,37 +296,51 @@ needsGunzip req hs' =
      && ("content-encoding", "gzip") `elem` hs'
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
 
-requestBuilder :: Request -> Connection -> IO ()
-requestBuilder req Connection {..} =
-    bodySource
+requestBuilder :: Request -> Connection -> IO (Maybe (IO ()))
+requestBuilder req Connection {..}
+    | expectContinue = flushHeaders >> return (Just (checkBadSend sendLater))
+    | otherwise      = sendNow      >> return Nothing
   where
-    checkBadSend f = f `E.catch` onRequestBodyException req
+    expectContinue   = Just "100-continue" == lookup "Expect" (requestHeaders req)
+    checkBadSend f   = f `E.catch` onRequestBodyException req
+    writeBuilder     = toByteStringIO connectionWrite
+    writeHeadersWith = writeBuilder . (builder `mappend`)
+    flushHeaders     = writeHeadersWith flush
 
-    writeBuilder = toByteStringIO connectionWrite
-
-    (contentLength, bodySource) =
+    (contentLength, sendNow, sendLater) =
         case requestBody req of
-            RequestBodyLBS lbs -> (Just $ L.length lbs,
-                checkBadSend $ writeBuilder
-                             $ builder `mappend` fromLazyByteString lbs)
-            RequestBodyBS bs -> (Just $ fromIntegral $ S.length bs,
-                checkBadSend $ writeBuilder
-                             $ builder `mappend` fromByteString bs)
-            RequestBodyBuilder i b -> (Just i,
-                checkBadSend $ writeBuilder $ builder `mappend` b)
+            RequestBodyLBS lbs ->
+                let body  = fromLazyByteString lbs
+                    now   = checkBadSend $ writeHeadersWith body
+                    later = writeBuilder body
+                in (Just (L.length lbs), now, later)
+
+            RequestBodyBS bs ->
+                let body  = fromByteString bs
+                    now   = checkBadSend $ writeHeadersWith body
+                    later = writeBuilder body
+                in (Just (fromIntegral $ S.length bs), now, later)
+
+            RequestBodyBuilder len body ->
+                let now   = checkBadSend $ writeHeadersWith body
+                    later = writeBuilder body
+                in (Just len, now, later)
 
             -- See https://github.com/snoyberg/http-client/issues/74 for usage
             -- of flush here.
-            RequestBodyStream i stream -> (Just i, do
-                -- Don't check for a bad send on the headers themselves.
-                -- Ideally, we'd do the same thing for the other request body
-                -- types, but it would also introduce a performance hit since
-                -- we couldn't merge request headers and bodies together.
-                writeBuilder (builder `mappend` flush)
-                checkBadSend $ writeStream False stream)
-            RequestBodyStreamChunked stream -> (Nothing, do
-                writeBuilder (builder `mappend` flush)
-                checkBadSend $ writeStream True stream)
+            RequestBodyStream len stream ->
+                let body = writeStream False stream
+                    -- Don't check for a bad send on the headers themselves.
+                    -- Ideally, we'd do the same thing for the other request body
+                    -- types, but it would also introduce a performance hit since
+                    -- we couldn't merge request headers and bodies together.
+                    now  = flushHeaders >> checkBadSend body
+                in (Just len, now, body)
+
+            RequestBodyStreamChunked stream ->
+                let body = writeStream True stream
+                    now  = flushHeaders >> checkBadSend body
+                in (Nothing, now, body)
 
     writeStream isChunked withStream =
         withStream loop

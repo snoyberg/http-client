@@ -420,7 +420,7 @@ getConn req m
                         , " HTTP/1.1\r\n\r\n"
                         ]
                     parse conn = do
-                        sh@(StatusHeaders status _ _) <- parseStatusHeaders conn
+                        sh@(StatusHeaders status _ _) <- parseStatusHeaders conn Nothing Nothing
                         unless (status == status200) $
                             throwIO $ ProxyConnectException ultHost ultPort $ Left $ S8.pack $ show sh
                  in mTlsProxyConnection m connstr parse (S8.unpack ultHost)

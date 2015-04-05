@@ -20,7 +20,7 @@ spec = describe "HeadersSpec" $ do
                 , "\nignored"
                 ]
         (connection, _, _) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders connection
+        statusHeaders <- parseStatusHeaders connection Nothing Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
             [ ("foo", "bar")
             , ("baz", "bin")

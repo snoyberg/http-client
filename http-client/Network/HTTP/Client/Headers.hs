@@ -13,6 +13,7 @@ import qualified Data.ByteString.Char8          as S8
 import qualified Data.CaseInsensitive           as CI
 import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
+import           Network.HTTP.Client.Util       (timeout)
 import           Network.HTTP.Types
 import Data.Word (Word8)
 
@@ -24,22 +25,38 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: Connection -> IO StatusHeaders
-parseStatusHeaders conn = do
-    (status, version) <- getStatusLine
-    headers <- parseHeaders 0 id
-    return $! StatusHeaders status version headers
+parseStatusHeaders :: Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders conn timeout' cont
+    | Just k <- cont = getStatusContinue k
+    | otherwise      = getStatusNoContinue
   where
-    getStatusLine = do
+    withTimeout = case timeout' of
+        Nothing -> id
+        Just  t -> timeout t >=> maybe (throwIO ResponseTimeout) return
+
+    getStatusNoContinue = withTimeout next
+      where
+        next = nextStatusHeaders >>= maybe next return
+
+    getStatusContinue sendBody = do
+        sh <- withTimeout nextStatusHeaders
+        case sh of
+            Just  s -> return s
+            Nothing -> sendBody >> getStatusNoContinue
+
+    nextStatusHeaders = do
+        (s, v) <- nextStatusLine
+        if statusCode s == 100
+            then connectionDropTillBlankLine conn >> return Nothing
+            else Just . StatusHeaders s v <$> parseHeaders 0 id
+
+    nextStatusLine :: IO (Status, HttpVersion)
+    nextStatusLine = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
         bs <- connectionRead conn
         when (S.null bs) $ throwIO NoResponseDataReceived
-
-        status@(code, _) <- connectionReadLineWith conn bs >>= parseStatus 3
-        if code == status100
-            then connectionDropTillBlankLine conn >> getStatusLine
-            else return status
+        connectionReadLineWith conn bs >>= parseStatus 3
 
     parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus i bs | S.null bs && i > 0 = connectionReadLine conn >>= parseStatus (i - 1)

@@ -89,9 +89,9 @@ httpRaw req0 m = do
     -- connections after accepting the request headers, so we need to check for
     -- exceptions in both.
     ex <- try $ do
-        requestBuilder req ci
+        cont <- requestBuilder req ci
 
-        getResponse connRelease timeout' req ci
+        getResponse connRelease timeout' req ci cont
 
     case (ex, isManaged) of
         -- Connection was reused, and might have been closed. Try again
