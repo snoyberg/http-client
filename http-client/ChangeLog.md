@@ -1,3 +1,7 @@
+## 0.4.10
+
+* Expect: 100-continue [#114](https://github.com/snoyberg/http-client/pull/114)
+
 ## 0.4.9
 
 * Add RequestBody smart constructors `streamFile` and `streamFileObserved`, the latter with accompanying type `StreamFileStatus`.
