@@ -27,22 +27,22 @@ charPeriod = 46
 
 parseStatusHeaders :: Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
 parseStatusHeaders conn timeout' cont
-    | Just k <- cont = getStatusContinue k
-    | otherwise      = getStatusNoContinue
+    | Just k <- cont = getStatusExpectContinue k
+    | otherwise      = getStatus
   where
     withTimeout = case timeout' of
         Nothing -> id
         Just  t -> timeout t >=> maybe (throwIO ResponseTimeout) return
 
-    getStatusNoContinue = withTimeout next
+    getStatus = withTimeout next
       where
         next = nextStatusHeaders >>= maybe next return
 
-    getStatusContinue sendBody = do
+    getStatusExpectContinue sendBody = do
         status <- withTimeout nextStatusHeaders
         case status of
             Just  s -> return s
-            Nothing -> sendBody >> getStatusNoContinue
+            Nothing -> sendBody >> getStatus
 
     nextStatusHeaders = do
         (s, v) <- nextStatusLine
