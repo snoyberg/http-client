@@ -115,12 +115,11 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- ^ Environment name and value
                    --
                    -- Since 0.4.7
-
                    | ResponseLengthAndChunkingBothUsed
                    -- ^ Detect a case where both the @content-length@ header
-                   -- and @transfer-encoding: chunked@ are used.
+                   -- and @transfer-encoding: chunked@ are used. Since 0.4.8.
                    --
-                   -- Since 0.4.8
+                   -- Since 0.4.11 this exception isn't thrown anymore.
     deriving (Show, T.Typeable)
 instance Exception HttpException
 

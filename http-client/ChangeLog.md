@@ -1,3 +1,7 @@
+## 0.4.11
+
+* Ignore the 'Content-Length' header if the body contains chunked data [#115](https://github.com/snoyberg/http-client/pull/115)
+
 ## 0.4.10
 
 * Expect: 100-continue [#114](https://github.com/snoyberg/http-client/pull/114)
