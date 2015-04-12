@@ -1,3 +1,7 @@
+## 0.4.11.1
+
+* Disable custom timeout code [#116](https://github.com/snoyberg/http-client/issues/116)
+
 ## 0.4.11
 
 * Ignore the 'Content-Length' header if the body contains chunked data [#115](https://github.com/snoyberg/http-client/pull/115)
