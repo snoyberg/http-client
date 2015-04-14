@@ -120,6 +120,10 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- and @transfer-encoding: chunked@ are used. Since 0.4.8.
                    --
                    -- Since 0.4.11 this exception isn't thrown anymore.
+                   | ConnectionTimeoutException Int String Int
+                   -- ^ useqs host/port
+                   --
+                   -- Since 0.4.12
     deriving (Show, T.Typeable)
 instance Exception HttpException
 

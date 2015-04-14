@@ -11,6 +11,7 @@ module Network.HTTP.Client.Manager
     , withManager
     , getConn
     , failedConnectionException
+    , connectionTimeoutException
     , defaultManagerSettings
     , rawConnectionModifySocket
     , proxyFromRequest
@@ -375,6 +376,13 @@ getManagedConn man key open = mask $ \restore -> do
 failedConnectionException :: Request -> HttpException
 failedConnectionException req =
     FailedConnectionException host' port'
+  where
+    (_, host', port') = getConnDest req
+{-# DEPRECATED failedConnectionException "Use connectionTimeoutException" #-}
+
+connectionTimeoutException :: Int -> Request -> HttpException
+connectionTimeoutException useqs req =
+    ConnectionTimeoutException useqs host' port'
   where
     (_, host', port') = getConnDest req
 
