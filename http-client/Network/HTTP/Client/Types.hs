@@ -87,7 +87,17 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | HandshakeFailed
                    | OverlongHeaders
                    | ResponseTimeout
-                   | FailedConnectionException String Int -- ^ host/port
+                   | FailedConnectionException String Int
+                   -- ^ host/port
+                   --
+                   -- Note that in old versions of http-client and
+                   -- http-conduit, this exception would indicate a failed
+                   -- attempt to create a connection. However, since (at least)
+                   -- http-client 0.4, it indicates a timeout occurred while
+                   -- trying to establish the connection. For more information
+                   -- on this, see:
+                   --
+                   -- <https://github.com/snoyberg/http-client/commit/b86b1cdd91e56ee33150433dedb32954d2082621#commitcomment-10718689>
                    | FailedConnectionException2 String Int Bool SomeException -- ^ host/port/secure
                    | ExpectedBlankAfter100Continue
                    | InvalidStatusLine S.ByteString
