@@ -20,7 +20,6 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Cookies
 import Data.Time
-import Data.Maybe (fromMaybe)
 import Control.Exception
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Char8 as S8
@@ -82,7 +81,7 @@ httpRaw req0 m = do
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         req
         (responseTimeout' req)
-        (connectionTimeoutException (fromMaybe 0 $ responseTimeout' req) req)
+        (failedConnectionException req)
         (getConn req m)
 
     -- Originally, we would only test for exceptions when sending the request,
