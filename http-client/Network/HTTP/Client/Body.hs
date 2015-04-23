@@ -25,6 +25,10 @@ import qualified Data.Streaming.Zlib as Z
 -- ^ Get a single chunk of data from the response body, or an empty
 -- bytestring if no more data is available.
 --
+-- Note that in order to consume the entire request body, you will need to
+-- repeatedly call this function until you receive an empty @ByteString@ as a
+-- result.
+--
 -- Since 0.1.0
 brRead :: BodyReader -> IO S.ByteString
 brRead = id
