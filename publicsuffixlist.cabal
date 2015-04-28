@@ -23,7 +23,6 @@ library
                  , containers
                  , bytestring >= 0.9
                  , text       >= 0.11
-                 , utf8-string
                  , cereal
     if flag(create)
         build-depends: idna             >= 0.1.2 && < 1.0
