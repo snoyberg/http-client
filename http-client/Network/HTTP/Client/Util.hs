@@ -11,8 +11,6 @@ module Network.HTTP.Client.Util
     , hasNoBody
     , fromStrict
     , timeout
-    , newTimeoutManager
-    , TimeoutManager
     ) where
 
 import Data.Monoid (Monoid, mappend)
@@ -29,7 +27,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Read
 import System.Timeout (timeout)
 
-import System.Clock
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Exception (mask_, Exception, throwTo, try, finally, SomeException, assert)
 import Control.Monad (join, when, void)
@@ -99,6 +96,8 @@ fromStrict :: S.ByteString -> L.ByteString
 fromStrict x = L.fromChunks [x]
 #endif
 
+-- Disabling the custom timeout code for now. See: https://github.com/snoyberg/http-client/issues/116
+{-
 data TimeoutHandler = TimeoutHandler {-# UNPACK #-} !TimeSpec (IO ())
 newtype TimeoutManager = TimeoutManager (IORef ([TimeoutHandler], Bool))
 
@@ -141,8 +140,6 @@ addHandler man@(TimeoutManager ref) h = mask_ $ join $ atomicModifyIORef ref
                 | otherwise = spawnWorker man
          in ((hs', isCleaning), action)
 
--- Disabling the custom timeout code for now. See: https://github.com/snoyberg/http-client/issues/116
-{-
 -- | Has same semantics as @System.Timeout.timeout@, but implemented in such a
 -- way to avoid high-concurrency contention issues. See:
 --

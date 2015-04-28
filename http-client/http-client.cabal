@@ -52,7 +52,6 @@ library
                      , filepath
                      , mime-types
                      , ghc-prim
-                     , clock             >= 0.4.1.3
   if flag(network-uri)
     build-depends: network >= 2.6, network-uri >= 2.6
   else
