@@ -28,7 +28,6 @@ import qualified Data.ByteString      as BS
 import qualified Data.Conduit         as C
 import qualified Data.Conduit.List    as CL
 import qualified Data.Conduit.Text    as CT
-import           Data.Default
 import qualified Data.Map             as M
 import qualified Data.Text            as T
 import           Data.Typeable

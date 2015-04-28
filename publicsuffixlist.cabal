@@ -21,7 +21,6 @@ flag runtimelist
 library
     build-depends: base       >= 4       && < 5
                  , containers
-                 , data-default
                  , bytestring >= 0.9
                  , text       >= 0.11
                  , utf8-string
