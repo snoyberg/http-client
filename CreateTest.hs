@@ -11,6 +11,9 @@ import qualified Network.HTTP.Conduit as HC
 import           System.IO
 import           Text.Regex.Base.RegexLike
 import           Text.Regex.Posix.String
+import Data.List (stripPrefix)
+import Data.Maybe (fromMaybe)
+import Control.Monad (guard)
 
 header :: [String]
 header = [ "{-# LANGUAGE OverloadedStrings #-}"
@@ -68,14 +71,17 @@ startswithdot = matchTest regex
   where regex = makeRegex "^checkPublicSuffix\\('\\.(.+)', (.+)\\);$" :: Regex
 
 input :: String -> (String, Maybe String)
-input s = (l, m)
-  where regex = makeRegex "^checkPublicSuffix\\('(.+)', (.+)\\);$" :: Regex
-        matches = head $ matchAllText regex s
-        l = fst $ matches ! 1
-        r = fst $ matches ! 2
-        m
-          | head r == '\'' = Just $ tail $ init r
-          | otherwise = Nothing
+input s = fromMaybe (error $ "input failed on " ++ show s) $ do
+    s <- stripPrefix "checkPublicSuffix('" s
+    (l, '\'':s) <- Just $ break (== '\'') s
+    s <- stripPrefix ", " s
+    (r, s) <- Just $ break (== ')') s
+    guard $ s == ");"
+    let m = do
+            r <- stripPrefix "'" r
+            r <- stripPrefix "'" $ reverse r
+            Just $ reverse r
+    Just (l, m)
 
 counter :: (Monad m, Num t1) => C.Conduit t m (t, t1)
 counter = counterHelper 0
