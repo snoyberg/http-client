@@ -32,6 +32,7 @@ import qualified Data.Map             as M
 import qualified Data.Text            as T
 import           Data.Typeable
 import           Text.IDNA
+import Control.Monad.Catch (MonadThrow)
 
 import           Network.PublicSuffixList.Types
 
@@ -66,6 +67,6 @@ foldingFunction d@(rules, exceptions) s'
 {-
 Generate the opaque 'DataStructure'
 -}
-sink :: C.MonadThrow m => C.Sink BS.ByteString m DataStructure
-sink = CT.decode CT.utf8 C.=$ CT.lines C.=$ CL.fold foldingFunction def
+sink :: MonadThrow m => C.Sink BS.ByteString m DataStructure
+sink = CT.decode CT.utf8 C.=$ CT.lines C.=$ CL.fold foldingFunction (def, def)
 
