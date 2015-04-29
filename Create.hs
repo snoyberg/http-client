@@ -10,7 +10,6 @@ without doing anything at runtime.
 import qualified Data.ByteString        as BS
 import qualified Data.ByteString.UTF8   as U8
 import qualified Data.Conduit           as C
-import           Data.Serialize.Put
 import qualified Data.Text              as T
 import           Data.Time.Clock
 import qualified Network.HTTP.Conduit   as HC
@@ -48,7 +47,6 @@ main = do
     hPutStrLn h "import Network.PublicSuffixList.Types"
     hPutStrLn h "#if !defined(RUNTIMELIST)"
     hPutStrLn h "import qualified Data.ByteString      as BS"
-    hPutStrLn h "import           Data.Serialize.Get hiding (getTreeOf)"
     hPutStrLn h "import Network.PublicSuffixList.Serialize"
     hPutStrLn h "#else"
     hPutStrLn h "import qualified Network.PublicSuffixList.Create as PSLC"
@@ -69,9 +67,9 @@ main = do
     hPutStrLn h "{-# NOINLINE dataStructure #-}"
     hPutStrLn h "dataStructure = unsafePerformIO $ C.runResourceT $ sourceFile RUNTIMELIST C.$$ PSLC.sink"
     hPutStrLn h "#else"
-    hPutStrLn h "dataStructure = let Right ds = runGet getDataStructure serializedDataStructure in ds"
+    hPutStrLn h "dataStructure = getDataStructure serializedDataStructure"
     hPutStrLn h ""
     hPutStrLn h "serializedDataStructure :: BS.ByteString"
-    hPutStrLn h $ "serializedDataStructure = " ++ (show $ runPut $ putDataStructure ds)
+    hPutStrLn h $ "serializedDataStructure = " ++ (show $ putDataStructure ds)
     hPutStrLn h ""
     hPutStrLn h "#endif"

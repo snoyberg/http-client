@@ -2,8 +2,6 @@
 
 import           Data.Char
 import           Data.Maybe
-import           Data.Serialize.Get hiding (getTreeOf)
-import           Data.Serialize.Put
 import qualified Data.Text                              as T
 import           Debug.Trace
 import           Network.PublicSuffixList.DataStructure
@@ -16,7 +14,7 @@ import           Text.IDNA
 
 effectiveTLDPlusOne' :: T.Text -> Maybe T.Text
 effectiveTLDPlusOne' = L.effectiveTLDPlusOne . T.intercalate "." . map (fromJust . toASCII False True . T.map toLower) . T.split (== '.')
--- DO NOT MODIFY! This file has been automatically generated from the CreateTest.hs script at 2015-04-29 04:36:37.485657 UTC
+-- DO NOT MODIFY! This file has been automatically generated from the CreateTest.hs script at 2015-04-29 05:00:07.582598 UTC
 hunittests :: Test
 hunittests = TestList [
   TestCase $ assertEqual "0" (Nothing) $ effectiveTLDPlusOne' "COM",
@@ -94,8 +92,8 @@ hunittests = TestList [
   TestCase $ assertEqual "72" (Nothing) $ effectiveTLDPlusOne' "xn--fiqs8s"  ]
 
 testSerializationRoundTrip = TestCase $ assertEqual "Round Trip" dataStructure ds
-  where Right ds = runGet getDataStructure serializedDataStructure
-        serializedDataStructure = runPut $ putDataStructure dataStructure
+  where ds = getDataStructure serializedDataStructure
+        serializedDataStructure = putDataStructure dataStructure
 
 main = do
   counts <- runTestTT $ TestList [TestLabel "Mozilla Tests" hunittests, TestLabel "Round Trip" testSerializationRoundTrip]
