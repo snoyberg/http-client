@@ -1,3 +1,7 @@
+## 0.4.11.2
+
+* Removed publicsuffixlist dependency, see [Github discussion](https://github.com/litherum/publicsuffixlist/pull/7)
+
 ## 0.4.11.1
 
 * Disable custom timeout code [#116](https://github.com/snoyberg/http-client/issues/116)
