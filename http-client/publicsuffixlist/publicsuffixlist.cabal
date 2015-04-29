@@ -1,0 +1,55 @@
+name:            publicsuffixlist
+version:         0.1
+license:         BSD3
+license-file:    LICENSE
+author:          Myles C. Maxfield <myles.maxfield@gmail.com>
+maintainer:      Myles C. Maxfield <myles.maxfield@gmail.com>
+synopsis:        Effective TLD checking
+description:     Is a given string a domain suffix?
+category:        Network
+stability:       Experimental
+cabal-version:   >= 1.8
+build-type:      Simple
+homepage:        https://github.com/litherum/publicsuffixlist
+extra-source-files: effective_tld_names.dat
+
+flag create
+  default: False
+flag runtimelist
+  default: False
+
+library
+    build-depends: base       >= 4       && < 5
+                 , containers
+                 , bytestring >= 0.9
+                 , text       >= 0.11
+                 , blaze-builder
+    if flag(create)
+        build-depends: idna             >= 0.1.2 && < 1.0
+                     , conduit          >= 1.0.0 && < 2.0.0
+    exposed-modules: Network.PublicSuffixList.Lookup
+                   , Network.PublicSuffixList.DataStructure
+    other-modules: Network.PublicSuffixList.Types
+                 , Network.PublicSuffixList.Serialize
+    if flag(create)
+        exposed-modules: Network.PublicSuffixList.Create
+    ghc-options:     -Wall
+    if flag(runtimelist)
+      cpp-options: -DRUNTIMELIST="/usr/share/publicsuffix/effective_tld_names.dat"
+
+
+Test-Suite test-public-suffix-list
+    type: exitcode-stdio-1.0
+    main-is: Test/PublicSuffixList.hs
+    build-depends: base     >= 4 && < 5
+                 , containers
+                 , data-default
+                 , text     >= 0.11
+                 , HUnit
+                 , idna     >= 0.1.1   && < 1.0
+                 , bytestring
+                 , blaze-builder
+
+source-repository head
+  type:     git
+  location: git://github.com/litherum/publicsuffixlist.git
