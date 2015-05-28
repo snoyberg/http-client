@@ -26,7 +26,7 @@ module Network.HTTP.Client.Request
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, fromJust)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
@@ -111,16 +111,19 @@ getUri req = URI
     , uriFragment = ""
     }
 
+applyAnyUriBasedAuth :: URI -> Request -> Request
+applyAnyUriBasedAuth uri =  applyBasicAuth username password
+ where
+   (username, password) = splitAuth $ uriUserInfo $ fromJust $ uriAuthority uri
+   splitAuth ai = ( S8.pack (takeWhile (/=':') ai), S8.pack (takeWhile (/='@') $ drop 1 $ dropWhile (/=':') ai) )
+
 -- | Validate a 'URI', then add it to the request.
 setUri :: MonadThrow m => Request -> URI -> m Request
 setUri req uri = do
     sec <- parseScheme uri
     auth <- maybe (failUri "URL must be absolute") return $ uriAuthority uri
-    if not . null $ uriUserInfo auth
-        then failUri "URL auth not supported; use applyBasicAuth instead"
-        else return ()
     port' <- parsePort sec auth
-    return req
+    return $ applyAnyUriBasedAuth uri req
         { host = S8.pack $ uriRegName auth
         , port = port'
         , secure = sec
@@ -242,6 +245,7 @@ browserDecompress = (/= "application/x-tar")
 --
 -- Since 0.1.0
 applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
+applyBasicAuth "" "" req = req
 applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where

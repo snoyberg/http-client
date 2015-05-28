@@ -5,9 +5,10 @@ import Blaze.ByteString.Builder (fromByteString)
 import Control.Applicative ((<$>))
 import Control.Monad (join, forM_)
 import Data.IORef
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust, fromMaybe, fromJust)
 import Network.HTTP.Client (parseUrl, requestHeaders, applyBasicProxyAuth)
 import Network.HTTP.Client.Internal
+import Network.URI (URI(..), URIAuth(..)) --(parseURI, relativeTo, escapeURIString, isAllowedInURI)
 import Test.Hspec
 
 spec :: Spec
@@ -21,6 +22,20 @@ spec = do
             it url $ case parseUrl url of
                 Nothing -> return () :: IO ()
                 Just req -> error $ show req
+
+    describe "authentication in url" $ do
+      it "passes validation" $ do
+        case parseUrl "http://agent:topsecret@example.com" of
+          Nothing -> error "failed"
+          Just _ -> return () :: IO ()
+
+      it "add username/password to headers section" $ do
+        let request = parseUrl "http://user:pass@example.com"
+            field = join $ lookup "Authorization" . requestHeaders <$> request
+            requestHostnameWithoutAuth = "example.com"
+        (uriRegName $ fromJust $ uriAuthority $ getUri $ fromJust request) `shouldBe` requestHostnameWithoutAuth
+        field `shouldSatisfy` isJust
+        field `shouldBe` Just "Basic dXNlcjpwYXNz"
 
     describe "applyBasicProxyAuth" $ do
         let request = applyBasicProxyAuth "user" "pass" <$> parseUrl "http://example.org"
