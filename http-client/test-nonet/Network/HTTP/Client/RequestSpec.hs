@@ -45,6 +45,26 @@ spec = do
         it "Should add a proxy-authorization header with the specified username and password." $ do
             field `shouldBe` Just "Basic dXNlcjpwYXNz"
 
+    describe "extract credentials from a URI" $ do
+        it "fetches non-empty username before the first ':'" $ do
+            username "agent:secret@example.com" `shouldBe` "agent"
+
+        it "extra colons do not delimit username" $ do
+            username "agent:006:supersecret@example.com" `shouldBe` "agent"
+
+        it "after ':' is considered password" $ do
+            password "agent007:shakenNotStirred@example.com" `shouldBe` "shakenNotStirred"
+
+        it "encodes username special characters per RFC3986" $ do
+            username "/?#[]!$&'()*+,;=:therealpassword@example.com" `shouldBe` "%2F%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D"
+
+        it "encodes password special characters per RFC3986" $ do
+            password "therealusername:?#[]!$&'()*+,;=/@example.com" `shouldBe` "%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D%2F"
+
+        it "no auth is empty" $ do
+            username "example.com" `shouldBe` ""
+            password "example.com" `shouldBe` ""
+
     describe "requestBuilder" $ do
         it "sends the full request, combining headers and body in the non-streaming case" $ do
             let Just req  = parseUrl "http://localhost"
@@ -98,3 +118,4 @@ spec = do
                 case xs of
                     (x:xs') -> (xs', x)
                     [] -> ([], "")
+ 

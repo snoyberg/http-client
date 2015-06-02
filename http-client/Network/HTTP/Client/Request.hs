@@ -23,6 +23,8 @@ module Network.HTTP.Client.Request
     , setQueryString
     , streamFile
     , observedStreamFile
+    , username
+    , password
     ) where
 
 import Data.Int (Int64)
@@ -45,7 +47,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 import qualified Network.HTTP.Types as W
-import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
+import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI, isReserved)
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (Exception, toException, throw, throwIO, IOException)
@@ -112,10 +114,21 @@ getUri req = URI
     }
 
 applyAnyUriBasedAuth :: URI -> Request -> Request
-applyAnyUriBasedAuth uri =  applyBasicAuth username password
+applyAnyUriBasedAuth uri =  applyBasicAuth (username authInfo) (password authInfo)
  where
-   (username, password) = splitAuth $ uriUserInfo $ fromJust $ uriAuthority uri
-   splitAuth ai = ( S8.pack (takeWhile (/=':') ai), S8.pack (takeWhile (/='@') $ drop 1 $ dropWhile (/=':') ai) )
+   authInfo = uriUserInfo $ fromJust $ uriAuthority uri
+
+username :: String -> S8.ByteString
+username = S8.pack . encode . takeWhile (/=':') . authPrefix
+
+password :: String -> S8.ByteString
+password = S8.pack . encode . takeWhile (/='@') . drop 1 . dropWhile (/=':')
+
+encode :: String -> String
+encode = escapeURIString (not . isReserved)
+
+authPrefix :: String -> String
+authPrefix u = if '@' `elem` u then takeWhile (/= '@') u else ""
 
 -- | Validate a 'URI', then add it to the request.
 setUri :: MonadThrow m => Request -> URI -> m Request
