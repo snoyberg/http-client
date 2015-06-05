@@ -1,0 +1,6 @@
+resolver: lts-2.9
+packages:
+- http-client
+- http-client-tls
+- http-client-openssl
+- http-conduit
