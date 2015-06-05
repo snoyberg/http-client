@@ -107,7 +107,10 @@ getUri req = URI
         , uriPort = ':' : show (port req)
         }
     , uriPath = S8.unpack $ path req
-    , uriQuery = S8.unpack $ queryString req
+    , uriQuery =
+        case S8.uncons $ queryString req of
+            Just (c, _) | c /= '?' -> '?' : (S8.unpack $ queryString req)
+            _ -> S8.unpack $ queryString req
     , uriFragment = ""
     }
 
