@@ -1,3 +1,7 @@
+## 0.4.11.3
+
+* Fix getUri to insert "?" to uriQuery when necessary. [#123](https://github.com/snoyberg/http-client/pull/123)
+
 ## 0.4.11.2
 
 * Removed publicsuffixlist dependency, see [Github discussion](https://github.com/litherum/publicsuffixlist/pull/7)
