@@ -28,7 +28,7 @@ module Network.HTTP.Client.Request
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust, fromJust)
+import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
@@ -114,15 +114,22 @@ getUri req = URI
     }
 
 applyAnyUriBasedAuth :: URI -> Request -> Request
-applyAnyUriBasedAuth uri =  applyBasicAuth (username authInfo) (password authInfo)
- where
-   authInfo = uriUserInfo $ fromJust $ uriAuthority uri
+applyAnyUriBasedAuth uri req =
+    if hasAuth
+      then applyBasicAuth (S8.pack theuser) (S8.pack thepass) req
+      else req
+  where
+    hasAuth = (notEmpty theuser) && (notEmpty thepass)
+    notEmpty = not . null
+    theuser = username authInfo
+    thepass = password authInfo
+    authInfo = uriUserInfo $ fromMaybe (URIAuth { uriUserInfo="", uriRegName="", uriPort="" }) $ uriAuthority uri
 
-username :: String -> S8.ByteString
-username = S8.pack . encode . takeWhile (/=':') . authPrefix
+username :: String -> String
+username = encode . takeWhile (/=':') . authPrefix
 
-password :: String -> S8.ByteString
-password = S8.pack . encode . takeWhile (/='@') . drop 1 . dropWhile (/=':')
+password :: String -> String
+password = encode . takeWhile (/='@') . drop 1 . dropWhile (/=':')
 
 encode :: String -> String
 encode = escapeURIString (not . isReserved)
@@ -258,7 +265,6 @@ browserDecompress = (/= "application/x-tar")
 --
 -- Since 0.1.0
 applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
-applyBasicAuth "" "" req = req
 applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where
