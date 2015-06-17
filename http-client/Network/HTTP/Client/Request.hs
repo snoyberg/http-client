@@ -123,7 +123,7 @@ applyAnyUriBasedAuth uri req =
     notEmpty = not . null
     theuser = username authInfo
     thepass = password authInfo
-    authInfo = uriUserInfo $ fromMaybe (URIAuth { uriUserInfo="", uriRegName="", uriPort="" }) $ uriAuthority uri
+    authInfo = maybe "" uriUserInfo $ uriAuthority uri
 
 username :: String -> String
 username = encode . takeWhile (/=':') . authPrefix
