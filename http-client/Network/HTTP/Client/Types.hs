@@ -208,6 +208,9 @@ data RequestBody
     | RequestBodyStream Int64 (GivesPopper ())
     | RequestBodyStreamChunked (GivesPopper ())
     deriving T.Typeable
+-- |
+--
+-- Since 0.4.12
 instance IsString RequestBody where
     fromString str = RequestBodyBS (fromString str)
 instance Monoid RequestBody where
