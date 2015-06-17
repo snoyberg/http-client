@@ -42,6 +42,7 @@ import Data.Int (Int64)
 import Data.Default.Class
 import Data.Foldable (Foldable)
 import Data.Monoid
+import Data.String (IsString, fromString)
 import Data.Time (UTCTime)
 import Data.Traversable (Traversable)
 import qualified Data.List as DL
@@ -207,6 +208,8 @@ data RequestBody
     | RequestBodyStream Int64 (GivesPopper ())
     | RequestBodyStreamChunked (GivesPopper ())
     deriving T.Typeable
+instance IsString RequestBody where
+    fromString str = RequestBodyBS (fromString str)
 instance Monoid RequestBody where
     mempty = RequestBodyBS S.empty
     mappend x0 y0 =
