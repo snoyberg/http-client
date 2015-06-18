@@ -23,6 +23,8 @@ module Network.HTTP.Client.Request
     , setQueryString
     , streamFile
     , observedStreamFile
+    , username
+    , password
     ) where
 
 import Data.Int (Int64)
@@ -45,7 +47,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 import qualified Network.HTTP.Types as W
-import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI)
+import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI, isReserved)
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (Exception, toException, throw, throwIO, IOException)
@@ -114,16 +116,37 @@ getUri req = URI
     , uriFragment = ""
     }
 
+applyAnyUriBasedAuth :: URI -> Request -> Request
+applyAnyUriBasedAuth uri req =
+    if hasAuth
+      then applyBasicAuth (S8.pack theuser) (S8.pack thepass) req
+      else req
+  where
+    hasAuth = (notEmpty theuser) && (notEmpty thepass)
+    notEmpty = not . null
+    theuser = username authInfo
+    thepass = password authInfo
+    authInfo = maybe "" uriUserInfo $ uriAuthority uri
+
+username :: String -> String
+username = encode . takeWhile (/=':') . authPrefix
+
+password :: String -> String
+password = encode . takeWhile (/='@') . drop 1 . dropWhile (/=':')
+
+encode :: String -> String
+encode = escapeURIString (not . isReserved)
+
+authPrefix :: String -> String
+authPrefix u = if '@' `elem` u then takeWhile (/= '@') u else ""
+
 -- | Validate a 'URI', then add it to the request.
 setUri :: MonadThrow m => Request -> URI -> m Request
 setUri req uri = do
     sec <- parseScheme uri
     auth <- maybe (failUri "URL must be absolute") return $ uriAuthority uri
-    if not . null $ uriUserInfo auth
-        then failUri "URL auth not supported; use applyBasicAuth instead"
-        else return ()
     port' <- parsePort sec auth
-    return req
+    return $ applyAnyUriBasedAuth uri req
         { host = S8.pack $ uriRegName auth
         , port = port'
         , secure = sec

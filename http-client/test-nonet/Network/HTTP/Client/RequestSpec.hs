@@ -5,9 +5,10 @@ import Blaze.ByteString.Builder (fromByteString)
 import Control.Applicative ((<$>))
 import Control.Monad (join, forM_)
 import Data.IORef
-import Data.Maybe (isJust, fromMaybe)
+import Data.Maybe (isJust, fromMaybe, fromJust)
 import Network.HTTP.Client (parseUrl, requestHeaders, applyBasicProxyAuth)
 import Network.HTTP.Client.Internal
+import Network.URI (URI(..), URIAuth(..)) --(parseURI, relativeTo, escapeURIString, isAllowedInURI)
 import Test.Hspec
 
 spec :: Spec
@@ -22,6 +23,20 @@ spec = do
                 Nothing -> return () :: IO ()
                 Just req -> error $ show req
 
+    describe "authentication in url" $ do
+      it "passes validation" $ do
+        case parseUrl "http://agent:topsecret@example.com" of
+          Nothing -> error "failed"
+          Just _ -> return () :: IO ()
+
+      it "add username/password to headers section" $ do
+        let request = parseUrl "http://user:pass@example.com"
+            field = join $ lookup "Authorization" . requestHeaders <$> request
+            requestHostnameWithoutAuth = "example.com"
+        (uriRegName $ fromJust $ uriAuthority $ getUri $ fromJust request) `shouldBe` requestHostnameWithoutAuth
+        field `shouldSatisfy` isJust
+        field `shouldBe` Just "Basic dXNlcjpwYXNz"
+
     describe "applyBasicProxyAuth" $ do
         let request = applyBasicProxyAuth "user" "pass" <$> parseUrl "http://example.org"
             field   = join $ lookup "Proxy-Authorization" . requestHeaders <$> request
@@ -29,6 +44,26 @@ spec = do
             field `shouldSatisfy` isJust
         it "Should add a proxy-authorization header with the specified username and password." $ do
             field `shouldBe` Just "Basic dXNlcjpwYXNz"
+
+    describe "extract credentials from a URI" $ do
+        it "fetches non-empty username before the first ':'" $ do
+            username "agent:secret@example.com" `shouldBe` "agent"
+
+        it "extra colons do not delimit username" $ do
+            username "agent:006:supersecret@example.com" `shouldBe` "agent"
+
+        it "after ':' is considered password" $ do
+            password "agent007:shakenNotStirred@example.com" `shouldBe` "shakenNotStirred"
+
+        it "encodes username special characters per RFC3986" $ do
+            username "/?#[]!$&'()*+,;=:therealpassword@example.com" `shouldBe` "%2F%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D"
+
+        it "encodes password special characters per RFC3986" $ do
+            password "therealusername:?#[]!$&'()*+,;=/@example.com" `shouldBe` "%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D%2F"
+
+        it "no auth is empty" $ do
+            username "example.com" `shouldBe` ""
+            password "example.com" `shouldBe` ""
 
     describe "requestBuilder" $ do
         it "sends the full request, combining headers and body in the non-streaming case" $ do
@@ -83,3 +118,4 @@ spec = do
                 case xs of
                     (x:xs') -> (xs', x)
                     [] -> ([], "")
+ 
