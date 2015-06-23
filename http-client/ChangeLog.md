@@ -1,3 +1,7 @@
+## 0.4.13
+
+* Support for auth via url [#124](https://github.com/snoyberg/http-client/pull/124)
+
 ## 0.4.12
 
 * Added `IsString RequestBody` instance [#126](https://github.com/snoyberg/http-client/pull/126)
