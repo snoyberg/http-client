@@ -486,11 +486,8 @@ envHelper :: Text -> EnvHelper -> IO (Request -> Request)
 envHelper name eh = do
     env <- getEnvironment
     case lookup (T.unpack name) env of
-        Nothing -> return $
-            case eh of
-                EHFromRequest -> id
-                EHNoProxy     -> \req -> req { proxy = Nothing }
-                EHUseProxy p  -> \req -> req { proxy = Just p  }
+        Nothing  -> return noEnvProxy
+        Just ""  -> return noEnvProxy
         Just str -> do
             let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
             p <- maybe invalid return $ do
@@ -517,3 +514,7 @@ envHelper name eh = do
 
                 Just $ Proxy (S8.pack $ U.uriRegName auth) port
             return $ \req -> req { proxy = Just p }
+    where noEnvProxy = case eh of
+            EHFromRequest -> id
+            EHNoProxy     -> \req -> req { proxy = Nothing }
+            EHUseProxy p  -> \req -> req { proxy = Just p  }
