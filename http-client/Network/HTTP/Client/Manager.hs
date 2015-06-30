@@ -54,6 +54,7 @@ import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
+import Network.HTTP.Client.Request (username, password, applyBasicProxyAuth)
 import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
 import System.Environment (getEnvironment)
 import qualified Network.URI as U
@@ -490,7 +491,7 @@ envHelper name eh = do
         Just ""  -> return noEnvProxy
         Just str -> do
             let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
-            p <- maybe invalid return $ do
+            (p, muserpass) <- maybe invalid return $ do
                 uri <- case U.parseURI str of
                     Just u | U.uriScheme u == "http:" -> return u
                     _ -> U.parseURI $ "http://" ++ str
@@ -501,7 +502,13 @@ envHelper name eh = do
                 guard $ null $ U.uriFragment uri
 
                 auth <- U.uriAuthority uri
-                guard $ null $ U.uriUserInfo auth
+                let muserpass =
+                        if null authInfo
+                            then Nothing
+                            else Just ( S8.pack $ username authInfo
+                                      , S8.pack $ password authInfo
+                                      )
+                    authInfo = U.uriUserInfo auth
 
                 port <-
                     case U.uriPort auth of
@@ -512,8 +519,10 @@ envHelper name eh = do
                                 _ -> Nothing
                         _ -> Nothing
 
-                Just $ Proxy (S8.pack $ U.uriRegName auth) port
-            return $ \req -> req { proxy = Just p }
+                Just $ (Proxy (S8.pack $ U.uriRegName auth) port, muserpass)
+            return $ \req ->
+                maybe id (uncurry applyBasicProxyAuth) muserpass
+                req { proxy = Just p }
     where noEnvProxy = case eh of
             EHFromRequest -> id
             EHNoProxy     -> \req -> req { proxy = Nothing }

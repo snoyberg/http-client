@@ -1,3 +1,7 @@
+## 0.4.15
+
+* Support proxy authentication in environment variables [#129](https://github.com/snoyberg/http-client/issues/129)
+
 ## 0.4.14
 
 * Ignore empty `http_proxy` [#128](https://github.com/snoyberg/http-client/pull/128)
