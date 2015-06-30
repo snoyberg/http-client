@@ -16,7 +16,7 @@
 -- This example uses interleaved IO to write the response body to a file in
 -- constant memory space.
 --
--- > import Data.Conduit.Binary (sinkFile)
+-- > import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
 -- > import Network.HTTP.Conduit
 -- > import qualified Data.Conduit as C
 -- >
