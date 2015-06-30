@@ -1,3 +1,7 @@
+## 0.4.14
+
+* Ignore empty `http_proxy` [#128](https://github.com/snoyberg/http-client/pull/128)
+
 ## 0.4.13
 
 * Support for auth via url [#124](https://github.com/snoyberg/http-client/pull/124)
