@@ -413,12 +413,15 @@ getConn req m
             (True, True) ->
                 let ultHost = host req
                     ultPort = port req
+                    proxyAuthorizationHeader = maybe "" (\h -> S8.concat ["Proxy-Authorization: ", h, "\r\n"]) . lookup "Proxy-Authorization" $ requestHeaders req
                     connstr = S8.concat
                         [ "CONNECT "
                         , ultHost
                         , ":"
                         , S8.pack $ show ultPort
-                        , " HTTP/1.1\r\n\r\n"
+                        , " HTTP/1.1\r\n"
+                        , proxyAuthorizationHeader
+                        , "\r\n"
                         ]
                     parse conn = do
                         sh@(StatusHeaders status _ _) <- parseStatusHeaders conn Nothing Nothing
