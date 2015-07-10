@@ -89,7 +89,7 @@ httpRaw req0 m = do
     -- connections after accepting the request headers, so we need to check for
     -- exceptions in both.
     ex <- try $ do
-        cont <- requestBuilder req ci
+        cont <- requestBuilder (dropProxyAuthSecure req) ci
 
         getResponse connRelease timeout' req ci cont
 

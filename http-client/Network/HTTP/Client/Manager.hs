@@ -19,6 +19,7 @@ module Network.HTTP.Client.Manager
     , proxyEnvironment
     , proxyEnvironmentNamed
     , defaultProxy
+    , dropProxyAuthSecure
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -384,6 +385,18 @@ getConnDest req =
     case proxy req of
         Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
         Nothing -> (False, S8.unpack $ host req, port req)
+
+-- | Drop the Proxy-Authorization header from the request if we're using a
+-- secure proxy.
+dropProxyAuthSecure :: Request -> Request
+dropProxyAuthSecure req
+    | secure req && useProxy = req
+        { requestHeaders = filter (\(k, _) -> k /= "Proxy-Authorization")
+                                  (requestHeaders req)
+        }
+    | otherwise = req
+  where
+    (useProxy, _, _) = getConnDest req
 
 getConn :: Request
         -> Manager
