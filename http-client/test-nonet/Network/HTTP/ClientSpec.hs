@@ -186,7 +186,6 @@ spec = describe "Client" $ do
 
 
     it "full response on last response in history" $ longResponse $ \port' -> do
---      str `shouldBe` ""
       req <- parseUrl $ "http://127.0.0.1:" ++ show port'
       result <- withManager defaultManagerSettings $ \man -> do
         withResponseHistory req man $ \hist -> do
@@ -195,4 +194,3 @@ spec = describe "Client" $ do
 
 len :: Int
 len = 8152
--- 20k 20200
