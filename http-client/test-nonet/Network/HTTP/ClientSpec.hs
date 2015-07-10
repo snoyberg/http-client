@@ -1,18 +1,19 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
-import           Control.Concurrent        (forkIO, threadDelay)
-import           Control.Concurrent.Async  (withAsync)
-import           Control.Exception         (bracket)
-import           Control.Monad             (forever, replicateM_, void)
+import           Control.Concurrent         (forkIO, threadDelay)
+import           Control.Concurrent.Async   (withAsync)
+import           Control.Exception          (bracket)
+import           Control.Monad              (forever, replicateM_, void)
+import qualified Data.ByteString            as S
+import qualified Data.ByteString.Char8      as S8
+import qualified Data.ByteString.Lazy       as SL
+import           Data.ByteString.Lazy.Char8 ()
+import qualified Data.Streaming.Network     as N
 import           Network.HTTP.Client
-import           Network.HTTP.Types        (status413)
-import           Network.Socket            (sClose)
+import           Network.HTTP.Types         (status413)
+import           Network.Socket             (sClose)
 import           Test.Hspec
-import qualified Data.Streaming.Network    as N
-import qualified Data.ByteString           as S
-import qualified Data.ByteString.Lazy      as SL
-import           Data.ByteString.Lazy.Char8 () -- orphan instance
 
 main :: IO ()
 main = hspec spec
@@ -82,6 +83,13 @@ lengthZeroAndChunked = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransf
 
 lengthZeroAndChunkZero :: (Int -> IO a) -> IO a
 lengthZeroAndChunkZero = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransfer-encoding: chunked\r\n\r\n0\r\n\r\n"
+
+str :: S.ByteString
+str = S8.pack ("HTTP/1.1 200 OK\r\ncontent-length: " ++ show len ++"\r\n\r\n" ++ replicate len 'x')
+
+longResponse :: (Int -> IO a) -> IO a
+longResponse = serveWith str
+
 
 serveWith :: S.ByteString -> (Int -> IO a) -> IO a
 serveWith resp inner = bracket
@@ -175,3 +183,14 @@ spec = describe "Client" $ do
         withManager defaultManagerSettings $ \man -> do
             res <- getChunkedResponse port' man
             responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
+
+
+    it "full response on last response in history" $ longResponse $ \port' -> do
+      req <- parseUrl $ "http://127.0.0.1:" ++ show port'
+      result <- withManager defaultManagerSettings $ \man -> do
+        withResponseHistory req man $ \hist -> do
+          responseBody (hrFinalResponse hist)
+      S.length result `shouldBe` len
+
+len :: Int
+len = 8152
