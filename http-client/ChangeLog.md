@@ -1,3 +1,7 @@
+## 0.4.16
+
+* Proxy auth for HTTPS [#132](https://github.com/snoyberg/http-client/issues/132)
+
 ## 0.4.15
 
 * Support proxy authentication in environment variables [#129](https://github.com/snoyberg/http-client/issues/129)
