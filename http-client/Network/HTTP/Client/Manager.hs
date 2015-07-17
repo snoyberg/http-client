@@ -25,6 +25,8 @@ module Network.HTTP.Client.Manager
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
 #endif
+import Control.Applicative ((<|>))
+import Control.Arrow (first)
 import Data.Monoid (mappend)
 import System.IO (hClose, hFlush, IOMode(..))
 import qualified Data.IORef as I
@@ -502,7 +504,8 @@ data EnvHelper = EHFromRequest
 envHelper :: Text -> EnvHelper -> IO (Request -> Request)
 envHelper name eh = do
     env <- getEnvironment
-    case lookup (T.unpack name) env of
+    let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
+    case lookup (T.unpack name) env <|> Map.lookup name lenv of
         Nothing  -> return noEnvProxy
         Just ""  -> return noEnvProxy
         Just str -> do
