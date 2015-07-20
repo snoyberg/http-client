@@ -1,3 +1,7 @@
+## 0.4.17
+
+* Case insensitive proxy environment variables [#135](https://github.com/snoyberg/http-client/issues/135)
+
 ## 0.4.16
 
 * Proxy auth for HTTPS [#132](https://github.com/snoyberg/http-client/issues/132)
