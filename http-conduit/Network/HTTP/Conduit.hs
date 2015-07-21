@@ -287,6 +287,7 @@ withManager :: (MonadIO m, MonadBaseControl IO m)
             => (Manager -> ResourceT m a)
             -> m a
 withManager = withManagerSettings conduitManagerSettings
+{-# DEPRECATED withManager "Please new newManager conduitManagerSettings" #-}
 
 withManagerSettings :: (MonadIO m, MonadBaseControl IO m)
                     => ManagerSettings
@@ -296,6 +297,7 @@ withManagerSettings set f = bracket
     (liftIO $ newManager set)
     (liftIO . closeManager)
     (runResourceT . f)
+{-# DEPRECATED withManagerSettings "Please new newManager" #-}
 
 setConnectionClose :: Request -> Request
 setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
