@@ -162,9 +162,8 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
     | otherwise = (l, Just x)
 
--- | Create a 'Manager'. You may manually call 'closeManager' to shut it down,
--- or allow the @Manager@ to be shut down automatically based on garbage
--- collection.
+-- | Create a 'Manager'. The @Manager@ will be shut down automatically based on
+-- garbage collection.
 --
 -- Creating a new 'Manager' is a relatively expensive operation, you are
 -- advised to share a single 'Manager' between requests instead.
@@ -307,6 +306,7 @@ neFromList xs =
 -- Since 0.1.0
 closeManager :: Manager -> IO ()
 closeManager = closeManager' . mConns
+{-# DEPRECATED closeManager "Manager will be closed for you automatically when no longer in use" #-}
 
 closeManager' :: I.IORef ConnsMap
               -> IO ()
@@ -320,7 +320,8 @@ closeManager' connsRef = mask_ $ do
 --
 -- Since 0.2.1
 withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
-withManager settings = bracket (newManager settings) closeManager
+withManager settings = bracket (newManager settings) (const $ return ())
+{-# DEPRECATED withManager "Use newManager instead" #-}
 
 safeConnClose :: Connection -> IO ()
 safeConnClose ci = connectionClose ci `catch` \(_ :: IOException) -> return ()

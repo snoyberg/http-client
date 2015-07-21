@@ -19,11 +19,13 @@
 -- > import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
 -- > import Network.HTTP.Conduit
 -- > import qualified Data.Conduit as C
+-- > import Control.Monad.Trans.Resource (runResourceT)
 -- >
 -- > main :: IO ()
 -- > main = do
 -- >      request <- parseUrl "http://google.com/"
--- >      withManager $ \manager -> do
+-- >      manager <- newManager tlsManagerSettings
+-- >      runResourceT $ do
 -- >          response <- http request manager
 -- >          responseBody response C.$$+- sinkFile "google.html"
 --
@@ -74,8 +76,9 @@
 -- >
 -- > main = withSocketsDo $ do
 -- >      request' <- parseUrl "http://example.com/secret-page"
+-- >      manager <- newManager tlsManagerSettings
 -- >      let request = request' { cookieJar = Just $ createCookieJar [cookie] }
--- >      (fmap Just (withManager $ httpLbs request)) `E.catch`
+-- >      (fmap Just (httpLbs request manager)) `E.catch`
 -- >              (\(StatusCodeException s _ _) ->
 -- >                if statusCode s==403 then (putStrLn "login failed" >> return Nothing) else return Nothing)
 --
@@ -107,7 +110,8 @@
 -- > main = withSocketsDo $ do
 -- >      request' <- parseUrl "http://www.yesodweb.com/does-not-exist"
 -- >      let request = request' { checkStatus = \_ _ _ -> Nothing }
--- >      res <- withManager $ httpLbs request
+-- >      manager <- newManager tlsManagerSettings
+-- >      res <- httpLbs request manager
 -- >      print res
 --
 -- By default, when connecting to websites using HTTPS, functions in this
@@ -122,7 +126,8 @@
 -- > main = do
 -- >     request <- parseUrl "https://github.com/"
 -- >     let settings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
--- >     res <- withManagerSettings settings $ httpLbs request
+-- >     manager <- newManager settings
+-- >     res <- httpLbs request manager
 -- >     print res
 --
 -- For more information, please be sure to read the documentation in the
@@ -178,6 +183,7 @@ module Network.HTTP.Conduit
       -- ** Settings
     , ManagerSettings
     , conduitManagerSettings
+    , tlsManagerSettings
     , mkManagerSettings
     , managerConnCount
     , managerResponseTimeout
@@ -276,27 +282,26 @@ httpLbs r m = liftIO $ Client.httpLbs r m
 -- Note: This function creates a new 'Manager'. It should be avoided
 -- in production code.
 simpleHttp :: MonadIO m => String -> m L.ByteString
-simpleHttp url = liftIO $ withManager $ \man -> do
+simpleHttp url = liftIO $ do
+    man <- newManager tlsManagerSettings
     req <- liftIO $ parseUrl url
     responseBody <$> httpLbs (setConnectionClose req) man
 
 conduitManagerSettings :: ManagerSettings
 conduitManagerSettings = tlsManagerSettings
+{-# DEPRECATED conduitManagerSettings "Use tlsManagerSettings" #-}
 
 withManager :: (MonadIO m, MonadBaseControl IO m)
             => (Manager -> ResourceT m a)
             -> m a
-withManager = withManagerSettings conduitManagerSettings
-{-# DEPRECATED withManager "Please new newManager conduitManagerSettings" #-}
+withManager = withManagerSettings tlsManagerSettings
+{-# DEPRECATED withManager "Please new newManager tlsManagerSettings" #-}
 
 withManagerSettings :: (MonadIO m, MonadBaseControl IO m)
                     => ManagerSettings
                     -> (Manager -> ResourceT m a)
                     -> m a
-withManagerSettings set f = bracket
-    (liftIO $ newManager set)
-    (liftIO . closeManager)
-    (runResourceT . f)
+withManagerSettings set f = liftIO (newManager set) >>= runResourceT . f
 {-# DEPRECATED withManagerSettings "Please new newManager" #-}
 
 setConnectionClose :: Request -> Request
