@@ -162,7 +162,7 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
     | otherwise = (l, Just x)
 
--- | Create a 'Manager'. The @Manager@ will be shut down automatically based on
+-- | Create a 'Manager'. The @Manager@ will be shut down automatically via
 -- garbage collection.
 --
 -- Creating a new 'Manager' is a relatively expensive operation, you are
@@ -305,7 +305,7 @@ neFromList xs =
 --
 -- Since 0.1.0
 closeManager :: Manager -> IO ()
-closeManager = closeManager' . mConns
+closeManager _ = return ()
 {-# DEPRECATED closeManager "Manager will be closed for you automatically when no longer in use" #-}
 
 closeManager' :: I.IORef ConnsMap
@@ -320,7 +320,7 @@ closeManager' connsRef = mask_ $ do
 --
 -- Since 0.2.1
 withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
-withManager settings = bracket (newManager settings) (const $ return ())
+withManager settings f = newManager settings >>= f
 {-# DEPRECATED withManager "Use newManager instead" #-}
 
 safeConnClose :: Connection -> IO ()
