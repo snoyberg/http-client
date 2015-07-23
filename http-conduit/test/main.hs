@@ -9,7 +9,7 @@ import Test.HUnit
 import Network.Wai hiding (requestBody)
 import Network.Wai.Conduit (responseSource, sourceRequestBody)
 import qualified Network.Wai as Wai
-import Network.Wai.Handler.Warp (runSettings, defaultSettings, settingsPort, settingsBeforeMainLoop, Settings, setTimeout)
+import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
 import Network.HTTP.Conduit hiding (port)
 import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Client.MultipartFormData
@@ -127,10 +127,10 @@ withAppSettings modSettings app' f = do
     port <- getPort
     baton <- newEmptyMVar
     bracket
-        (forkIO $ runSettings (modSettings defaultSettings
-            { settingsPort = port
-            , settingsBeforeMainLoop = putMVar baton ()
-            }) (app'' port) `onException` putMVar baton ())
+        (forkIO $ runSettings (modSettings $
+            setPort port
+            $ setBeforeMainLoop (putMVar baton ())
+              defaultSettings) (app'' port) `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
   where
@@ -146,10 +146,11 @@ withAppTls' app' f = do
     port <- getPort
     baton <- newEmptyMVar
     bracket
-        (forkIO $ WT.runTLS WT.defaultTlsSettings defaultSettings
-            { settingsPort = port
-            , settingsBeforeMainLoop = putMVar baton ()
-            } (app'' port) `onException` putMVar baton ())
+        (forkIO $ WT.runTLS WT.defaultTlsSettings (
+            setPort port
+            $ setBeforeMainLoop (putMVar baton ())
+              defaultSettings)
+            (app'' port) `onException` putMVar baton ())
         killThread
         (const $ takeMVar baton >> f port)
   where
