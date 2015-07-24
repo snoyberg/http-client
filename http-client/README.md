@@ -23,7 +23,7 @@ main = do
     let settings = managerSetProxy
             (proxyEnvironment Nothing)
             defaultManagerSettings
-    withManager settings $ \man -> do
+    man <- newManager settings
     let req = "http://httpbin.org"
             -- Note that the following settings will be completely ignored.
             { proxy = Just $ Proxy "localhost" 1234
