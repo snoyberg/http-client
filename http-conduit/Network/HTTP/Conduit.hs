@@ -295,14 +295,14 @@ withManager :: (MonadIO m, MonadBaseControl IO m)
             => (Manager -> ResourceT m a)
             -> m a
 withManager = withManagerSettings tlsManagerSettings
-{-# DEPRECATED withManager "Please new newManager tlsManagerSettings" #-}
+{-# DEPRECATED withManager "Please use newManager tlsManagerSettings" #-}
 
 withManagerSettings :: (MonadIO m, MonadBaseControl IO m)
                     => ManagerSettings
                     -> (Manager -> ResourceT m a)
                     -> m a
 withManagerSettings set f = liftIO (newManager set) >>= runResourceT . f
-{-# DEPRECATED withManagerSettings "Please new newManager" #-}
+{-# DEPRECATED withManagerSettings "Please use newManager" #-}
 
 setConnectionClose :: Request -> Request
 setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
