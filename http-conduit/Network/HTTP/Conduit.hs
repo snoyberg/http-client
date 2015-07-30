@@ -203,7 +203,7 @@ module Network.HTTP.Conduit
     , alwaysDecompress
     , browserDecompress
       -- * Request bodies
-      -- | "Network.HTTP.Conduit.MultipartFormData" provides an API for building
+      -- | "Network.HTTP.Client.MultipartFormData" provides an API for building
       -- form-data request bodies.
     , urlEncodedBody
       -- * Exceptions
