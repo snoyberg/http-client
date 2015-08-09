@@ -2,24 +2,18 @@ language: haskell
 ghc:
   - '7.8'
 
-sudo: false
+sudo: true
 cache:
   directories:
-  - $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/7.10.1/
+  - $HOME/.stack
 
 before_install:
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/7.10.1/
-  - git clone https://github.com/commercialhaskell/stack
-  - cabal sandbox init
-  - cabal sandbox add-source stack
-  - cabal install stack
-  - mkdir $HOME/bin
-  - cp .cabal-sandbox/bin/stack $HOME/bin
+  - wget -q -O- http://download.fpcomplete.com/ubuntu/fpco.key | sudo apt-key add -
+  - echo 'deb http://download.fpcomplete.com/ubuntu/trusty stable main' | sudo tee /etc/apt/sources.list.d/fpco.list
+  - sudo apt-get update
+  - sudo apt-get install stack -y
 
 install:
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/7.10.1/
   - stack setup
   - stack test --only-snapshot
 
