@@ -22,6 +22,7 @@ module Network.HTTP.Client.Types
     , Response (..)
     , ResponseClose (..)
     , Manager (..)
+    , HasHttpManager (..)
     , ConnsMap (..)
     , ManagerSettings (..)
     , NonEmptyList (..)
@@ -594,6 +595,11 @@ data Manager = Manager
     -- ^ See 'managerProxy'
     }
     deriving T.Typeable
+
+class HasHttpManager a where
+    getHttpManager :: a -> Manager
+instance HasHttpManager Manager where
+    getHttpManager = id
 
 data ConnsMap
     = ManagerClosed

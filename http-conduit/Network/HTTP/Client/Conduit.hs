@@ -17,7 +17,6 @@ module Network.HTTP.Client.Conduit
     , withManager
     , withManagerSettings
     , newManagerSettings
-    , HasHttpManager (..)
       -- * General HTTP client interface
     , module Network.HTTP.Client
     , httpLbs
@@ -45,6 +44,7 @@ import           Network.HTTP.Client          hiding (closeManager,
                                                newManager, responseClose,
                                                responseOpen, withManager,
                                                withResponse, BodyReader, brRead, brConsume, httpNoBody)
+import           Network.HTTP.Client          (HasHttpManager(..))
 import qualified Network.HTTP.Client          as H
 import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 
@@ -125,11 +125,6 @@ responseOpen req = do
 -- Since 2.1.0
 responseClose :: MonadIO m => Response body -> m ()
 responseClose = liftIO . H.responseClose
-
-class HasHttpManager a where
-    getHttpManager :: a -> Manager
-instance HasHttpManager Manager where
-    getHttpManager = id
 
 bodyReaderSource :: MonadIO m
                  => H.BodyReader

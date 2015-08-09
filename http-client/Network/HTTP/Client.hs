@@ -87,6 +87,7 @@ module Network.HTTP.Client
     , newManager
     , closeManager
     , withManager
+    , HasHttpManager(..)
       -- ** Connection manager settings
     , ManagerSettings
     , defaultManagerSettings
