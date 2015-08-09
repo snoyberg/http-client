@@ -1,27 +1,22 @@
-language: haskell
-ghc:
-  - '7.8'
-
 sudo: false
-cache:
-  directories:
-  - $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/7.10.1/
+
+addons:
+  apt:
+    sources:
+    - hvr-ghc
+    packages:
+    - ghc-7.10.1
 
 before_install:
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/7.10.1/
-  - git clone https://github.com/commercialhaskell/stack
-  - cabal sandbox init
-  - cabal sandbox add-source stack
-  - cabal install stack
-  - mkdir $HOME/bin
-  - cp .cabal-sandbox/bin/stack $HOME/bin
-
-install:
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/
-  - ls $HOME/.stack/snapshots/x86_64-linux/nightly-2015-06-12/7.10.1/
-  - stack setup
-  - stack test --only-snapshot
+  # stack
+  - mkdir -p ~/.local/bin
+  - export PATH=$HOME/.local/bin:/opt/ghc/7.10.1/bin:$PATH
+  - travis_retry curl -L https://github.com/commercialhaskell/stack/releases/download/v0.1.2.0/stack-0.1.2.0-x86_64-linux.gz | gunzip > ~/.local/bin/stack
+  - chmod a+x ~/.local/bin/stack
 
 script:
-  - stack test
+  - stack +RTS -N2 -RTS --no-terminal test
+
+cache:
+  directories:
+    - $HOME/.stack
