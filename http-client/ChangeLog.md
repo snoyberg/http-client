@@ -1,3 +1,7 @@
+## 0.4.19
+
+* Move HasHttpManager from http-conduit to http-client [#147](https://github.com/snoyberg/http-client/pull/147)
+
 ## 0.4.18
 
 * Deprecate closeManager [#136](https://github.com/snoyberg/http-client/issues/136) [#137](https://github.com/snoyberg/http-client/issues/137)
