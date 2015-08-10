@@ -1,6 +1,7 @@
 ## 0.4.19
 
 * Move HasHttpManager from http-conduit to http-client [#147](https://github.com/snoyberg/http-client/pull/147)
+* Chunked request bodies use less TCP packets [#149](https://github.com/snoyberg/http-client/issues/149)
 
 ## 0.4.18
 

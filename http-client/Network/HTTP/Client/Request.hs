@@ -373,12 +373,18 @@ requestBuilder req Connection {..}
       where
         loop stream = do
             bs <- stream
-            when isChunked $
-                connectionWrite $ S8.pack $ showHex (S.length bs) (if S.null bs then "\r\n\r\n" else "\r\n")
-            unless (S.null bs) $ do
-                connectionWrite bs
-                when isChunked $ connectionWrite "\r\n"
-                loop stream
+            if S.null bs
+                then when isChunked $ connectionWrite "0\r\n\r\n"
+                else do
+                    connectionWrite $
+                        if isChunked
+                            then S.concat
+                                [ S8.pack $ showHex (S.length bs) "\r\n"
+                                , bs
+                                , "\r\n"
+                                ]
+                            else bs
+                    loop stream
 
 
     hh
