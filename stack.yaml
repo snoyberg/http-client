@@ -1,4 +1,4 @@
-resolver: nightly-2015-06-12
+resolver: lts-3.0
 packages:
 - http-client
 - http-client-tls
