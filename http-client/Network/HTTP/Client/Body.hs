@@ -33,6 +33,10 @@ import qualified Data.Streaming.Zlib as Z
 brRead :: BodyReader -> IO S.ByteString
 brRead = id
 
+-- | Continuously call 'brRead', building up a lazy ByteString until a chunk is
+-- constructed that is at least as many bytes as requested.
+--
+-- Since 0.4.20
 brReadSome :: BodyReader -> Int -> IO L.ByteString
 brReadSome brRead =
     loop id

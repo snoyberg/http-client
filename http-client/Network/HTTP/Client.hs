@@ -154,6 +154,7 @@ module Network.HTTP.Client
       -- ** Response body
     , BodyReader
     , brRead
+    , brReadSome
     , brConsume
       -- * Misc
     , HttpException (..)
