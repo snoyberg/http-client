@@ -1,3 +1,7 @@
+## 0.4.20
+
+* Expose `brReadSome`
+
 ## 0.4.19
 
 * Move HasHttpManager from http-conduit to http-client [#147](https://github.com/snoyberg/http-client/pull/147)
