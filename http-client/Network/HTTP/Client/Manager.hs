@@ -37,6 +37,7 @@ import qualified Data.ByteString.Lazy as L
 
 import qualified Blaze.ByteString.Builder as Blaze
 
+import Data.Char (toLower)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Read (decimal)
@@ -506,7 +507,9 @@ envHelper :: Text -> EnvHelper -> IO (Request -> Request)
 envHelper name eh = do
     env <- getEnvironment
     let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
-    case lookup (T.unpack name) env <|> Map.lookup name lenv of
+        lookupEnvVar n = lookup (T.unpack n) env <|> Map.lookup n lenv
+        noProxyDomains = domainSuffixes (lookupEnvVar "no_proxy")
+    case lookupEnvVar name of
         Nothing  -> return noEnvProxy
         Just ""  -> return noEnvProxy
         Just str -> do
@@ -541,9 +544,17 @@ envHelper name eh = do
 
                 Just $ (Proxy (S8.pack $ U.uriRegName auth) port, muserpass)
             return $ \req ->
-                maybe id (uncurry applyBasicProxyAuth) muserpass
-                req { proxy = Just p }
+                if host req `hasDomainSuffixIn` noProxyDomains
+                then noEnvProxy req
+                else maybe id (uncurry applyBasicProxyAuth) muserpass
+                     req { proxy = Just p }
     where noEnvProxy = case eh of
             EHFromRequest -> id
             EHNoProxy     -> \req -> req { proxy = Nothing }
             EHUseProxy p  -> \req -> req { proxy = Just p  }
+          prefixed s | S8.head s == '.' = s
+                     | otherwise = S8.cons '.' s
+          domainSuffixes Nothing = []
+          domainSuffixes (Just "") = []
+          domainSuffixes (Just no_proxy) = [prefixed $ S8.dropWhile (== ' ') suffix | suffix <- S8.split ',' (S8.pack (map toLower no_proxy)), not (S8.null suffix)]
+          hasDomainSuffixIn host = any (`S8.isSuffixOf` prefixed (S8.map toLower host))
