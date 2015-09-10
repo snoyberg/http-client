@@ -69,7 +69,9 @@
 -- are not in the 2xx range. These behaviors can be overridden by the
 -- 'redirectCount' and 'checkStatus' settings on a request, respectively.
 module Network.HTTP.Client
-    ( -- * Performing requests
+    ( -- $example1
+
+      -- * Performing requests
       withResponse
     , httpLbs
     , httpNoBody
@@ -265,3 +267,45 @@ managerSetSecureProxy po m = m { managerProxySecure = po }
 -- Since 0.4.7
 managerSetProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
 managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
+
+
+
+-- $example1
+-- = Example Usage
+--
+-- === Making a GET request
+--
+-- > import Network.HTTP.Client
+-- > import Network.HTTP.Types.Status (statusCode)
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   manager <- newManager defaultManagerSettings
+-- >
+-- >   request <- parseUrl "http://httpbin.org/post"
+-- >   response <- httpLbs request manager
+-- >
+-- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
+-- >   print $ responseBody response
+--
+--
+-- === Posting JSON to a server
+--
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > import Network.HTTP.Client
+-- > import Network.HTTP.Types.Status (statusCode)
+-- > import Data.Aeson (object, (.=), encode)
+-- >
+-- > main :: IO ()
+-- > main = do
+-- >   manager <- newManager defaultManagerSettings
+-- >
+-- >   -- Create the request
+-- >   let requestObject = object ["name" .= "Michael", "age" .= 30]
+-- >   initialRequest <- parseUrl "http://httpbin.org/post"
+-- >   let request = initialRequest { method = "POST", requestBody = RequestBodyLBS $ encode requestObject }
+-- >
+-- >   response <- httpLbs request manager
+-- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
+-- >   print $ responseBody response
+--
