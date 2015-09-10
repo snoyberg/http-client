@@ -1,3 +1,7 @@
+## 0.4.22
+
+* ProxyConnectException now returns Right HttpException. [#155](https://github.com/snoyberg/http-client/pull/155)
+
 ## 0.4.21
 
 * Support `no_proxy` environment variable. [#140](https://github.com/snoyberg/http-client/issues/140) [#145](https://github.com/snoyberg/http-client/pull/145)
