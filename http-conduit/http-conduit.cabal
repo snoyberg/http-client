@@ -41,6 +41,7 @@ library
 
 test-suite test
     main-is: main.hs
+    other-modules: CookieTest
     type: exitcode-stdio-1.0
     hs-source-dirs: test
 
