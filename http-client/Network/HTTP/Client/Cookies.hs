@@ -52,13 +52,17 @@ isIpAddress =
 
 -- | This corresponds to the subcomponent algorithm entitled \"Domain Matching\" detailed
 -- in section 5.1.3
-domainMatches :: BS.ByteString -> BS.ByteString -> Bool
-domainMatches string domainString
+domainMatches :: BS.ByteString -- ^ Domain to test
+              -> BS.ByteString -- ^ Domain from a cookie
+              -> Bool
+domainMatches string' domainString'
   | string == domainString = True
   | BS.length string < BS.length domainString + 1 = False
   | domainString `BS.isSuffixOf` string && BS.singleton (BS.last difference) == "." && not (isIpAddress string) = True
   | otherwise = False
   where difference = BS.take (BS.length string - BS.length domainString) string
+        string = CI.foldCase string'
+        domainString = CI.foldCase domainString'
 
 -- | This corresponds to the subcomponent algorithm entitled \"Paths\" detailed
 -- in section 5.1.4
@@ -136,7 +140,7 @@ computeCookieString :: Req.Request           -- ^ Input request
 computeCookieString request cookie_jar now is_http_api = (output_line, cookie_jar')
   where matching_cookie cookie = condition1 && condition2 && condition3 && condition4
           where condition1
-                  | cookie_host_only cookie = Req.host request == cookie_domain cookie
+                  | cookie_host_only cookie = CI.foldCase (Req.host request) == CI.foldCase (cookie_domain cookie)
                   | otherwise = domainMatches (Req.host request) (cookie_domain cookie)
                 condition2 = pathMatches (Req.path request) (cookie_path cookie)
                 condition3

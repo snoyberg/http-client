@@ -55,6 +55,7 @@ import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
 import Control.Concurrent.MVar (MVar)
+import Data.CaseInsensitive as CI
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -159,7 +160,7 @@ newtype CookieJar = CJ { expose :: [Cookie] }
 instance Eq Cookie where
   (==) a b = name_matches && domain_matches && path_matches
     where name_matches = cookie_name a == cookie_name b
-          domain_matches = cookie_domain a == cookie_domain b
+          domain_matches = CI.foldCase (cookie_domain a) == CI.foldCase (cookie_domain b)
           path_matches = cookie_path a == cookie_path b
 
 instance Ord Cookie where
