@@ -1,3 +1,7 @@
+## 0.4.23
+
+* Case insensitive cookie domains [#158](https://github.com/snoyberg/http-client/issues/158)
+
 ## 0.4.22
 
 * ProxyConnectException now returns Right HttpException. [#155](https://github.com/snoyberg/http-client/pull/155)
