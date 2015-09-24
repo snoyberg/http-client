@@ -1,3 +1,7 @@
+## 0.4.24
+
+* Use a new `TlsExceptionHostPort` exception to indicate the host and port of the server we were trying to connect to when a TLS exception occurred. See [commercialhaskell/stack#1010](https://github.com/commercialhaskell/stack/issues/1010)
+
 ## 0.4.23
 
 * Case insensitive cookie domains [#158](https://github.com/snoyberg/http-client/issues/158)

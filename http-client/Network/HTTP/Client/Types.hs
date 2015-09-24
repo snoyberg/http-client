@@ -133,6 +133,10 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- and @transfer-encoding: chunked@ are used. Since 0.4.8.
                    --
                    -- Since 0.4.11 this exception isn't thrown anymore.
+                   | TlsExceptionHostPort SomeException S.ByteString Int
+                   -- ^ TLS exception, together with the host and port
+                   --
+                   -- @since 0.4.24
     deriving (Show, T.Typeable)
 instance Exception HttpException
 
