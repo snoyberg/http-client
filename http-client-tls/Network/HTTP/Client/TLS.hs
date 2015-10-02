@@ -44,18 +44,15 @@ mkManagerSettings tls sock = defaultManagerSettings
                             _ -> False
     , managerWrapIOException =
         let wrapper se =
-                case fromException se of
-                    Just e -> toException $ InternalIOException e
-                    Nothing ->
-                        case fromException se of
-                            Just TLS.Terminated{} -> toException $ TlsException se
-                            _ ->
-                                case fromException se of
-                                    Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                                    _ ->
-                                        case fromException se of
-                                            Just TLS.ConnectionNotEstablished -> toException $ TlsException se
-                                            _ -> se
+                maybe
+                    (maybe
+                        se
+                        (toException . TlsException)
+                        (fromException se)
+                    )
+                    (toException . InternalIOException)
+                    (fromException se)
+                    
          in handle $ throwIO . wrapper
     }
 
