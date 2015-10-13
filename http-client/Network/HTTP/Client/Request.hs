@@ -27,13 +27,14 @@ module Network.HTTP.Client.Request
     , password
     ) where
 
+import Control.Concurrent(forkIO)
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
 import Control.Applicative ((<$>))
-import Control.Monad (when, unless)
+import Control.Monad (when, unless, void)
 import Numeric (showHex)
 
 import Data.Default.Class (Default (def))
@@ -365,6 +366,20 @@ requestBuilder req Connection {..}
 
             RequestBodyStreamChunked stream ->
                 let body = writeStream True stream
+                    now  = flushHeaders >> checkBadSend body
+                in (Nothing, now, body)
+
+            RequestBodyStreamAsync len stream ->
+                let body = void . forkIO $ writeStream False stream
+                    -- Don't check for a bad send on the headers themselves.
+                    -- Ideally, we'd do the same thing for the other request body
+                    -- types, but it would also introduce a performance hit since
+                    -- we couldn't merge request headers and bodies together.
+                    now  = flushHeaders >> checkBadSend body
+                in (Just len, now, body)
+
+            RequestBodyStreamChunkedAsync stream ->
+                let body = void . forkIO $ writeStream True stream
                     now  = flushHeaders >> checkBadSend body
                 in (Nothing, now, body)
 

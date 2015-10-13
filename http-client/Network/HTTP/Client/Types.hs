@@ -213,6 +213,8 @@ data RequestBody
     | RequestBodyBuilder Int64 Builder
     | RequestBodyStream Int64 (GivesPopper ())
     | RequestBodyStreamChunked (GivesPopper ())
+    | RequestBodyStreamAsync Int64 (GivesPopper ())
+    | RequestBodyStreamChunkedAsync (GivesPopper ())
     deriving T.Typeable
 -- |
 --
