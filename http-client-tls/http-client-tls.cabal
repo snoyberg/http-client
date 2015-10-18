@@ -19,7 +19,7 @@ library
                      , http-client >= 0.3.5
                      , connection >= 0.2.2
                      , network
-                     , tls >=1.1
+                     , tls >= 1.2
                      , bytestring
   default-language:    Haskell2010
 
