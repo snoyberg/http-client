@@ -22,6 +22,9 @@ module Network.HTTP.Client.Manager
     , dropProxyAuthSecure
     ) where
 
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
 #endif

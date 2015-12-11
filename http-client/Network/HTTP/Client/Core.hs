@@ -190,6 +190,9 @@ applyCheckStatus req checkStatus' res =
             responseClose res
             return (Just exc')
   where
+#ifndef MIN_VERSION_bytestring
+#define MIN_VERSION_bytestring(x,y,z) 1
+#endif
 #if MIN_VERSION_bytestring(0,10,0)
     toStrict' = L.toStrict
 #else

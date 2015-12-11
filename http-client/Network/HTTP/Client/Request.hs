@@ -87,6 +87,9 @@ parseUrl s =
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
 setUriRelative :: MonadThrow m => Request -> URI -> m Request
 setUriRelative req uri =
+#ifndef MIN_VERSION_network
+#define MIN_VERSION_network(x,y,z) 1
+#endif
 #if MIN_VERSION_network(2,4,0)
     setUri req $ uri `relativeTo` getUri req
 #else

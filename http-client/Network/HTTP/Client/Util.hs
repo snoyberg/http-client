@@ -16,6 +16,11 @@ module Network.HTTP.Client.Util
 import Data.Monoid (Monoid, mappend)
 
 import qualified Data.ByteString.Char8 as S8
+
+#ifndef MIN_VERSION_bytestring
+#define MIN_VERSION_bytestring(x,y,z) 1
+#endif
+
 #if MIN_VERSION_bytestring(0,10,0)
 import Data.ByteString.Lazy (fromStrict)
 #else
@@ -35,6 +40,9 @@ import Data.IORef
 import Data.Function (fix)
 import Data.Typeable (Typeable)
 
+#ifndef MIN_VERSION_base
+#define MIN_VERSION_base(x,y,z) 1
+#endif
 #if MIN_VERSION_base(4,3,0)
 import Data.ByteString (hGetSome)
 #else
