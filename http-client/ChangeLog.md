@@ -1,3 +1,7 @@
+## 0.4.25
+
+* Don't error out when response body flushing fails [#169](https://github.com/snoyberg/http-client/issues/169)
+
 ## 0.4.24
 
 * Use a new `TlsExceptionHostPort` exception to indicate the host and port of the server we were trying to connect to when a TLS exception occurred. See [commercialhaskell/stack#1010](https://github.com/commercialhaskell/stack/issues/1010)

@@ -215,6 +215,12 @@ httpRedirect count0 http' req0 = go count0 req0 []
                 -- instead just close the connection.
                 let maxFlush = 1024
                 lbs <- brReadSome (responseBody res) maxFlush
+                    -- Ignore IO exceptions at this point. A server may
+                    -- terminate the connection immediately in some cases, such
+                    -- as when using withResponseHistory (where the response
+                    -- body may be flushed before getting this far). See:
+                    -- https://github.com/snoyberg/http-client/issues/169
+                    `catch` \(_ :: IOException) -> return L.empty
                 responseClose res
 
                 -- And now perform the actual redirect
