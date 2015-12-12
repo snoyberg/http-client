@@ -7,6 +7,7 @@ module Network.HTTP.Client.Types
     ( BodyReader
     , Connection (..)
     , StatusHeaders (..)
+    , ConnectionClosed (..)
     , HttpException (..)
     , Cookie (..)
     , CookieJar (..)
@@ -75,11 +76,19 @@ data Connection = Connection
     , connectionWrite :: S.ByteString -> IO ()
       -- ^ Send data to server
     , connectionClose :: IO ()
+      -- ^ Close connection. Any successive operation on the connection
+      -- (exept closing) should fail with `ConnectionClosed` exception.
+      -- It is allowed to close connection multiple times.
     }
     deriving T.Typeable
 
 data StatusHeaders = StatusHeaders Status HttpVersion RequestHeaders
     deriving (Show, Eq, Ord, T.Typeable)
+
+data ConnectionClosed = ConnectionClosed
+  deriving (Eq, Show)
+
+instance Exception ConnectionClosed
 
 data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | InvalidUrlException String String

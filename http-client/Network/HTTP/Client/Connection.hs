@@ -85,15 +85,39 @@ makeConnection :: IO ByteString -- ^ read
                -> IO Connection
 makeConnection r w c = do
     istack <- newIORef []
+
+    -- it is necessary to make sure we never read from or write to
+    -- already closed connection.
+    closedVar <- newIORef False
+
     _ <- mkWeakIORef istack c
     return $! Connection
-        { connectionRead = join $ atomicModifyIORef istack $ \stack ->
-            case stack of
-                x:xs -> (xs, return x)
-                [] -> ([], r)
-        , connectionUnread = \x -> atomicModifyIORef istack $ \stack -> (x:stack, ())
-        , connectionWrite = w
-        , connectionClose = c
+        { connectionRead = do
+            closed <- readIORef closedVar
+            when closed $
+              throwIO ConnectionClosed
+            join $ atomicModifyIORef istack $ \stack ->
+              case stack of
+                  x:xs -> (xs, return x)
+                  [] -> ([], r)
+
+        , connectionUnread = \x -> do
+            closed <- readIORef closedVar
+            when closed $
+              throwIO ConnectionClosed
+            atomicModifyIORef istack $ \stack -> (x:stack, ())
+
+        , connectionWrite = \x -> do
+            closed <- readIORef closedVar
+            when closed $
+              throwIO ConnectionClosed
+            w x
+
+        , connectionClose = do
+            closed <- readIORef closedVar
+            unless closed $
+              c
+            writeIORef closedVar True
         }
 
 socketConnection :: Socket -> Int -> IO Connection
