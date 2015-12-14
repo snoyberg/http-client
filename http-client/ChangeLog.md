@@ -1,3 +1,7 @@
+## 0.4.26
+
+* Make sure we never read from or write to closed socket [#170](https://github.com/snoyberg/http-client/pull/170)
+
 ## 0.4.25
 
 * Don't error out when response body flushing fails [#169](https://github.com/snoyberg/http-client/issues/169)
