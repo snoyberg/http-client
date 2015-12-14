@@ -86,7 +86,7 @@ data StatusHeaders = StatusHeaders Status HttpVersion RequestHeaders
     deriving (Show, Eq, Ord, T.Typeable)
 
 data ConnectionClosed = ConnectionClosed
-  deriving (Eq, Show)
+  deriving (Eq, Show, T.Typeable)
 
 instance Exception ConnectionClosed
 
