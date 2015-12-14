@@ -1,9 +1,11 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.ClientSpec where
 
 import           Control.Concurrent        (forkIO, threadDelay)
 import           Control.Concurrent.Async  (withAsync)
-import           Control.Exception         (bracket)
+import qualified Control.Concurrent.Async  as Async
+import           Control.Exception         (bracket, catch, IOException)
 import           Control.Monad             (forever, replicateM_, void)
 import           Network.HTTP.Client
 import           Network.HTTP.Types        (status413)
@@ -32,6 +34,20 @@ redirectServer inner = bracket
             threadDelay 10000
             N.appWrite ad "hello\r\n"
             threadDelay 10000
+
+redirectCloseServer :: (Int -> IO a) -> IO a
+redirectCloseServer inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (sClose . snd)
+    $ \(port, lsocket) -> withAsync
+        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+        (const $ inner port)
+  where
+    app ad = do
+      Async.race_
+          (forever (N.appRead ad))
+          (N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\nConnection: close\r\n\r\nhello")
+      N.appCloseConnection ad
 
 bad100Server :: Bool -- ^ include extra headers?
              -> (Int -> IO a) -> IO a
@@ -175,3 +191,14 @@ spec = describe "Client" $ do
         withManager defaultManagerSettings $ \man -> do
             res <- getChunkedResponse port' man
             responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
+
+    it "withResponseHistory and redirect" $ redirectCloseServer $ \port -> do
+        -- see https://github.com/snoyberg/http-client/issues/169
+        req' <- parseUrl $ "http://127.0.0.1:" ++ show port
+        let req = req' {redirectCount = 1}
+        withManager defaultManagerSettings $ \man -> do
+          withResponseHistory req man (const $ return ())
+            `shouldThrow` \e ->
+              case e of
+                TooManyRedirects _ -> True
+                _ -> False
