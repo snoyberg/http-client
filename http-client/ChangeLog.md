@@ -1,3 +1,7 @@
+## 0.4.26.1
+
+* Fix compilation for GHC < 7.10
+
 ## 0.4.26
 
 * Make sure we never read from or write to closed socket [#170](https://github.com/snoyberg/http-client/pull/170)
