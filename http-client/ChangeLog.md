@@ -1,3 +1,7 @@
+## 0.4.26.2
+
+* Fix compilation for GHC 7.4
+
 ## 0.4.26.1
 
 * Fix compilation for GHC < 7.10
