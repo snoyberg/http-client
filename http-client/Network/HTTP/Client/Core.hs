@@ -12,6 +12,9 @@ module Network.HTTP.Client.Core
     , httpRedirect
     ) where
 
+#if !MIN_VERSION_base(4,6,0)
+import Prelude hiding (catch)
+#endif
 import Network.HTTP.Types
 import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Types
