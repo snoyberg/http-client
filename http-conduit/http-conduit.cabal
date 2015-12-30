@@ -63,8 +63,8 @@ test-suite test
                  , case-insensitive
                  , lifted-base
                  , network
-                 , wai >= 3.0 && < 3.1
-                 , warp >= 3.0.0.2 && < 3.2
+                 , wai >= 3.0 && < 3.3
+                 , warp >= 3.0.0.2 && < 3.3
                  , wai-conduit
                  , http-types
                  , cookie
