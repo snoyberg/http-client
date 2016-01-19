@@ -215,19 +215,19 @@ responseOpenHistory req0 man = do
     reqRef <- newIORef req0
     historyRef <- newIORef id
     let go req = do
-            res <- httpRaw req man
+            (req', res) <- httpRaw req man
             case getRedirectedRequest
-                    req
+                    req'
                     (responseHeaders res)
                     (responseCookieJar res)
                     (statusCode $ responseStatus res) of
-                Nothing -> return (res, Nothing)
-                Just req' -> do
-                    writeIORef reqRef req'
+                Nothing -> return (res, req', False)
+                Just req'' -> do
+                    writeIORef reqRef req''
                     body <- brReadSome (responseBody res) 1024
                     modifyIORef historyRef (. ((req, res { responseBody = body }):))
-                    return (res, Just req')
-    res <- httpRedirect (redirectCount req0) go req0
+                    return (res, req'', True)
+    (_, res) <- httpRedirect (redirectCount req0) go req0
     reqFinal <- readIORef reqRef
     history <- readIORef historyRef
     return HistoriedResponse
