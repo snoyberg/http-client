@@ -215,7 +215,7 @@ responseOpenHistory req0 man = do
     reqRef <- newIORef req0
     historyRef <- newIORef id
     let go req = do
-            (req', res) <- httpRaw req man
+            (req', res) <- httpRaw' req man
             case getRedirectedRequest
                     req'
                     (responseHeaders res)
@@ -227,7 +227,7 @@ responseOpenHistory req0 man = do
                     body <- brReadSome (responseBody res) 1024
                     modifyIORef historyRef (. ((req, res { responseBody = body }):))
                     return (res, req'', True)
-    (_, res) <- httpRedirect (redirectCount req0) go req0
+    (_, res) <- httpRedirect' (redirectCount req0) go req0
     reqFinal <- readIORef reqRef
     history <- readIORef historyRef
     return HistoriedResponse

@@ -6,10 +6,12 @@ module Network.HTTP.Client.Core
     , httpLbs
     , httpNoBody
     , httpRaw
+    , httpRaw'
     , responseOpen
     , responseClose
     , applyCheckStatus
     , httpRedirect
+    , httpRedirect'
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -75,8 +77,17 @@ httpNoBody req man = withResponse req man $ return . void
 httpRaw
      :: Request
      -> Manager
+     -> IO (Response BodyReader)
+httpRaw = fmap (fmap snd) . httpRaw'
+
+-- | Get a 'Response' without any redirect following.
+--
+-- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
+httpRaw'
+     :: Request
+     -> Manager
      -> IO (Request, Response BodyReader)
-httpRaw req0 m = do
+httpRaw' req0 m = do
     req' <- mModifyRequest m $ mSetProxy m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
@@ -155,17 +166,17 @@ responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen req0 manager = handle addTlsHostPort $ mWrapIOException manager $ do
     (req, res) <-
         if redirectCount req0 == 0
-            then httpRaw req0 manager
+            then httpRaw' req0 manager
             else go (redirectCount req0) req0
     maybe (return res) throwIO =<< applyCheckStatus req (checkStatus req) res
   where
     addTlsHostPort (TlsException e) = throwIO $ TlsExceptionHostPort e (host req0) (port req0)
     addTlsHostPort e = throwIO e
 
-    go count req' = httpRedirect
+    go count req' = httpRedirect'
       count
       (\req -> do
-        (req'', res) <- httpRaw req manager
+        (req'', res) <- httpRaw' req manager
         let mreq = getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
@@ -205,13 +216,28 @@ applyCheckStatus req checkStatus' res =
     toStrict' = S.concat . L.toChunks
 #endif
 
--- | Redirect loop
+-- | Redirect loop.
 httpRedirect
      :: Int -- ^ 'redirectCount'
-     -> (Request -> IO (Response BodyReader, Request, Bool)) -- ^ function which performs a request and returns a response, and possibly another request if there's a redirect.
+     -> (Request -> IO (Response BodyReader, Maybe Request)) -- ^ function which performs a request and returns a response, and possibly another request if there's a redirect.
+     -> Request
+     -> IO (Response BodyReader)
+httpRedirect count0 http0 req0 = fmap snd $ httpRedirect' count0 http' req0
+  where
+    -- adapt callback API
+    http' req' = do
+        (res, mbReq) <- http0 req'
+        return (res, fromMaybe req0 mbReq, isJust mbReq)
+
+-- | Redirect loop.
+--
+-- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
+httpRedirect'
+     :: Int -- ^ 'redirectCount'
+     -> (Request -> IO (Response BodyReader, Request, Bool)) -- ^ function which performs a request and returns a response, the potentially modified request, and a Bool indicating if there was a redirect.
      -> Request
      -> IO (Request, Response BodyReader)
-httpRedirect count0 http' req0 = go count0 req0 []
+httpRedirect' count0 http' req0 = go count0 req0 []
   where
     go count _ ress | count < 0 = throwIO $ TooManyRedirects ress
     go count req' ress = do
