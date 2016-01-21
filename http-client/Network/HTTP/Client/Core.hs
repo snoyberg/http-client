@@ -6,10 +6,12 @@ module Network.HTTP.Client.Core
     , httpLbs
     , httpNoBody
     , httpRaw
+    , httpRaw'
     , responseOpen
     , responseClose
     , applyCheckStatus
     , httpRedirect
+    , httpRedirect'
     ) where
 
 #if !MIN_VERSION_base(4,6,0)
@@ -22,6 +24,7 @@ import Network.HTTP.Client.Body
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Cookies
+import Data.Maybe (fromMaybe, isJust)
 import Data.Time
 import Control.Exception
 import qualified Data.ByteString as S
@@ -69,12 +72,22 @@ httpLbs req man = withResponse req man $ \res -> do
 httpNoBody :: Request -> Manager -> IO (Response ())
 httpNoBody req man = withResponse req man $ return . void
 
+
 -- | Get a 'Response' without any redirect following.
 httpRaw
      :: Request
      -> Manager
      -> IO (Response BodyReader)
-httpRaw req0 m = do
+httpRaw = fmap (fmap snd) . httpRaw'
+
+-- | Get a 'Response' without any redirect following.
+--
+-- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
+httpRaw'
+     :: Request
+     -> Manager
+     -> IO (Request, Response BodyReader)
+httpRaw' req0 m = do
     req' <- mModifyRequest m $ mSetProxy m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
@@ -100,7 +113,8 @@ httpRaw req0 m = do
         -- Connection was reused, and might have been closed. Try again
         (Left e, Reused) | mRetryableException m e -> do
             connRelease DontReuse
-            responseOpen req m
+            res <- responseOpen req m
+            return (req, res)
         -- Not reused, or a non-retry, so this is a real exception
         (Left e, _) -> throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
@@ -109,8 +123,8 @@ httpRaw req0 m = do
             Just _ -> do
                 now' <- getCurrentTime
                 let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
-                return $ res {responseCookieJar = cookie_jar}
-            Nothing -> return res
+                return (req, res {responseCookieJar = cookie_jar})
+            Nothing -> return (req, res)
   where
 
     responseTimeout' req
@@ -150,21 +164,21 @@ httpRaw req0 m = do
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen req0 manager = handle addTlsHostPort $ mWrapIOException manager $ do
-    res <-
+    (req, res) <-
         if redirectCount req0 == 0
-            then httpRaw req0 manager
+            then httpRaw' req0 manager
             else go (redirectCount req0) req0
-    maybe (return res) throwIO =<< applyCheckStatus req0 (checkStatus req0) res
+    maybe (return res) throwIO =<< applyCheckStatus req (checkStatus req) res
   where
     addTlsHostPort (TlsException e) = throwIO $ TlsExceptionHostPort e (host req0) (port req0)
     addTlsHostPort e = throwIO e
 
-    go count req' = httpRedirect
+    go count req' = httpRedirect'
       count
       (\req -> do
-        res <- httpRaw req manager
-        let mreq = getRedirectedRequest req (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
-        return (res, mreq))
+        (req'', res) <- httpRaw' req manager
+        let mreq = getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
+        return (res, fromMaybe req'' mreq, isJust mreq))
       req'
 
 -- | Apply 'Request'\'s 'checkStatus' and return resulting exception if any.
@@ -202,34 +216,49 @@ applyCheckStatus req checkStatus' res =
     toStrict' = S.concat . L.toChunks
 #endif
 
--- | Redirect loop
+-- | Redirect loop.
 httpRedirect
      :: Int -- ^ 'redirectCount'
      -> (Request -> IO (Response BodyReader, Maybe Request)) -- ^ function which performs a request and returns a response, and possibly another request if there's a redirect.
      -> Request
      -> IO (Response BodyReader)
-httpRedirect count0 http' req0 = go count0 req0 []
+httpRedirect count0 http0 req0 = fmap snd $ httpRedirect' count0 http' req0
+  where
+    -- adapt callback API
+    http' req' = do
+        (res, mbReq) <- http0 req'
+        return (res, fromMaybe req0 mbReq, isJust mbReq)
+
+-- | Redirect loop.
+--
+-- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
+httpRedirect'
+     :: Int -- ^ 'redirectCount'
+     -> (Request -> IO (Response BodyReader, Request, Bool)) -- ^ function which performs a request and returns a response, the potentially modified request, and a Bool indicating if there was a redirect.
+     -> Request
+     -> IO (Request, Response BodyReader)
+httpRedirect' count0 http' req0 = go count0 req0 []
   where
     go count _ ress | count < 0 = throwIO $ TooManyRedirects ress
     go count req' ress = do
-        (res, mreq) <- http' req'
-        case mreq of
-            Just req -> do
-                -- Allow the original connection to return to the
-                -- connection pool immediately by flushing the body.
-                -- If the response body is too large, don't flush, but
-                -- instead just close the connection.
-                let maxFlush = 1024
-                lbs <- brReadSome (responseBody res) maxFlush
-                    -- The connection may already be closed, e.g.
-                    -- when using withResponseHistory. See
-                    -- https://github.com/snoyberg/http-client/issues/169
-                    `catch` \(_ :: ConnectionClosed) -> return L.empty
-                responseClose res
+        (res, req, isRedirect) <- http' req'
+        if isRedirect then do
+            -- Allow the original connection to return to the
+            -- connection pool immediately by flushing the body.
+            -- If the response body is too large, don't flush, but
+            -- instead just close the connection.
+            let maxFlush = 1024
+            lbs <- brReadSome (responseBody res) maxFlush
+                -- The connection may already be closed, e.g.
+                -- when using withResponseHistory. See
+                -- https://github.com/snoyberg/http-client/issues/169
+                `catch` \(_ :: ConnectionClosed) -> return L.empty
+            responseClose res
 
-                -- And now perform the actual redirect
-                go (count - 1) req (res { responseBody = lbs }:ress)
-            Nothing -> return res
+            -- And now perform the actual redirect
+            go (count - 1) req (res { responseBody = lbs }:ress)
+        else
+            return (req, res)
 
 -- | Close any open resources associated with the given @Response@. In general,
 -- this will either close an active @Connection@ or return it to the @Manager@
