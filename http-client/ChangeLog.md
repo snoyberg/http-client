@@ -1,3 +1,7 @@
+## 0.4.27
+
+* Enable managerModifyRequest to modify checkStatus [#179](https://github.com/snoyberg/http-client/pull/179)
+
 ## 0.4.26.2
 
 * Fix compilation for GHC 7.4
