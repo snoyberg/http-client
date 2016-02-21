@@ -61,7 +61,7 @@ import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
-import Network.HTTP.Client.Request (username, password, applyBasicProxyAuth)
+import Network.HTTP.Client.Request (applyBasicProxyAuth, extractBasicAuthInfo)
 import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
 import System.Environment (getEnvironment)
 import qualified Network.URI as U
@@ -528,14 +528,6 @@ envHelper name eh = do
                 guard $ null $ U.uriFragment uri
 
                 auth <- U.uriAuthority uri
-                let muserpass =
-                        if null authInfo
-                            then Nothing
-                            else Just ( S8.pack $ username authInfo
-                                      , S8.pack $ password authInfo
-                                      )
-                    authInfo = U.uriUserInfo auth
-
                 port <-
                     case U.uriPort auth of
                         "" -> Just 80
@@ -545,7 +537,7 @@ envHelper name eh = do
                                 _ -> Nothing
                         _ -> Nothing
 
-                Just $ (Proxy (S8.pack $ U.uriRegName auth) port, muserpass)
+                Just $ (Proxy (S8.pack $ U.uriRegName auth) port, extractBasicAuthInfo uri)
             return $ \req ->
                 if host req `hasDomainSuffixIn` noProxyDomains
                 then noEnvProxy req

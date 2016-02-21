@@ -23,8 +23,7 @@ module Network.HTTP.Client.Request
     , setQueryString
     , streamFile
     , observedStreamFile
-    , username
-    , password
+    , extractBasicAuthInfo
     ) where
 
 import Data.Int (Int64)
@@ -33,7 +32,7 @@ import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
 import Control.Applicative ((<$>))
-import Control.Monad (when, unless)
+import Control.Monad (when, unless, guard)
 import Numeric (showHex)
 
 import Data.Default.Class (Default (def))
@@ -47,7 +46,7 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 import qualified Network.HTTP.Types as W
-import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, isAllowedInURI, isReserved)
+import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, unEscapeString, isAllowedInURI, isReserved)
 
 import Control.Monad.IO.Class (liftIO)
 import Control.Exception (Exception, toException, throw, throwIO, IOException)
@@ -121,27 +120,20 @@ getUri req = URI
 
 applyAnyUriBasedAuth :: URI -> Request -> Request
 applyAnyUriBasedAuth uri req =
-    if hasAuth
-      then applyBasicAuth (S8.pack theuser) (S8.pack thepass) req
-      else req
+    case extractBasicAuthInfo uri of
+        Just auth -> uncurry applyBasicAuth auth req
+        Nothing -> req
+
+-- | Extract basic access authentication info in URI.
+-- Return Nothing when there is no auth info in URI.
+extractBasicAuthInfo :: URI -> Maybe (S8.ByteString, S8.ByteString)
+extractBasicAuthInfo uri = do
+    userInfo <- uriUserInfo <$> uriAuthority uri
+    guard (':' `elem` userInfo)
+    let (username, ':':password) = break (==':') . takeWhile (/='@') $ userInfo
+    return (toLiteral username, toLiteral password)
   where
-    hasAuth = (notEmpty theuser) && (notEmpty thepass)
-    notEmpty = not . null
-    theuser = username authInfo
-    thepass = password authInfo
-    authInfo = maybe "" uriUserInfo $ uriAuthority uri
-
-username :: String -> String
-username = encode . takeWhile (/=':') . authPrefix
-
-password :: String -> String
-password = encode . takeWhile (/='@') . drop 1 . dropWhile (/=':')
-
-encode :: String -> String
-encode = escapeURIString (not . isReserved)
-
-authPrefix :: String -> String
-authPrefix u = if '@' `elem` u then takeWhile (/= '@') u else ""
+    toLiteral = S8.pack . unEscapeString
 
 -- | Validate a 'URI', then add it to the request.
 setUri :: MonadThrow m => Request -> URI -> m Request
