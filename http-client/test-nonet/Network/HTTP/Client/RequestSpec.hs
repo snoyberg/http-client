@@ -3,12 +3,13 @@ module Network.HTTP.Client.RequestSpec where
 
 import Blaze.ByteString.Builder (fromByteString)
 import Control.Applicative ((<$>))
-import Control.Monad (join, forM_)
+import Control.Monad (join, forM_, (<=<))
 import Data.IORef
 import Data.Maybe (isJust, fromMaybe, fromJust)
+import qualified Data.ByteString.Char8 as S8
 import Network.HTTP.Client (parseUrl, requestHeaders, applyBasicProxyAuth)
 import Network.HTTP.Client.Internal
-import Network.URI (URI(..), URIAuth(..)) --(parseURI, relativeTo, escapeURIString, isAllowedInURI)
+import Network.URI (URI(..), URIAuth(..), parseURI) 
 import Test.Hspec
 
 spec :: Spec
@@ -46,24 +47,23 @@ spec = do
             field `shouldBe` Just "Basic dXNlcjpwYXNz"
 
     describe "extract credentials from a URI" $ do
+        let username = return . fst <=< extractBasicAuthInfo <=< parseURI
+            password = return . snd <=< extractBasicAuthInfo <=< parseURI
         it "fetches non-empty username before the first ':'" $ do
-            username "agent:secret@example.com" `shouldBe` "agent"
-
-        it "extra colons do not delimit username" $ do
-            username "agent:006:supersecret@example.com" `shouldBe` "agent"
+            username "http://agent:secret@example.com" `shouldBe` Just "agent"
 
         it "after ':' is considered password" $ do
-            password "agent007:shakenNotStirred@example.com" `shouldBe` "shakenNotStirred"
+            password "http://agent007:shakenNotStirred@example.com" `shouldBe` Just "shakenNotStirred"
 
-        it "encodes username special characters per RFC3986" $ do
-            username "/?#[]!$&'()*+,;=:therealpassword@example.com" `shouldBe` "%2F%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D"
+        it "decodes username special characters per RFC3986" $ do
+            username "http://%2F%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D:therealpassword@example.com" `shouldBe` Just "/?#[]!$&'()*+,;="
 
-        it "encodes password special characters per RFC3986" $ do
-            password "therealusername:?#[]!$&'()*+,;=/@example.com" `shouldBe` "%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D%2F"
+        it "decodes password special characters per RFC3986" $ do
+            password "http://therealusername:%3F%23%5B%5D%21%24%26%27%28%29%2A%2B%2C%3B%3D%2F@example.com" `shouldBe` Just "?#[]!$&'()*+,;=/"
 
         it "no auth is empty" $ do
-            username "example.com" `shouldBe` ""
-            password "example.com" `shouldBe` ""
+            username "http://example.com" `shouldBe` Nothing
+            password "http://example.com" `shouldBe` Nothing
 
     describe "requestBuilder" $ do
         it "sends the full request, combining headers and body in the non-streaming case" $ do
