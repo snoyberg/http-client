@@ -1,3 +1,7 @@
+## 0.4.27.1
+
+* Incorrect idle connection count in HTTP manager [#185](https://github.com/snoyberg/http-client/issues/185)
+
 ## 0.4.27
 
 * Enable managerModifyRequest to modify checkStatus [#179](https://github.com/snoyberg/http-client/pull/179)
