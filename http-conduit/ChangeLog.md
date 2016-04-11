@@ -1,3 +1,7 @@
+## 2.1.9
+
+* cabal file cleanup
+
 ## 2.1.8
 
 * Move HasHttpManager from http-conduit to http-client [#147](https://github.com/snoyberg/http-client/pull/147)
