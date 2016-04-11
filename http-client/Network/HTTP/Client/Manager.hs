@@ -153,7 +153,7 @@ putSocket man key ci = do
                  in m' `seq` (m', return ())
             Just l ->
                 let (l', mx) = addToList now (mMaxConns man) ci l
-                    cnt' = idleCount + maybe 0 (const 1) mx
+                    cnt' = idleCount + maybe 1 (const 0) mx
                     m' = ManagerOpen cnt' (Map.insert key l' m)
                  in m' `seq` (m', maybe (return ()) connectionClose mx)
 
