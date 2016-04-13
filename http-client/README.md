@@ -1,9 +1,16 @@
 http-client
 ===========
 
+Full tutorial docs are available at:
+https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md
+
 An HTTP client engine, intended as a base layer for more user-friendly packages.
 
 This codebase has been refactored from [http-conduit](http://www.stackage.org/package/http-conduit).
+
+Note that, if you want to make HTTPS secure connections, you should use
+[http-client-tls](https://www.stackage.org/package/http-client-tls) in addition
+to this library.
 
 Below is a series of cookbook recipes. A number of recipes exist elsewhere,
 including `Network.HTTP.Client` and `Network.HTTP.Conduit`. The goal is to
