@@ -28,6 +28,7 @@ module Network.HTTP.Simple
     , H.Response
     , JSONException (..)
     , H.HttpException (..)
+    , H.Proxy (..)
       -- * Request constructions
     , defaultRequest
     , parseRequest
@@ -55,6 +56,7 @@ module Network.HTTP.Simple
     , setRequestIgnoreStatus
     , setRequestBasicAuth
     , setRequestManager
+    , setRequestProxy
       -- * Response lenses
     , getResponseStatus
     , getResponseStatusCode
@@ -343,6 +345,12 @@ setRequestBasicAuth = H.applyBasicAuth
 -- @since 0.2.4
 setRequestManager :: H.Manager -> H.Request -> H.Request
 setRequestManager x req = req { HI.requestManagerOverride = Just x }
+
+-- | Override the default proxy server settings
+--
+-- @since 0.2.4
+setRequestProxy :: Maybe H.Proxy -> H.Request -> H.Request
+setRequestProxy x req = req { H.proxy = x }
 
 -- | Get the status of the response
 --
