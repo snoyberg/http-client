@@ -33,31 +33,34 @@ module Network.HTTP.Simple
     , parseRequest
       -- * Request lenses
       -- ** Basics
-    , requestMethod
-    , requestSecure
-    , requestHost
-    , requestPort
-    , requestPath
-    , requestHeader
-    , requestHeaders
-    , requestQueryString
+    , setRequestMethod
+    , setRequestSecure
+    , setRequestHost
+    , setRequestPort
+    , setRequestPath
+    , addRequestHeader
+    , getRequestHeader
+    , setRequestHeader
+    , setRequestHeaders
+    , setRequestQueryString
+    , getRequestQueryString
       -- ** Request body
-    , requestBody
-    , requestBodyJSON
-    , requestBodyLBS
-    , requestBodySource
+    , setRequestBody
+    , setRequestBodyJSON
+    , setRequestBodyLBS
+    , setRequestBodySource
     -- FIXME , requestBodyFile
-    , requestBodyURLEncoded
+    , setRequestBodyURLEncoded
       -- ** Special fields
-    , requestIgnoreStatus
-    , requestBasicAuth
-    , requestManager
+    , setRequestIgnoreStatus
+    , setRequestBasicAuth
+    , setRequestManager
       -- * Response lenses
-    , responseStatus
-    , responseStatusCode
-    , responseHeader
-    , responseHeaders
-    , responseBody
+    , getResponseStatus
+    , getResponseStatusCode
+    , getResponseHeader
+    , getResponseHeaders
+    , getResponseBody
       -- * Alternate spellings
     , httpLbs
     ) where
@@ -176,72 +179,79 @@ httpSink req sink = do
 httpLbs :: MonadIO m => H.Request -> m (H.Response L.ByteString)
 httpLbs = httpLBS
 
-type Lens s t a b = forall f. Functor f => (a -> f b) -> s -> f t
-type Lens' s a = Lens s s a a
-
-lens :: (s -> a) -> (s -> b -> t) -> Lens s t a b
-lens get set f s = fmap (set s) (f (get s))
-
--- Not actually a setter by the lens definition!
-setter :: (s -> b -> t) -> Lens s t () b
-setter = lens (const ())
-
--- | Lens for the request method
+-- | Set the request method
 --
 -- @since 0.2.4
-requestMethod :: Lens' H.Request S.ByteString
-requestMethod = lens H.method (\r x -> r { H.method = x })
+setRequestMethod :: S.ByteString -> H.Request -> H.Request
+setRequestMethod x req = req { H.method = x }
 
--- | Lens for whether this is a secure/HTTPS (@True@) or insecure/HTTP
+-- | Set whether this is a secure/HTTPS (@True@) or insecure/HTTP
 -- (@False@) request
 --
 -- @since 0.2.4
-requestSecure :: Lens' H.Request Bool
-requestSecure = lens H.secure (\r x -> r { H.secure = x })
+setRequestSecure :: Bool -> H.Request -> H.Request
+setRequestSecure x req = req { H.secure = x }
 
--- | Lens for the destination host of the request
+-- | Set the destination host of the request
 --
 -- @since 0.2.4
-requestHost :: Lens' H.Request S.ByteString
-requestHost = lens H.host (\r x -> r { H.host = x })
+setRequestHost :: S.ByteString -> H.Request -> H.Request
+setRequestHost x r = r { H.host = x }
 
--- | Lens for the destination port of the request
+-- | Set the destination port of the request
 --
 -- @since 0.2.4
-requestPort :: Lens' H.Request Int
-requestPort = lens H.port (\r x -> r { H.port = x })
+setRequestPort :: Int -> H.Request -> H.Request
+setRequestPort x r = r { H.port = x }
 
 -- | Lens for the requested path info of the request
 --
 -- @since 0.2.4
-requestPath :: Lens' H.Request S.ByteString
-requestPath = lens H.path (\r x -> r { H.path = x })
+setRequestPath :: S.ByteString -> H.Request -> H.Request
+setRequestPath x r = r { H.path = x }
 
--- | Lens into all request header values with the given name
+-- | Add a request header name/value combination
 --
 -- @since 0.2.4
-requestHeader :: H.HeaderName -> Lens' H.Request [S.ByteString]
-requestHeader name = lens
-    (map snd . filter (\(x, _) -> x == name) . H.requestHeaders)
-    (\req vals -> req
-        { H.requestHeaders =
+addRequestHeader :: H.HeaderName -> S.ByteString -> H.Request -> H.Request
+addRequestHeader name val req =
+    req { H.requestHeaders = (name, val) : H.requestHeaders req }
+
+-- | Get all request header values for the given name
+--
+-- @since 0.2.4
+getRequestHeader :: H.HeaderName -> H.Request -> [S.ByteString]
+getRequestHeader name =
+    map snd . filter (\(x, _) -> x == name) . H.requestHeaders
+
+-- | Set the given request header to the given list of values. Removes any
+-- previously set header values with the same name.
+--
+-- @since 0.2.4
+setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
+setRequestHeader name vals req =
+    req { H.requestHeaders =
             filter (\(x, _) -> x /= name) (H.requestHeaders req)
          ++ (map (name, ) vals)
-        })
+        }
 
--- | Lens into all request headers
+-- | Set the request headers, wiping out any previously set headers
 --
 -- @since 0.2.4
-requestHeaders :: Lens' H.Request [(H.HeaderName, S.ByteString)]
-requestHeaders = lens H.requestHeaders (\req x -> req { H.requestHeaders = x })
+setRequestHeaders :: [(H.HeaderName, S.ByteString)] -> H.Request -> H.Request
+setRequestHeaders x req = req { H.requestHeaders = x }
 
--- | Lens into the query string
+-- | Get the query string parameters
 --
 -- @since 0.2.4
-requestQueryString :: Lens' H.Request [(S.ByteString, Maybe S.ByteString)]
-requestQueryString = lens
-    (H.parseQuery . H.queryString)
-    (flip H.setQueryString)
+getRequestQueryString :: H.Request -> [(S.ByteString, Maybe S.ByteString)]
+getRequestQueryString = H.parseQuery . H.queryString
+
+-- | Set the query string parameters
+--
+-- @since 0.2.4
+setRequestQueryString :: [(S.ByteString, Maybe S.ByteString)] -> H.Request -> H.Request
+setRequestQueryString = H.setQueryString
 
 -- | Set the request body to the given 'H.RequestBody'. You may want to
 -- consider using one of the convenience functions in the modules, e.g.
@@ -250,11 +260,9 @@ requestQueryString = lens
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- This lens does not allow inspecting the request body
---
 -- @since 0.2.4
-requestBody :: Lens' H.Request H.RequestBody
-requestBody = lens H.requestBody (\req x -> req { H.requestBody = x })
+setRequestBody :: H.RequestBody -> H.Request -> H.Request
+setRequestBody x req = req { H.requestBody = x }
 
 -- | Set the request body as a JSON value
 --
@@ -263,41 +271,35 @@ requestBody = lens H.requestBody (\req x -> req { H.requestBody = x })
 --
 -- This also sets the @content-type@ to @application/json; chatset=utf8@
 --
--- This lens does not allow inspecting the request body
---
 -- @since 0.2.4
-requestBodyJSON :: A.ToJSON a => Lens H.Request H.Request () a
-requestBodyJSON = setter
-    (\req x -> req
-        { H.requestHeaders
+setRequestBodyJSON :: A.ToJSON a => a -> H.Request -> H.Request
+setRequestBodyJSON x req =
+    req { H.requestHeaders
             = (H.hContentType, "application/json; charset=utf-8")
             : filter (\(x, _) -> x /= H.hContentType) (H.requestHeaders req)
         , H.requestBody = H.RequestBodyLBS $ A.encode $ A.toJSON x
-        })
+        }
 
 -- | Set the request body as a lazy @ByteString@
 --
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- This lens does not allow inspecting the request body
---
 -- @since 0.2.4
-requestBodyLBS :: Lens H.Request H.Request () L.ByteString
-requestBodyLBS = setter
-    (\req x -> req { H.requestBody = H.RequestBodyLBS x })
+setRequestBodyLBS :: L.ByteString -> H.Request -> H.Request
+setRequestBodyLBS x req = req { H.requestBody = H.RequestBodyLBS x }
 
 -- | Set the request body as a 'C.Source'
 --
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- This lens does not allow inspecting the request body
---
 -- @since 0.2.4
-requestBodySource :: Lens H.Request H.Request () (Int64, C.Source IO S.ByteString)
-requestBodySource = setter
-    (\req (len, src) -> req { H.requestBody = HC.requestBodySource len src })
+setRequestBodySource :: Int64 -- ^ length of source
+                     -> C.Source IO S.ByteString
+                     -> H.Request
+                     -> H.Request
+setRequestBodySource len src req = req { H.requestBody = HC.requestBodySource len src }
 
 {-
 -- | Set the request body as a file
@@ -319,81 +321,59 @@ requestBodyFile = _
 --
 -- This also sets the @content-type@ to @application/x-www-form-urlencoded@
 --
--- This lens does not allow inspecting the request body
---
 -- @since 0.2.4
-requestBodyURLEncoded :: Lens H.Request H.Request () [(S.ByteString, S.ByteString)]
-requestBodyURLEncoded = setter
-    (\req x -> H.urlEncodedBody x req)
+setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Request
+setRequestBodyURLEncoded = H.urlEncodedBody
 
 -- | Modify the request so that non-2XX status codes do not generate a runtime
--- exception. If @True@, ignore the status code. If @False@, do the default 2XX
--- check.
---
--- Note that you cannot inspect the current ignore status.
+-- exception.
 --
 -- @since 0.2.4
-requestIgnoreStatus :: Lens H.Request H.Request () Bool
-requestIgnoreStatus = setter (\req b ->
-    req { H.checkStatus =
-            if b
-                then \_ _ _ -> Nothing
-                else H.checkStatus def
-        })
+setRequestIgnoreStatus :: H.Request -> H.Request
+setRequestIgnoreStatus req = req { H.checkStatus = \_ _ _ -> Nothing }
 
 -- | Set basic auth with the given username and password
 --
--- Note that you cannot inspect the username and password after setting
---
 -- @since 0.2.4
-requestBasicAuth :: Lens H.Request H.Request () (S.ByteString, S.ByteString)
-requestBasicAuth = setter
-    (\req (user, pass) -> H.applyBasicAuth user pass req)
+setRequestBasicAuth :: S.ByteString -- ^ username
+                    -> S.ByteString -- ^ password
+                    -> H.Request
+                    -> H.Request
+setRequestBasicAuth = H.applyBasicAuth
 
 -- | Instead of using the default global 'H.Manager', use the supplied
 -- @Manager@.
 --
 -- @since 0.2.4
-requestManager :: Lens' H.Request (Maybe H.Manager)
-requestManager = lens
-    HI.requestManagerOverride
-    (\req x -> req { HI.requestManagerOverride = x })
+setRequestManager :: H.Manager -> H.Request -> H.Request
+setRequestManager x req = req { HI.requestManagerOverride = Just x }
 
--- | Lens for the status of the response
+-- | Get the status of the response
 --
 -- @since 0.2.4
-responseStatus :: Lens' (H.Response a) H.Status
-responseStatus = lens H.responseStatus (\res x -> res { H.responseStatus = x })
+getResponseStatus :: H.Response a -> H.Status
+getResponseStatus = H.responseStatus
 
--- | Lens for the integral status code of the response
+-- | Get the integral status code of the response
 --
 -- @since 0.2.4
-responseStatusCode :: Lens' (H.Response a) Int
-responseStatusCode =
-    responseStatus . code
-  where
-    code = lens H.statusCode (\s c -> s { H.statusCode = c })
+getResponseStatusCode :: H.Response a -> Int
+getResponseStatusCode = H.statusCode . getResponseStatus
 
--- | Lens into all response header values with the given name
+-- | Get all response header values with the given name
 --
 -- @since 0.2.4
-responseHeader :: H.HeaderName -> Lens' (H.Response a) [S.ByteString]
-responseHeader name = lens
-    (map snd . filter (\(x, _) -> x == name) . H.responseHeaders)
-    (\req vals -> req
-        { H.responseHeaders =
-            filter (\(x, _) -> x /= name) (H.responseHeaders req)
-         ++ (map (name, ) vals)
-        })
+getResponseHeader :: H.HeaderName -> H.Response a -> [S.ByteString]
+getResponseHeader name = map snd . filter (\(x, _) -> x == name) . H.responseHeaders
 
--- | Lens into all response headers
+-- | Get all response headers
 --
 -- @since 0.2.4
-responseHeaders :: Lens' (H.Response a) [(H.HeaderName, S.ByteString)]
-responseHeaders = lens H.responseHeaders (\req x -> req { H.responseHeaders = x })
+getResponseHeaders :: H.Response a -> [(H.HeaderName, S.ByteString)]
+getResponseHeaders = H.responseHeaders
 
--- | Lens into the response body
+-- | Get the response body
 --
 -- @since 0.2.4
-responseBody :: Lens (H.Response a) (H.Response b) a b
-responseBody = lens H.responseBody (\req x -> req { H.responseBody = x })
+getResponseBody :: H.Response a -> a
+getResponseBody = H.responseBody
