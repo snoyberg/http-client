@@ -129,6 +129,7 @@ globalManager = unsafePerformIO (newManager tlsManagerSettings >>= newIORef)
 -- @since 0.2.4
 getGlobalManager :: IO Manager
 getGlobalManager = readIORef globalManager
+{-# INLINE getGlobalManager #-}
 
 -- | Set the current global 'Manager'
 --

@@ -49,6 +49,8 @@ import Data.Time.Calendar
 import qualified Network.Wai.Handler.WarpTLS as WT
 import Network.Connection (settingDisableCertificateValidation)
 import Data.Default.Class (def)
+import qualified Data.Aeson as A
+import qualified Network.HTTP.Simple as Simple
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -453,6 +455,12 @@ main = withSocketsDo $ do
             res <- I.readIORef ref
             res `shouldBe` qs
 
+    describe "Simple" $ do
+        it "JSON" $ jsonApp $ \port -> do
+            req <- parseUrl $ "http://localhost:" ++ show port
+            value <- Simple.httpJSON req
+            responseBody value `shouldBe` jsonValue
+
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
     port <- getPort
@@ -569,3 +577,16 @@ rawApp bs =
         src $$ appSink app'
   where
     src = yield bs
+
+jsonApp :: (Int -> IO ()) -> IO ()
+jsonApp = withApp $ \_req -> return $ responseLBS
+    status200
+    [ ("Content-Type", "application/json")
+    ]
+    (A.encode jsonValue)
+
+jsonValue :: A.Value
+jsonValue = A.object
+    [ "name" A..= ("Alice" :: String)
+    , "age" A..= (35 :: Int)
+    ]

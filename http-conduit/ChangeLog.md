@@ -1,3 +1,7 @@
+## 2.1.10
+
+* Add the `Network.HTTP.Simple` module
+
 ## 2.1.9
 
 * cabal file cleanup
