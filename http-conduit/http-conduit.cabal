@@ -78,6 +78,7 @@ test-suite test
                  , conduit-extra
                  , streaming-commons
                  , aeson
+                 , temporary
 
 source-repository head
   type:     git

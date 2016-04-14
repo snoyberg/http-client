@@ -8,6 +8,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
 import Network.Wai.Conduit (responseSource, sourceRequestBody)
+import Network.HTTP.Client (streamFile)
+import System.IO.Temp (withSystemTempFile)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
 import Network.HTTP.Conduit hiding (port)
@@ -459,6 +461,26 @@ main = withSocketsDo $ do
             req <- parseUrl $ "http://localhost:" ++ show port
             value <- Simple.httpJSON req
             responseBody value `shouldBe` jsonValue
+
+    it "RequestBodyIO" $ echo $ \port -> do
+        withManager $ \manager -> do
+            let go bss = withSystemTempFile "request-body-io" $ \tmpfp tmph -> do
+                    liftIO $ do
+                        mapM_ (S.hPutStr tmph) bss
+                        hClose tmph
+
+                    let Just req1 = parseUrl $ "POST http://127.0.0.1:" ++ show port
+                        lbs = L.fromChunks bss
+                    res <- httpLbs req1
+                        { requestBody = RequestBodyIO (streamFile tmpfp)
+                        } manager
+                    liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                    let ts = S.concat . L.toChunks
+                    liftIO $ ts (responseBody res) @?= ts lbs
+            mapM_ go
+                [ ["hello", "world"]
+                , replicate 500 "foo\003\n\r"
+                ]
 
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do

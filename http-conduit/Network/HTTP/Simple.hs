@@ -49,7 +49,7 @@ module Network.HTTP.Simple
     , setRequestBodyJSON
     , setRequestBodyLBS
     , setRequestBodySource
-    -- FIXME , requestBodyFile
+    , setRequestBodyFile
     , setRequestBodyURLEncoded
       -- ** Special fields
     , setRequestIgnoreStatus
@@ -276,7 +276,7 @@ setRequestBodyJSON :: A.ToJSON a => a -> H.Request -> H.Request
 setRequestBodyJSON x req =
     req { H.requestHeaders
             = (H.hContentType, "application/json; charset=utf-8")
-            : filter (\(x, _) -> x /= H.hContentType) (H.requestHeaders req)
+            : filter (\(y, _) -> y /= H.hContentType) (H.requestHeaders req)
         , H.requestBody = H.RequestBodyLBS $ A.encode $ A.toJSON x
         }
 
@@ -287,7 +287,7 @@ setRequestBodyJSON x req =
 --
 -- @since 0.2.4
 setRequestBodyLBS :: L.ByteString -> H.Request -> H.Request
-setRequestBodyLBS x req = req { H.requestBody = H.RequestBodyLBS x }
+setRequestBodyLBS = setRequestBody . H.RequestBodyLBS
 
 -- | Set the request body as a 'C.Source'
 --
@@ -301,18 +301,14 @@ setRequestBodySource :: Int64 -- ^ length of source
                      -> H.Request
 setRequestBodySource len src req = req { H.requestBody = HC.requestBodySource len src }
 
-{-
 -- | Set the request body as a file
 --
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- This lens does not allow inspecting the request body
---
 -- @since 0.2.4
-requestBodyFile :: Lens H.Request H.Request () FilePath
-requestBodyFile = _
--}
+setRequestBodyFile :: FilePath -> H.Request -> H.Request
+setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 
 -- | Set the request body as URL encoded data
 --

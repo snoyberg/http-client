@@ -222,6 +222,11 @@ data RequestBody
     | RequestBodyBuilder Int64 Builder
     | RequestBodyStream Int64 (GivesPopper ())
     | RequestBodyStreamChunked (GivesPopper ())
+    | RequestBodyIO (IO RequestBody)
+    -- ^ Allows creation of a @RequestBody@ inside the @IO@ monad, which is
+    -- useful for making easier APIs (like @setRequestBodyFile@).
+    --
+    -- @since 0.4.28
     deriving T.Typeable
 -- |
 --

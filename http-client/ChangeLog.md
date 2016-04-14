@@ -2,6 +2,7 @@
 
 * Add support for including request method in URL
 * `requestManagerOverride`
+* `RequestBodyIO`
 
 ## 0.4.27.1
 

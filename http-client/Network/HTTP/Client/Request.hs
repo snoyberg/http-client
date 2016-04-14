@@ -338,50 +338,49 @@ needsGunzip req hs' =
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
 
 requestBuilder :: Request -> Connection -> IO (Maybe (IO ()))
-requestBuilder req Connection {..}
-    | expectContinue = flushHeaders >> return (Just (checkBadSend sendLater))
-    | otherwise      = sendNow      >> return Nothing
+requestBuilder req Connection {..} = do
+    (contentLength, sendNow, sendLater) <- toTriple (requestBody req)
+    if expectContinue
+        then flushHeaders contentLength >> return (Just (checkBadSend sendLater))
+        else sendNow >> return Nothing
   where
     expectContinue   = Just "100-continue" == lookup "Expect" (requestHeaders req)
     checkBadSend f   = f `E.catch` onRequestBodyException req
     writeBuilder     = toByteStringIO connectionWrite
-    writeHeadersWith = writeBuilder . (builder `mappend`)
-    flushHeaders     = writeHeadersWith flush
+    writeHeadersWith contentLength = writeBuilder . (builder contentLength `mappend`)
+    flushHeaders contentLength     = writeHeadersWith contentLength flush
 
-    (contentLength, sendNow, sendLater) =
-        case requestBody req of
-            RequestBodyLBS lbs ->
-                let body  = fromLazyByteString lbs
-                    now   = checkBadSend $ writeHeadersWith body
-                    later = writeBuilder body
-                in (Just (L.length lbs), now, later)
-
-            RequestBodyBS bs ->
-                let body  = fromByteString bs
-                    now   = checkBadSend $ writeHeadersWith body
-                    later = writeBuilder body
-                in (Just (fromIntegral $ S.length bs), now, later)
-
-            RequestBodyBuilder len body ->
-                let now   = checkBadSend $ writeHeadersWith body
-                    later = writeBuilder body
-                in (Just len, now, later)
-
-            -- See https://github.com/snoyberg/http-client/issues/74 for usage
-            -- of flush here.
-            RequestBodyStream len stream ->
-                let body = writeStream False stream
-                    -- Don't check for a bad send on the headers themselves.
-                    -- Ideally, we'd do the same thing for the other request body
-                    -- types, but it would also introduce a performance hit since
-                    -- we couldn't merge request headers and bodies together.
-                    now  = flushHeaders >> checkBadSend body
-                in (Just len, now, body)
-
-            RequestBodyStreamChunked stream ->
-                let body = writeStream True stream
-                    now  = flushHeaders >> checkBadSend body
-                in (Nothing, now, body)
+    toTriple (RequestBodyLBS lbs) = do
+        let body  = fromLazyByteString lbs
+            len   = Just $ L.length lbs
+            now   = checkBadSend $ writeHeadersWith len body
+            later = writeBuilder body
+        return (len, now, later)
+    toTriple (RequestBodyBS bs) = do
+        let body  = fromByteString bs
+            len   = Just $ fromIntegral $ S.length bs
+            now   = checkBadSend $ writeHeadersWith len body
+            later = writeBuilder body
+        return (len, now, later)
+    toTriple (RequestBodyBuilder len body) = do
+        let now   = checkBadSend $ writeHeadersWith (Just len) body
+            later = writeBuilder body
+        return (Just len, now, later)
+    toTriple (RequestBodyStream len stream) = do
+        -- See https://github.com/snoyberg/http-client/issues/74 for usage
+        -- of flush here.
+        let body = writeStream False stream
+            -- Don't check for a bad send on the headers themselves.
+            -- Ideally, we'd do the same thing for the other request body
+            -- types, but it would also introduce a performance hit since
+            -- we couldn't merge request headers and bodies together.
+            now  = flushHeaders (Just len) >> checkBadSend body
+        return (Just len, now, body)
+    toTriple (RequestBodyStreamChunked stream) = do
+        let body = writeStream True stream
+            now  = flushHeaders Nothing >> checkBadSend body
+        return (Nothing, now, body)
+    toTriple (RequestBodyIO mbody) = mbody >>= toTriple
 
     writeStream isChunked withStream =
         withStream loop
@@ -433,14 +432,15 @@ requestBuilder req Connection {..}
             Nothing -> ("Host", hh) : x
             Just{} -> x
 
-    headerPairs :: W.RequestHeaders
-    headerPairs = hostHeader
+    headerPairs :: Maybe Int64 -> W.RequestHeaders
+    headerPairs contentLength
+                = hostHeader
                 $ acceptEncodingHeader
                 $ contentLengthHeader contentLength
                 $ requestHeaders req
 
-    builder :: Builder
-    builder =
+    builder :: Maybe Int64 -> Builder
+    builder contentLength =
             fromByteString (method req)
             <> fromByteString " "
             <> requestHostname
@@ -461,7 +461,7 @@ requestBuilder req Connection {..}
             <> foldr
                 (\a b -> headerPairToBuilder a <> b)
                 (fromByteString "\r\n")
-                headerPairs
+                (headerPairs contentLength)
 
     headerPairToBuilder (k, v) =
            fromByteString (CI.original k)
