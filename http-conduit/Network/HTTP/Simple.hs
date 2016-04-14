@@ -182,6 +182,10 @@ type Lens' s a = Lens s s a a
 lens :: (s -> a) -> (s -> b -> t) -> Lens s t a b
 lens get set f s = fmap (set s) (f (get s))
 
+-- Not actually a setter by the lens definition!
+setter :: (s -> b -> t) -> Lens s t () b
+setter = lens (const ())
+
 -- | Lens for the request method
 --
 -- @since 0.2.4
@@ -263,8 +267,7 @@ requestBody = lens H.requestBody (\req x -> req { H.requestBody = x })
 --
 -- @since 0.2.4
 requestBodyJSON :: A.ToJSON a => Lens H.Request H.Request () a
-requestBodyJSON = lens
-    (const ())
+requestBodyJSON = setter
     (\req x -> req
         { H.requestHeaders
             = (H.hContentType, "application/json; charset=utf-8")
@@ -281,8 +284,7 @@ requestBodyJSON = lens
 --
 -- @since 0.2.4
 requestBodyLBS :: Lens H.Request H.Request () L.ByteString
-requestBodyLBS = lens
-    (const ())
+requestBodyLBS = setter
     (\req x -> req { H.requestBody = H.RequestBodyLBS x })
 
 -- | Set the request body as a 'C.Source'
@@ -294,8 +296,7 @@ requestBodyLBS = lens
 --
 -- @since 0.2.4
 requestBodySource :: Lens H.Request H.Request () (Int64, C.Source IO S.ByteString)
-requestBodySource = lens
-    (const ())
+requestBodySource = setter
     (\req (len, src) -> req { H.requestBody = HC.requestBodySource len src })
 
 {-
@@ -322,8 +323,7 @@ requestBodyFile = _
 --
 -- @since 0.2.4
 requestBodyURLEncoded :: Lens H.Request H.Request () [(S.ByteString, S.ByteString)]
-requestBodyURLEncoded = lens
-    (const ())
+requestBodyURLEncoded = setter
     (\req x -> H.urlEncodedBody x req)
 
 -- | Modify the request so that non-2XX status codes do not generate a runtime
@@ -334,7 +334,7 @@ requestBodyURLEncoded = lens
 --
 -- @since 0.2.4
 requestIgnoreStatus :: Lens H.Request H.Request () Bool
-requestIgnoreStatus = lens (const ()) (\req b ->
+requestIgnoreStatus = setter (\req b ->
     req { H.checkStatus =
             if b
                 then \_ _ _ -> Nothing
@@ -347,8 +347,7 @@ requestIgnoreStatus = lens (const ()) (\req b ->
 --
 -- @since 0.2.4
 requestBasicAuth :: Lens H.Request H.Request () (S.ByteString, S.ByteString)
-requestBasicAuth = lens
-    (const ())
+requestBasicAuth = setter
     (\req (user, pass) -> H.applyBasicAuth user pass req)
 
 -- | Instead of using the default global 'H.Manager', use the supplied
