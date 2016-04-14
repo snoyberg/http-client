@@ -53,6 +53,11 @@ module Network.HTTP.Simple
     , requestBasicAuth
     , requestManager
       -- * Response lenses
+    , responseStatus
+    , responseStatusCode
+    , responseHeader
+    , responseHeaders
+    , responseBody
       -- * Alternate spellings
     , httpLbs
     ) where
@@ -355,13 +360,41 @@ requestManager = lens
     HI.requestManagerOverride
     (\req x -> req { HI.requestManagerOverride = x })
 
--- TODO accessors and setters for various request and response fields. Will
--- this be lens based? Still need to decide on that.
+-- | Lens for the status of the response
 --
--- Minimal functionality:
+-- @since 0.2.4
+responseStatus :: Lens' (H.Response a) H.Status
+responseStatus = lens H.responseStatus (\res x -> res { H.responseStatus = x })
+
+-- | Lens for the integral status code of the response
 --
--- * Get response status
--- * Get response status code (just the Int)
--- * Get response headers
--- * Get a response header
--- * Get response body
+-- @since 0.2.4
+responseStatusCode :: Lens' (H.Response a) Int
+responseStatusCode =
+    responseStatus . code
+  where
+    code = lens H.statusCode (\s c -> s { H.statusCode = c })
+
+-- | Lens into all response header values with the given name
+--
+-- @since 0.2.4
+responseHeader :: H.HeaderName -> Lens' (H.Response a) [S.ByteString]
+responseHeader name = lens
+    (map snd . filter (\(x, _) -> x == name) . H.responseHeaders)
+    (\req vals -> req
+        { H.responseHeaders =
+            filter (\(x, _) -> x /= name) (H.responseHeaders req)
+         ++ (map (name, ) vals)
+        })
+
+-- | Lens into all response headers
+--
+-- @since 0.2.4
+responseHeaders :: Lens' (H.Response a) [(H.HeaderName, S.ByteString)]
+responseHeaders = lens H.responseHeaders (\req x -> req { H.responseHeaders = x })
+
+-- | Lens into the response body
+--
+-- @since 0.2.4
+responseBody :: Lens (H.Response a) (H.Response b) a b
+responseBody = lens H.responseBody (\req x -> req { H.responseBody = x })
