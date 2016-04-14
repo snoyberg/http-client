@@ -33,7 +33,7 @@ library
                  , conduit-extra         >= 1.1.5
                  , http-types            >= 0.7
                  , lifted-base           >= 0.1
-                 , http-client           >= 0.4.19  && < 0.5
+                 , http-client           >= 0.4.28  && < 0.5
                  , http-client-tls       >= 0.2.4
                  , monad-control
                  , mtl

@@ -282,12 +282,11 @@ main = withSocketsDo $ do
         it "works" $ echo $ \port -> do
             withManager $ \manager -> do
                 let go bss = do
-                        let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
+                        let Just req1 = parseUrl $ "POST http://127.0.0.1:" ++ show port
                             src = sourceList bss
                             lbs = L.fromChunks bss
                         res <- httpLbs req1
-                            { method = "POST"
-                            , requestBody = requestBodySourceChunked src
+                            { requestBody = requestBodySourceChunked src
                             } manager
                         liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
                         let ts = S.concat . L.toChunks
