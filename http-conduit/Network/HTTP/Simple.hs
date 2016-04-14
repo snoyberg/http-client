@@ -244,10 +244,8 @@ requestQueryString = lens
 -- This lens does not allow inspecting the request body
 --
 -- @since 0.2.4
-requestBody :: Lens H.Request H.Request () H.RequestBody
-requestBody = lens
-    (const ())
-    (\req x -> req { H.requestBody = x })
+requestBody :: Lens' H.Request H.RequestBody
+requestBody = lens H.requestBody (\req x -> req { H.requestBody = x })
 
 -- | Set the request body as a JSON value
 --
