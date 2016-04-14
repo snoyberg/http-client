@@ -116,7 +116,7 @@ httpJSONEither :: (MonadIO m, FromJSON a)
 httpJSONEither req =
     liftIO $ httpSink req sink
   where
-    sink orig = do
+    sink orig = fmap (\x -> fmap (const x) orig) $ do
         eres1 <- C.sinkParserEither json'
         case eres1 of
             Left e -> return $ Left $ JSONParseException req orig e
@@ -165,15 +165,14 @@ parseRequest = H.parseUrl
 httpSink :: (MonadIO m, Catch.MonadMask m)
          => H.Request
          -> (H.Response () -> C.Sink S.ByteString m a)
-         -> m (H.Response a)
+         -> m a
 httpSink req sink = do
     man <- liftIO H.getGlobalManager
     Catch.bracket
         (liftIO $ H.responseOpen req man)
         (liftIO . H.responseClose)
-        (\res -> T.mapM ((C.$$ sink (plain res)) . bodyReaderSource) res)
-  where
-    plain = fmap (const ())
+        (\res -> bodyReaderSource (getResponseBody res)
+            C.$$ sink (fmap (const ()) res))
 
 -- | Alternate spelling of 'httpLBS'
 --
