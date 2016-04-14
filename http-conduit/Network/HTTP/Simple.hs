@@ -1,6 +1,7 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE TupleSections      #-}
+{-# LANGUAGE OverloadedStrings  #-}
 -- | Simplified interface for common HTTP client interactions. Tutorial
 -- available at
 -- <https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md>.
@@ -41,6 +42,12 @@ module Network.HTTP.Simple
     , requestHeaders
     , requestQueryString
       -- ** Request body
+    , requestBody
+    , requestBodyJSON
+    , requestBodyLBS
+    , requestBodySource
+    -- FIXME , requestBodyFile
+    , requestBodyURLEncoded
       -- ** Special fields
     , requestIgnoreStatus
     , requestBasicAuth
@@ -56,10 +63,12 @@ import qualified Network.HTTP.Client as H
 import qualified Network.HTTP.Client.Internal as HI
 import qualified Network.HTTP.Client.TLS as H
 import Network.HTTP.Client.Conduit (bodyReaderSource)
+import qualified Network.HTTP.Client.Conduit as HC
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (FromJSON (..), Value)
 import Data.Aeson.Parser (json')
 import qualified Data.Aeson.Types as A
+import qualified Data.Aeson.Encode as A
 import qualified Data.Traversable as T
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
@@ -68,6 +77,7 @@ import qualified Data.Conduit.Attoparsec as C
 import qualified Control.Monad.Catch as Catch
 import Data.Default.Class (def)
 import qualified Network.HTTP.Types as H
+import Data.Int (Int64)
 
 -- | Perform an HTTP request and return the body as a lazy @ByteString@. Note
 -- that the entire value will be read into memory at once (no lazy I\/O will be
@@ -224,6 +234,95 @@ requestQueryString = lens
     (H.parseQuery . H.queryString)
     (flip H.setQueryString)
 
+-- | Set the request body to the given 'H.RequestBody'. You may want to
+-- consider using one of the convenience functions in the modules, e.g.
+-- 'requestBodyJSON'.
+--
+-- /Note/: This will not modify the request method. For that, please use
+-- 'requestMethod'. You likely don't want the default of @GET@.
+--
+-- This lens does not allow inspecting the request body
+--
+-- @since 0.2.4
+requestBody :: Lens H.Request H.Request () H.RequestBody
+requestBody = lens
+    (const ())
+    (\req x -> req { H.requestBody = x })
+
+-- | Set the request body as a JSON value
+--
+-- /Note/: This will not modify the request method. For that, please use
+-- 'requestMethod'. You likely don't want the default of @GET@.
+--
+-- This also sets the @content-type@ to @application/json; chatset=utf8@
+--
+-- This lens does not allow inspecting the request body
+--
+-- @since 0.2.4
+requestBodyJSON :: A.ToJSON a => Lens H.Request H.Request () a
+requestBodyJSON = lens
+    (const ())
+    (\req x -> req
+        { H.requestHeaders
+            = (H.hContentType, "application/json; charset=utf-8")
+            : filter (\(x, _) -> x /= H.hContentType) (H.requestHeaders req)
+        , H.requestBody = H.RequestBodyLBS $ A.encode $ A.toJSON x
+        })
+
+-- | Set the request body as a lazy @ByteString@
+--
+-- /Note/: This will not modify the request method. For that, please use
+-- 'requestMethod'. You likely don't want the default of @GET@.
+--
+-- This lens does not allow inspecting the request body
+--
+-- @since 0.2.4
+requestBodyLBS :: Lens H.Request H.Request () L.ByteString
+requestBodyLBS = lens
+    (const ())
+    (\req x -> req { H.requestBody = H.RequestBodyLBS x })
+
+-- | Set the request body as a 'C.Source'
+--
+-- /Note/: This will not modify the request method. For that, please use
+-- 'requestMethod'. You likely don't want the default of @GET@.
+--
+-- This lens does not allow inspecting the request body
+--
+-- @since 0.2.4
+requestBodySource :: Lens H.Request H.Request () (Int64, C.Source IO S.ByteString)
+requestBodySource = lens
+    (const ())
+    (\req (len, src) -> req { H.requestBody = HC.requestBodySource len src })
+
+{-
+-- | Set the request body as a file
+--
+-- /Note/: This will not modify the request method. For that, please use
+-- 'requestMethod'. You likely don't want the default of @GET@.
+--
+-- This lens does not allow inspecting the request body
+--
+-- @since 0.2.4
+requestBodyFile :: Lens H.Request H.Request () FilePath
+requestBodyFile = _
+-}
+
+-- | Set the request body as URL encoded data
+--
+-- /Note/: This will not modify the request method. For that, please use
+-- 'requestMethod'. You likely don't want the default of @GET@.
+--
+-- This also sets the @content-type@ to @application/x-www-form-urlencoded@
+--
+-- This lens does not allow inspecting the request body
+--
+-- @since 0.2.4
+requestBodyURLEncoded :: Lens H.Request H.Request () [(S.ByteString, S.ByteString)]
+requestBodyURLEncoded = lens
+    (const ())
+    (\req x -> H.urlEncodedBody x req)
+
 -- | Modify the request so that non-2XX status codes do not generate a runtime
 -- exception. If @True@, ignore the status code. If @False@, do the default 2XX
 -- check.
@@ -262,12 +361,6 @@ requestManager = lens
 -- this be lens based? Still need to decide on that.
 --
 -- Minimal functionality:
---
--- * Set JSON request body
--- * Set LBS request body
--- * Set Source request body
--- * Set file request body
--- * Set URL encoded body
 --
 -- * Get response status
 -- * Get response status code (just the Int)
