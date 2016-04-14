@@ -446,6 +446,13 @@ data Request = Request
     -- Default: ignore @IOException@s, rethrow all other exceptions.
     --
     -- Since: 0.4.6
+
+    , requestManagerOverride :: Maybe Manager
+    -- ^ A 'Manager' value that should override whatever @Manager@ value was
+    -- passed in to the HTTP request function manually. This is useful when
+    -- dealing with implicit global managers, such as in @Network.HTTP.Simple@
+    --
+    -- @since 0.4.28
     }
     deriving T.Typeable
 

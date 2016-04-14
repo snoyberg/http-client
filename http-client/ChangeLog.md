@@ -1,6 +1,7 @@
 ## 0.4.28
 
 * Add support for including request method in URL
+* `requestManagerOverride`
 
 ## 0.4.27.1
 

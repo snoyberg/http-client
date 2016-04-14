@@ -259,6 +259,7 @@ instance Default Request where
             case E.fromException se of
                 Just (_ :: IOException) -> return ()
                 Nothing -> throwIO se
+        , requestManagerOverride = Nothing
         }
 
 instance IsString Request where
