@@ -24,6 +24,7 @@ module Network.HTTP.Simple
     , H.Request
     , H.Response
     , JSONException (..)
+    , H.HttpException (..)
       -- * Alternate spellings
     , httpLbs
     ) where
@@ -114,3 +115,23 @@ httpLbs = httpLBS
 
 -- TODO accessors and setters for various request and response fields. Will
 -- this be lens based? Still need to decide on that.
+--
+-- Minimal functionality:
+--
+-- * Set request method
+-- * Set JSON request body
+-- * Set LBS request body
+-- * Set Source request body
+-- * Set file request body
+-- * Add request headers
+-- * Set URL encoded body
+-- * Disable exceptions on non-2XX
+-- * applyBasicAuth
+-- * Add to query string (or just set the whole thing?)
+-- * Set request: secure, host, port, path
+--
+-- * Get response status
+-- * Get response status code (just the Int)
+-- * Get response headers
+-- * Get a response header
+-- * Get response body
