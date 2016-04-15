@@ -8,6 +8,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
 import Network.Wai.Conduit (responseSource, sourceRequestBody)
+import Network.HTTP.Client (streamFile)
+import System.IO.Temp (withSystemTempFile)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
 import Network.HTTP.Conduit hiding (port)
@@ -49,6 +51,8 @@ import Data.Time.Calendar
 import qualified Network.Wai.Handler.WarpTLS as WT
 import Network.Connection (settingDisableCertificateValidation)
 import Data.Default.Class (def)
+import qualified Data.Aeson as A
+import qualified Network.HTTP.Simple as Simple
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -280,12 +284,11 @@ main = withSocketsDo $ do
         it "works" $ echo $ \port -> do
             withManager $ \manager -> do
                 let go bss = do
-                        let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
+                        let Just req1 = parseUrl $ "POST http://127.0.0.1:" ++ show port
                             src = sourceList bss
                             lbs = L.fromChunks bss
                         res <- httpLbs req1
-                            { method = "POST"
-                            , requestBody = requestBodySourceChunked src
+                            { requestBody = requestBodySourceChunked src
                             } manager
                         liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
                         let ts = S.concat . L.toChunks
@@ -453,6 +456,32 @@ main = withSocketsDo $ do
             res <- I.readIORef ref
             res `shouldBe` qs
 
+    describe "Simple" $ do
+        it "JSON" $ jsonApp $ \port -> do
+            req <- parseUrl $ "http://localhost:" ++ show port
+            value <- Simple.httpJSON req
+            responseBody value `shouldBe` jsonValue
+
+    it "RequestBodyIO" $ echo $ \port -> do
+        withManager $ \manager -> do
+            let go bss = withSystemTempFile "request-body-io" $ \tmpfp tmph -> do
+                    liftIO $ do
+                        mapM_ (S.hPutStr tmph) bss
+                        hClose tmph
+
+                    let Just req1 = parseUrl $ "POST http://127.0.0.1:" ++ show port
+                        lbs = L.fromChunks bss
+                    res <- httpLbs req1
+                        { requestBody = RequestBodyIO (streamFile tmpfp)
+                        } manager
+                    liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                    let ts = S.concat . L.toChunks
+                    liftIO $ ts (responseBody res) @?= ts lbs
+            mapM_ go
+                [ ["hello", "world"]
+                , replicate 500 "foo\003\n\r"
+                ]
+
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
     port <- getPort
@@ -569,3 +598,16 @@ rawApp bs =
         src $$ appSink app'
   where
     src = yield bs
+
+jsonApp :: (Int -> IO ()) -> IO ()
+jsonApp = withApp $ \_req -> return $ responseLBS
+    status200
+    [ ("Content-Type", "application/json")
+    ]
+    (A.encode jsonValue)
+
+jsonValue :: A.Value
+jsonValue = A.object
+    [ "name" A..= ("Alice" :: String)
+    , "age" A..= (35 :: Int)
+    ]

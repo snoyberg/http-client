@@ -3,8 +3,13 @@
 {-# LANGUAGE RankNTypes            #-}
 -- | A new, experimental API to replace "Network.HTTP.Conduit".
 --
--- For more information, please be sure to read the documentation in the
--- "Network.HTTP.Client" module.
+-- For most users, "Network.HTTP.Simple" is probably a better choice. For more
+-- information, see:
+--
+-- <https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md>.
+--
+-- For more information on using this module, please be sure to read the
+-- documentation in the "Network.HTTP.Client" module.
 module Network.HTTP.Client.Conduit
     ( -- * Conduit-specific interface
       withResponse

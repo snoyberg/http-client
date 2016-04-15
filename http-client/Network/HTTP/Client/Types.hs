@@ -222,6 +222,11 @@ data RequestBody
     | RequestBodyBuilder Int64 Builder
     | RequestBodyStream Int64 (GivesPopper ())
     | RequestBodyStreamChunked (GivesPopper ())
+    | RequestBodyIO (IO RequestBody)
+    -- ^ Allows creation of a @RequestBody@ inside the @IO@ monad, which is
+    -- useful for making easier APIs (like @setRequestBodyFile@).
+    --
+    -- @since 0.4.28
     deriving T.Typeable
 -- |
 --
@@ -446,6 +451,13 @@ data Request = Request
     -- Default: ignore @IOException@s, rethrow all other exceptions.
     --
     -- Since: 0.4.6
+
+    , requestManagerOverride :: Maybe Manager
+    -- ^ A 'Manager' value that should override whatever @Manager@ value was
+    -- passed in to the HTTP request function manually. This is useful when
+    -- dealing with implicit global managers, such as in @Network.HTTP.Simple@
+    --
+    -- @since 0.4.28
     }
     deriving T.Typeable
 

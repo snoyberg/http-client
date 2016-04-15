@@ -64,6 +64,7 @@ import Control.Monad.Catch (MonadThrow, throwM)
 import Data.IORef
 
 import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
+import Control.Monad (liftM)
 
 -- | Convert a URL into a 'Request'.
 --
@@ -73,14 +74,32 @@ import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 -- Since this function uses 'MonadThrow', the return monad can be anything that is
 -- an instance of 'MonadThrow', such as 'IO' or 'Maybe'.
 --
+-- You can place the request method at the beginning of the URL separated by a
+-- space, e.g.:
+--
+-- @@@
+-- parseUrl "POST http://httpbin.org/post"
+-- @@@
+--
+-- Note that the request method must be provided as all capital letters.
+--
 -- Since 0.1.0
 parseUrl :: MonadThrow m => String -> m Request
-parseUrl s =
+parseUrl s' =
     case parseURI (encode s) of
-        Just uri -> setUri def uri
+        Just uri -> liftM setMethod (setUri def uri)
         Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
   where
     encode = escapeURIString isAllowedInURI
+    (mmethod, s) =
+        case break (== ' ') s' of
+            (x, ' ':y) | all (\c -> 'A' <= c && c <= 'Z') x -> (Just x, y)
+            _ -> (Nothing, s')
+
+    setMethod req =
+        case mmethod of
+            Nothing -> req
+            Just m -> req { method = S8.pack m }
 
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
@@ -240,6 +259,7 @@ instance Default Request where
             case E.fromException se of
                 Just (_ :: IOException) -> return ()
                 Nothing -> throwIO se
+        , requestManagerOverride = Nothing
         }
 
 instance IsString Request where
@@ -318,50 +338,49 @@ needsGunzip req hs' =
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
 
 requestBuilder :: Request -> Connection -> IO (Maybe (IO ()))
-requestBuilder req Connection {..}
-    | expectContinue = flushHeaders >> return (Just (checkBadSend sendLater))
-    | otherwise      = sendNow      >> return Nothing
+requestBuilder req Connection {..} = do
+    (contentLength, sendNow, sendLater) <- toTriple (requestBody req)
+    if expectContinue
+        then flushHeaders contentLength >> return (Just (checkBadSend sendLater))
+        else sendNow >> return Nothing
   where
     expectContinue   = Just "100-continue" == lookup "Expect" (requestHeaders req)
     checkBadSend f   = f `E.catch` onRequestBodyException req
     writeBuilder     = toByteStringIO connectionWrite
-    writeHeadersWith = writeBuilder . (builder `mappend`)
-    flushHeaders     = writeHeadersWith flush
+    writeHeadersWith contentLength = writeBuilder . (builder contentLength `mappend`)
+    flushHeaders contentLength     = writeHeadersWith contentLength flush
 
-    (contentLength, sendNow, sendLater) =
-        case requestBody req of
-            RequestBodyLBS lbs ->
-                let body  = fromLazyByteString lbs
-                    now   = checkBadSend $ writeHeadersWith body
-                    later = writeBuilder body
-                in (Just (L.length lbs), now, later)
-
-            RequestBodyBS bs ->
-                let body  = fromByteString bs
-                    now   = checkBadSend $ writeHeadersWith body
-                    later = writeBuilder body
-                in (Just (fromIntegral $ S.length bs), now, later)
-
-            RequestBodyBuilder len body ->
-                let now   = checkBadSend $ writeHeadersWith body
-                    later = writeBuilder body
-                in (Just len, now, later)
-
-            -- See https://github.com/snoyberg/http-client/issues/74 for usage
-            -- of flush here.
-            RequestBodyStream len stream ->
-                let body = writeStream False stream
-                    -- Don't check for a bad send on the headers themselves.
-                    -- Ideally, we'd do the same thing for the other request body
-                    -- types, but it would also introduce a performance hit since
-                    -- we couldn't merge request headers and bodies together.
-                    now  = flushHeaders >> checkBadSend body
-                in (Just len, now, body)
-
-            RequestBodyStreamChunked stream ->
-                let body = writeStream True stream
-                    now  = flushHeaders >> checkBadSend body
-                in (Nothing, now, body)
+    toTriple (RequestBodyLBS lbs) = do
+        let body  = fromLazyByteString lbs
+            len   = Just $ L.length lbs
+            now   = checkBadSend $ writeHeadersWith len body
+            later = writeBuilder body
+        return (len, now, later)
+    toTriple (RequestBodyBS bs) = do
+        let body  = fromByteString bs
+            len   = Just $ fromIntegral $ S.length bs
+            now   = checkBadSend $ writeHeadersWith len body
+            later = writeBuilder body
+        return (len, now, later)
+    toTriple (RequestBodyBuilder len body) = do
+        let now   = checkBadSend $ writeHeadersWith (Just len) body
+            later = writeBuilder body
+        return (Just len, now, later)
+    toTriple (RequestBodyStream len stream) = do
+        -- See https://github.com/snoyberg/http-client/issues/74 for usage
+        -- of flush here.
+        let body = writeStream False stream
+            -- Don't check for a bad send on the headers themselves.
+            -- Ideally, we'd do the same thing for the other request body
+            -- types, but it would also introduce a performance hit since
+            -- we couldn't merge request headers and bodies together.
+            now  = flushHeaders (Just len) >> checkBadSend body
+        return (Just len, now, body)
+    toTriple (RequestBodyStreamChunked stream) = do
+        let body = writeStream True stream
+            now  = flushHeaders Nothing >> checkBadSend body
+        return (Nothing, now, body)
+    toTriple (RequestBodyIO mbody) = mbody >>= toTriple
 
     writeStream isChunked withStream =
         withStream loop
@@ -413,14 +432,15 @@ requestBuilder req Connection {..}
             Nothing -> ("Host", hh) : x
             Just{} -> x
 
-    headerPairs :: W.RequestHeaders
-    headerPairs = hostHeader
+    headerPairs :: Maybe Int64 -> W.RequestHeaders
+    headerPairs contentLength
+                = hostHeader
                 $ acceptEncodingHeader
                 $ contentLengthHeader contentLength
                 $ requestHeaders req
 
-    builder :: Builder
-    builder =
+    builder :: Maybe Int64 -> Builder
+    builder contentLength =
             fromByteString (method req)
             <> fromByteString " "
             <> requestHostname
@@ -441,7 +461,7 @@ requestBuilder req Connection {..}
             <> foldr
                 (\a b -> headerPairToBuilder a <> b)
                 (fromByteString "\r\n")
-                headerPairs
+                (headerPairs contentLength)
 
     headerPairToBuilder (k, v) =
            fromByteString (CI.original k)

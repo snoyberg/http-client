@@ -1,3 +1,9 @@
+## 0.4.28
+
+* Add support for including request method in URL
+* `requestManagerOverride`
+* `RequestBodyIO`
+
 ## 0.4.27.1
 
 * Incorrect idle connection count in HTTP manager [#185](https://github.com/snoyberg/http-client/issues/185)
