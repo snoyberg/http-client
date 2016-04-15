@@ -3,7 +3,20 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
--- | This is the main entry point for using http-client. Used by itself, this
+-- |
+--
+-- = Simpler API
+--
+-- The API below is rather low-level. The @Network.HTTP.Simple@ module (from
+-- the @http-conduit@ package) provides a higher-level API with built-in
+-- support for things like JSON request and response bodies. For most users,
+-- this will be an easier place to start. You can read the tutorial at:
+--
+-- https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md
+--
+-- = Lower-level API
+--
+-- This is the main entry point for using http-client. Used by itself, this
 -- module provides low-level access for streaming request and response bodies,
 -- and only non-secure HTTP connections. Helper packages such as http-conduit
 -- provided higher level streaming approaches, while other helper packages like

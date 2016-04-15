@@ -2,7 +2,20 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
--- | This module contains everything you need to initiate HTTP connections.  If
+-- |
+--
+-- = Simpler API
+--
+-- The API below is rather low-level. The "Network.HTTP.Simple" module provides
+-- a higher-level API with built-in support for things like JSON request and
+-- response bodies. For most users, this will be an easier place to start. You
+-- can read the tutorial at:
+--
+-- https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md
+--
+-- = Lower-level API
+--
+-- This module contains everything you need to initiate HTTP connections.  If
 -- you want a simple interface based on URLs, you can use 'simpleHttp'. If you
 -- want raw power, 'http' is the underlying workhorse of this package. Some
 -- examples:
