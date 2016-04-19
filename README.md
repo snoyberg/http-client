@@ -1,3 +1,6 @@
+Status :
+[![Build Status](https://travis-ci.org/snoyberg/http-client.svg?branch=master)](https://travis-ci.org/search/snoyberg%2Fhttp-client)
+
 This is a mega-repo for housing the http-client family of packages for Haskell.
 These packages provide a low level HTTP client engine (http-client), different
 backends for providing SSL support (http-client-tls and http-client-openssl),
