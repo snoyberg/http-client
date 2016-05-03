@@ -113,8 +113,7 @@ httpRaw' req0 m = do
         -- Connection was reused, and might have been closed. Try again
         (Left e, Reused) | mRetryableException m e -> do
             connRelease DontReuse
-            res <- responseOpen req m
-            return (req, res)
+            httpRaw' req m
         -- Not reused, or a non-retry, so this is a real exception
         (Left e, _) -> throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get

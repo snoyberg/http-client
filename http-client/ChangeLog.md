@@ -1,6 +1,7 @@
 ## 0.4.28.1
 
 * Added missing Host: HTTP header for https CONNECT [#192](https://github.com/snoyberg/http-client/pull/192)
+* Fix: Redirects will be followed in httpRaw' when reusing a dead connection [#195](https://github.com/snoyberg/http-client/issues/195)
 
 ## 0.4.28
 
