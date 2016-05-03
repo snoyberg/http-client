@@ -1,3 +1,7 @@
+## 0.4.28.1
+
+* Added missing Host: HTTP header for https CONNECT [#192](https://github.com/snoyberg/http-client/pull/192)
+
 ## 0.4.28
 
 * Add support for including request method in URL
