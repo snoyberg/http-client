@@ -93,7 +93,7 @@ import Data.Int (Int64)
 -- that the entire value will be read into memory at once (no lazy I\/O will be
 -- performed).
 --
--- @since 0.2.4
+-- @since 2.1.10
 httpLBS :: MonadIO m => H.Request -> m (H.Response L.ByteString)
 httpLBS req = liftIO $ do
     man <- H.getGlobalManager
@@ -102,14 +102,14 @@ httpLBS req = liftIO $ do
 -- | Perform an HTTP request and parse the body as JSON. In the event of an
 -- JSON parse errors, a 'JSONException' runtime exception will be thrown.
 --
--- @since 0.2.4
+-- @since 2.1.10
 httpJSON :: (MonadIO m, FromJSON a) => H.Request -> m (H.Response a)
 httpJSON req = liftIO $ httpJSONEither req >>= T.mapM (either throwIO return)
 
 -- | Perform an HTTP request and parse the body as JSON. In the event of an
 -- JSON parse errors, a @Left@ value will be returned.
 --
--- @since 0.2.4
+-- @since 2.1.10
 httpJSONEither :: (MonadIO m, FromJSON a)
                => H.Request
                -> m (H.Response (Either JSONException a))
@@ -128,7 +128,7 @@ httpJSONEither req =
 
 -- | An exception that can occur when parsing JSON
 --
--- @since 0.2.4
+-- @since 2.1.10
 data JSONException
     = JSONParseException H.Request (H.Response ()) C.ParseError
     | JSONConversionException H.Request (H.Response Value) String
@@ -140,7 +140,7 @@ instance Exception JSONException
 --
 -- See also 'parseRequest'
 --
--- @since 0.2.4
+-- @since 2.1.10
 defaultRequest :: H.Request
 defaultRequest = def
 
@@ -155,13 +155,13 @@ defaultRequest = def
 -- function is also used for the @IsString@ instance for use with
 -- @OverloadedStrings@.
 --
--- @since 0.2.4
+-- @since 2.1.10
 parseRequest :: Catch.MonadThrow m => String -> m H.Request
 parseRequest = H.parseUrl
 
 -- | Perform an HTTP request and consume the body with the given 'C.Sink'
 --
--- @since 0.2.4
+-- @since 2.1.10
 httpSink :: (MonadIO m, Catch.MonadMask m)
          => H.Request
          -> (H.Response () -> C.Sink S.ByteString m a)
@@ -176,51 +176,51 @@ httpSink req sink = do
 
 -- | Alternate spelling of 'httpLBS'
 --
--- @since 0.2.4
+-- @since 2.1.10
 httpLbs :: MonadIO m => H.Request -> m (H.Response L.ByteString)
 httpLbs = httpLBS
 
 -- | Set the request method
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestMethod :: S.ByteString -> H.Request -> H.Request
 setRequestMethod x req = req { H.method = x }
 
 -- | Set whether this is a secure/HTTPS (@True@) or insecure/HTTP
 -- (@False@) request
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestSecure :: Bool -> H.Request -> H.Request
 setRequestSecure x req = req { H.secure = x }
 
 -- | Set the destination host of the request
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestHost :: S.ByteString -> H.Request -> H.Request
 setRequestHost x r = r { H.host = x }
 
 -- | Set the destination port of the request
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestPort :: Int -> H.Request -> H.Request
 setRequestPort x r = r { H.port = x }
 
 -- | Lens for the requested path info of the request
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestPath :: S.ByteString -> H.Request -> H.Request
 setRequestPath x r = r { H.path = x }
 
 -- | Add a request header name/value combination
 --
--- @since 0.2.4
+-- @since 2.1.10
 addRequestHeader :: H.HeaderName -> S.ByteString -> H.Request -> H.Request
 addRequestHeader name val req =
     req { H.requestHeaders = (name, val) : H.requestHeaders req }
 
 -- | Get all request header values for the given name
 --
--- @since 0.2.4
+-- @since 2.1.10
 getRequestHeader :: H.HeaderName -> H.Request -> [S.ByteString]
 getRequestHeader name =
     map snd . filter (\(x, _) -> x == name) . H.requestHeaders
@@ -228,7 +228,7 @@ getRequestHeader name =
 -- | Set the given request header to the given list of values. Removes any
 -- previously set header values with the same name.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestHeader :: H.HeaderName -> [S.ByteString] -> H.Request -> H.Request
 setRequestHeader name vals req =
     req { H.requestHeaders =
@@ -238,19 +238,19 @@ setRequestHeader name vals req =
 
 -- | Set the request headers, wiping out any previously set headers
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestHeaders :: [(H.HeaderName, S.ByteString)] -> H.Request -> H.Request
 setRequestHeaders x req = req { H.requestHeaders = x }
 
 -- | Get the query string parameters
 --
--- @since 0.2.4
+-- @since 2.1.10
 getRequestQueryString :: H.Request -> [(S.ByteString, Maybe S.ByteString)]
 getRequestQueryString = H.parseQuery . H.queryString
 
 -- | Set the query string parameters
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestQueryString :: [(S.ByteString, Maybe S.ByteString)] -> H.Request -> H.Request
 setRequestQueryString = H.setQueryString
 
@@ -261,7 +261,7 @@ setRequestQueryString = H.setQueryString
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBody :: H.RequestBody -> H.Request -> H.Request
 setRequestBody x req = req { H.requestBody = x }
 
@@ -272,7 +272,7 @@ setRequestBody x req = req { H.requestBody = x }
 --
 -- This also sets the @content-type@ to @application/json; chatset=utf8@
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBodyJSON :: A.ToJSON a => a -> H.Request -> H.Request
 setRequestBodyJSON x req =
     req { H.requestHeaders
@@ -286,7 +286,7 @@ setRequestBodyJSON x req =
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBodyLBS :: L.ByteString -> H.Request -> H.Request
 setRequestBodyLBS = setRequestBody . H.RequestBodyLBS
 
@@ -295,7 +295,7 @@ setRequestBodyLBS = setRequestBody . H.RequestBodyLBS
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBodySource :: Int64 -- ^ length of source
                      -> C.Source IO S.ByteString
                      -> H.Request
@@ -307,7 +307,7 @@ setRequestBodySource len src req = req { H.requestBody = HC.requestBodySource le
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBodyFile :: FilePath -> H.Request -> H.Request
 setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 
@@ -318,20 +318,20 @@ setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 --
 -- This also sets the @content-type@ to @application/x-www-form-urlencoded@
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Request
 setRequestBodyURLEncoded = H.urlEncodedBody
 
 -- | Modify the request so that non-2XX status codes do not generate a runtime
 -- exception.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestIgnoreStatus :: H.Request -> H.Request
 setRequestIgnoreStatus req = req { H.checkStatus = \_ _ _ -> Nothing }
 
 -- | Set basic auth with the given username and password
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestBasicAuth :: S.ByteString -- ^ username
                     -> S.ByteString -- ^ password
                     -> H.Request
@@ -341,42 +341,42 @@ setRequestBasicAuth = H.applyBasicAuth
 -- | Instead of using the default global 'H.Manager', use the supplied
 -- @Manager@.
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestManager :: H.Manager -> H.Request -> H.Request
 setRequestManager x req = req { HI.requestManagerOverride = Just x }
 
 -- | Override the default proxy server settings
 --
--- @since 0.2.4
+-- @since 2.1.10
 setRequestProxy :: Maybe H.Proxy -> H.Request -> H.Request
 setRequestProxy x req = req { H.proxy = x }
 
 -- | Get the status of the response
 --
--- @since 0.2.4
+-- @since 2.1.10
 getResponseStatus :: H.Response a -> H.Status
 getResponseStatus = H.responseStatus
 
 -- | Get the integral status code of the response
 --
--- @since 0.2.4
+-- @since 2.1.10
 getResponseStatusCode :: H.Response a -> Int
 getResponseStatusCode = H.statusCode . getResponseStatus
 
 -- | Get all response header values with the given name
 --
--- @since 0.2.4
+-- @since 2.1.10
 getResponseHeader :: H.HeaderName -> H.Response a -> [S.ByteString]
 getResponseHeader name = map snd . filter (\(x, _) -> x == name) . H.responseHeaders
 
 -- | Get all response headers
 --
--- @since 0.2.4
+-- @since 2.1.10
 getResponseHeaders :: H.Response a -> [(H.HeaderName, S.ByteString)]
 getResponseHeaders = H.responseHeaders
 
 -- | Get the response body
 --
--- @since 0.2.4
+-- @since 2.1.10
 getResponseBody :: H.Response a -> a
 getResponseBody = H.responseBody
