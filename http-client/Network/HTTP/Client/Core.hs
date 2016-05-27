@@ -167,7 +167,7 @@ responseOpen req0 manager' = handle addTlsHostPort $ mWrapIOException manager $ 
         if redirectCount req0 == 0
             then httpRaw' req0 manager
             else go (redirectCount req0) req0
-    maybe (return res) throwIO =<< applyCheckStatus req (checkStatus req) res
+    maybe (return res) throwIO =<< applyCheckStatus req (mStatusCheck manager) res
   where
     manager = fromMaybe manager' (requestManagerOverride req0)
 

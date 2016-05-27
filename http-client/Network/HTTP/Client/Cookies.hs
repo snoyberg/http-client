@@ -47,7 +47,7 @@ isIpAddress =
             Just (i, x') | BS.null x' && i >= 0 && i < 256 -> go (rest - 1) y
             _ -> False
       where
-        (x, y') = BS.breakByte 46 bs -- period
+        (x, y') = BS.break (== 46) bs -- period
         y = BS.drop 1 y'
 
 -- | This corresponds to the subcomponent algorithm entitled \"Domain Matching\" detailed

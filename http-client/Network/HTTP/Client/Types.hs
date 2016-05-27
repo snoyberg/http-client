@@ -406,11 +406,6 @@ data Request = Request
     -- no redirects. Default value: 10.
     --
     -- Since 0.1.0
-    , checkStatus :: Status -> ResponseHeaders -> CookieJar -> Maybe SomeException
-    -- ^ Check the status code. Note that this will run after all redirects are
-    -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
-    --
-    -- Since 0.1.0
     , responseTimeout :: Maybe Int
     -- ^ Number of microseconds to wait for a response. If
     -- @Nothing@, will wait indefinitely. Default: use
@@ -553,6 +548,12 @@ data ManagerSettings = ManagerSettings
     -- Default: wrap all @IOException@s in the @InternalIOException@ constructor.
     --
     -- Since 0.1.0
+    , managerStatusCheck :: Status -> ResponseHeaders -> CookieJar -> Maybe SomeException
+    -- ^ Check the status code. Note that this will run after all redirects are
+    -- performed. Default: return a @StatusCodeException@ on non-2XX responses.
+    --
+    -- Since 0.5.0
+
     , managerIdleConnectionCount :: Int
     -- ^ Total number of idle connection to keep open at a given time.
     --
@@ -615,6 +616,7 @@ data Manager = Manager
     , mTlsProxyConnection :: S.ByteString -> (Connection -> IO ()) -> String -> Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mRetryableException :: SomeException -> Bool
     , mWrapIOException :: forall a. IO a -> IO a
+    , mStatusCheck :: Status -> ResponseHeaders -> CookieJar -> Maybe SomeException
     , mIdleConnectionCount :: Int
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request

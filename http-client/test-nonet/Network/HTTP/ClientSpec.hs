@@ -119,10 +119,9 @@ serveWith resp inner = bracket
 
 getChunkedResponse :: Int -> Manager -> IO (Response SL.ByteString)
 getChunkedResponse port' man = flip httpLbs man "http://localhost"
-  { port        = port'
-  , checkStatus = \_ _ _ -> Nothing
-  , requestBody = RequestBodyStreamChunked ($ return (S.replicate 100000 65))
-  }
+      { port        = port'
+      , requestBody = RequestBodyStreamChunked ($ return (S.replicate 100000 65))
+      }
 
 spec :: Spec
 spec = describe "Client" $ do
@@ -172,23 +171,23 @@ spec = describe "Client" $ do
         test True
 
     it "early close on a 413" $ earlyClose413 $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
+        withManager defaultManagerSettings' $ \man -> do
             res <- getChunkedResponse port' man
             responseBody res `shouldBe` "goodbye"
             responseStatus res `shouldBe` status413
 
     it "length zero and chunking zero #108" $ lengthZeroAndChunkZero $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
+        withManager defaultManagerSettings' $ \man -> do
             res <- getChunkedResponse port' man
             responseBody res `shouldBe` ""
 
     it "length zero and chunking" $ lengthZeroAndChunked $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
+        withManager defaultManagerSettings' $ \man -> do
             res <- getChunkedResponse port' man
             responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
 
     it "length and chunking" $ lengthAndChunked $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
+        withManager defaultManagerSettings' $ \man -> do
             res <- getChunkedResponse port' man
             responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
 
