@@ -12,6 +12,7 @@ module Network.HTTP.Client.Manager
     , getConn
     , failedConnectionException
     , defaultManagerSettings
+    , defaultManagerSettings'
     , rawConnectionModifySocket
     , proxyFromRequest
     , noProxy
@@ -57,7 +58,7 @@ import qualified Network.Socket as NS
 import Data.Maybe (mapMaybe)
 import System.IO (Handle)
 import System.Mem.Weak (Weak, deRefWeak)
-import Network.HTTP.Types (status200)
+import Network.HTTP.Types (status200, Status(..))
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
@@ -116,11 +117,20 @@ defaultManagerSettings = ManagerSettings
                     Just e -> toException $ InternalIOException e
                     Nothing -> se
          in handle $ throwIO . wrapper
+    , managerStatusCheck = \ s@(Status sci _) hs cookie_jar ->
+            if 200 <= sci && sci < 300
+                then Nothing
+                else Just $ toException $ StatusCodeException s hs cookie_jar
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
     }
+
+-- | Same as 'defaultManagerSettings' but won't throw 'StatusCodeException'
+-- on non200~300 status code('managerStatusCheck' always return 'Nothing').
+defaultManagerSettings' :: ManagerSettings
+defaultManagerSettings' = defaultManagerSettings{managerStatusCheck = \ _ _ _ -> Nothing}
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
 takeSocket man key =
@@ -200,6 +210,7 @@ newManager ms = do
             , mTlsProxyConnection = tlsProxyConnection
             , mRetryableException = managerRetryableException ms
             , mWrapIOException = managerWrapIOException ms
+            , mStatusCheck = managerStatusCheck ms
             , mIdleConnectionCount = managerIdleConnectionCount ms
             , mModifyRequest = managerModifyRequest ms
             , mSetProxy = \req ->

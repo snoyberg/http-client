@@ -6,6 +6,7 @@
 module Network.HTTP.Client.TLS
     ( -- * Settings
       tlsManagerSettings
+    , tlsManagerSettings'
     , mkManagerSettings
       -- * Global manager
     , getGlobalManager
@@ -53,7 +54,7 @@ mkManagerSettings tls sock = defaultManagerSettings
                             Just NoResponseDataReceived -> True
                             Just IncompleteHeaders -> True
                             _ -> False
-    , managerWrapIOException = 
+    , managerWrapIOException =
         let wrapper se =
                 case fromException se of
                     Just e -> toException $ InternalIOException e
@@ -68,6 +69,12 @@ mkManagerSettings tls sock = defaultManagerSettings
 -- | Default TLS-enabled manager settings
 tlsManagerSettings :: ManagerSettings
 tlsManagerSettings = mkManagerSettings def Nothing
+
+-- | Default TLS-enabled manager settings
+-- but won't throw 'StatusCodeException' on non200~300 status code
+-- ('managerStatusCheck' always return 'Nothing').
+tlsManagerSettings' :: ManagerSettings
+tlsManagerSettings' = (mkManagerSettings def Nothing){managerStatusCheck = \ _ _ _ -> Nothing}
 
 getTlsConnection :: Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings

@@ -9,8 +9,9 @@ import qualified OpenSSL.Session       as SSL
 main :: IO ()
 main = withOpenSSL $ hspec $ do
     it "make a TLS connection" $ do
-        manager <- newManager $ opensslManagerSettings SSL.context
+        manager <- newManager $ (opensslManagerSettings SSL.context){
+                managerStatusCheck = \ _ _ _ -> Nothing
+            }
         withResponse "https://httpbin.org/status/418"
-            { checkStatus = \_ _ _ -> Nothing
-            } manager $ \res -> do
+            manager $ \res -> do
             responseStatus res `shouldBe` status418

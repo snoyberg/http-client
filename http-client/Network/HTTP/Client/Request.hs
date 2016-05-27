@@ -233,10 +233,6 @@ instance Default Request where
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10
-        , checkStatus = \s@(W.Status sci _) hs cookie_jar ->
-            if 200 <= sci && sci < 300
-                then Nothing
-                else Just $ toException $ StatusCodeException s hs cookie_jar
         , responseTimeout = useDefaultTimeout
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of

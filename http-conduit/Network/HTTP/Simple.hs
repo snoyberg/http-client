@@ -53,7 +53,6 @@ module Network.HTTP.Simple
     , setRequestBodyFile
     , setRequestBodyURLEncoded
       -- ** Special fields
-    , setRequestIgnoreStatus
     , setRequestBasicAuth
     , setRequestManager
     , setRequestProxy
@@ -321,13 +320,6 @@ setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 -- @since 2.1.10
 setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Request
 setRequestBodyURLEncoded = H.urlEncodedBody
-
--- | Modify the request so that non-2XX status codes do not generate a runtime
--- exception.
---
--- @since 2.1.10
-setRequestIgnoreStatus :: H.Request -> H.Request
-setRequestIgnoreStatus req = req { H.checkStatus = \_ _ _ -> Nothing }
 
 -- | Set basic auth with the given username and password
 --

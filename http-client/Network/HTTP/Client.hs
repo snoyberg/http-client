@@ -106,12 +106,14 @@ module Network.HTTP.Client
       -- ** Connection manager settings
     , ManagerSettings
     , defaultManagerSettings
+    , defaultManagerSettings'
     , managerConnCount
     , managerRawConnection
     , managerTlsConnection
     , managerResponseTimeout
     , managerRetryableException
     , managerWrapIOException
+    , managerStatusCheck
     , managerIdleConnectionCount
     , managerModifyRequest
       -- *** Manager proxy settings
@@ -147,7 +149,6 @@ module Network.HTTP.Client
     , applyBasicProxyAuth
     , decompress
     , redirectCount
-    , checkStatus
     , responseTimeout
     , cookieJar
     , requestVersion
