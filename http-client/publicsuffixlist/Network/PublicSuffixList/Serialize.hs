@@ -35,7 +35,7 @@ getText :: BS.ByteString -> (T.Text, BS.ByteString)
 getText bs0 =
     (TE.decodeUtf8 v, BS.drop 1 bs1)
   where
-    (v, bs1) = BS.breakByte 0 bs0
+    (v, bs1) = BS.break (== 0) bs0
 
 getDataStructure :: BS.ByteString -> DataStructure
 getDataStructure bs0 =

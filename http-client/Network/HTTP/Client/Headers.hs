@@ -61,8 +61,8 @@ parseStatusHeaders conn timeout' cont
     parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus i bs | S.null bs && i > 0 = connectionReadLine conn >>= parseStatus (i - 1)
     parseStatus _ bs = do
-        let (ver, bs2) = S.breakByte charSpace bs
-            (code, bs3) = S.breakByte charSpace $ S.dropWhile (== charSpace) bs2
+        let (ver, bs2) = S.break (== charSpace) bs
+            (code, bs3) = S.break (== charSpace) $ S.dropWhile (== charSpace) bs2
             msg = S.dropWhile (== charSpace) bs3
         case (,) <$> parseVersion ver <*> readInt code of
             Just (ver', code') -> return (Status code' msg, ver')
@@ -73,7 +73,7 @@ parseStatusHeaders conn timeout' cont
         | otherwise = Nothing
     parseVersion bs0 = do
         bs1 <- stripPrefixBS "HTTP/" bs0
-        let (num1, S.drop 1 -> num2) = S.breakByte charPeriod bs1
+        let (num1, S.drop 1 -> num2) = S.break (== charPeriod) bs1
         HttpVersion <$> readInt num1 <*> readInt num2
 
     readInt bs =
@@ -92,7 +92,7 @@ parseStatusHeaders conn timeout' cont
 
     parseHeader :: S.ByteString -> IO Header
     parseHeader bs = do
-        let (key, bs2) = S.breakByte charColon bs
+        let (key, bs2) = S.break (== charColon) bs
         when (S.null bs2) $ throwIO $ InvalidHeader bs
         return (CI.mk $! strip key, strip $! S.drop 1 bs2)
 
