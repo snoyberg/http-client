@@ -41,7 +41,7 @@ connectionReadLineWith conn bs0 =
     go bs0 id 0
   where
     go bs front total =
-        case S.breakByte charLF bs of
+        case S.break (== charLF) bs of
             (_, "") -> do
                 let total' = total + S.length bs
                 when (total' > 4096) $ throwIO OverlongHeaders
