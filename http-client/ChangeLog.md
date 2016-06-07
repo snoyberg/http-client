@@ -1,3 +1,7 @@
+## 0.4.29
+
+* add setRequestIgnoreStatus [#201](https://github.com/snoyberg/http-client/pull/201)
+
 ## 0.4.28.1
 
 * Added missing Host: HTTP header for https CONNECT [#192](https://github.com/snoyberg/http-client/pull/192)
