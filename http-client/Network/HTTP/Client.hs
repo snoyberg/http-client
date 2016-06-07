@@ -132,6 +132,7 @@ module Network.HTTP.Client
     , applyBasicAuth
     , urlEncodedBody
     , getUri
+    , setRequestIgnoreStatus
     , setQueryString
       -- ** Request type and fields
     , Request

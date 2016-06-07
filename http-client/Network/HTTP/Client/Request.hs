@@ -20,6 +20,7 @@ module Network.HTTP.Client.Request
     , needsGunzip
     , requestBuilder
     , useDefaultTimeout
+    , setRequestIgnoreStatus
     , setQueryString
     , streamFile
     , observedStreamFile
@@ -468,6 +469,13 @@ requestBuilder req Connection {..} = do
         <> fromByteString ": "
         <> fromByteString v
         <> fromByteString "\r\n"
+
+-- | Modify the request so that non-2XX status codes do not generate a runtime
+-- 'StatusCodeException'.
+--
+-- @since 0.4.28.1
+setRequestIgnoreStatus :: Request -> Request
+setRequestIgnoreStatus req = req { checkStatus = \_ _ _ -> Nothing }
 
 -- | Set the query string to the given key/value pairs.
 --
