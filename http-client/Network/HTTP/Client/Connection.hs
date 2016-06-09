@@ -165,8 +165,8 @@ openSocketConnectionSize tweakSocket chunksize hostAddress host port = do
             (NS.sClose)
             (\sock -> do
                 NS.setSocketOption sock NS.NoDelay 1
-                NS.connect sock (NS.addrAddress addr)
                 tweakSocket sock
+                NS.connect sock (NS.addrAddress addr)
                 socketConnection sock chunksize)
 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a

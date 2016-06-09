@@ -1,3 +1,7 @@
+## 0.4.30
+
+* Changed the order of connecting a socket and tweaking a socket, such that the socket tweaking callback now happen before connecting.
+
 ## 0.4.29
 
 * add setRequestIgnoreStatus [#201](https://github.com/snoyberg/http-client/pull/201)
