@@ -473,7 +473,7 @@ requestBuilder req Connection {..} = do
 -- | Modify the request so that non-2XX status codes do not generate a runtime
 -- 'StatusCodeException'.
 --
--- @since 0.4.28.1
+-- @since 0.4.29
 setRequestIgnoreStatus :: Request -> Request
 setRequestIgnoreStatus req = req { checkStatus = \_ _ _ -> Nothing }
 

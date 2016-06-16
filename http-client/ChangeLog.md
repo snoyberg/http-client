@@ -1,13 +1,7 @@
-## 0.4.30
-
-* Changed the order of connecting a socket and tweaking a socket, such that the socket tweaking callback now happen before connecting.
-
 ## 0.4.29
 
+* Changed the order of connecting a socket and tweaking a socket, such that the socket tweaking callback now happen before connecting.
 * add setRequestIgnoreStatus [#201](https://github.com/snoyberg/http-client/pull/201)
-
-## 0.4.28.1
-
 * Added missing Host: HTTP header for https CONNECT [#192](https://github.com/snoyberg/http-client/pull/192)
 * Fix: Redirects will be followed in httpRaw' when reusing a dead connection [#195](https://github.com/snoyberg/http-client/issues/195)
 
