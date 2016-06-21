@@ -36,7 +36,7 @@
 -- >
 -- > main :: IO ()
 -- > main = do
--- >      request <- parseUrl "http://google.com/"
+-- >      request <- parseRequest "http://google.com/"
 -- >      manager <- newManager tlsManagerSettings
 -- >      runResourceT $ do
 -- >          response <- http request manager
@@ -88,7 +88,7 @@
 -- >                 }
 -- >
 -- > main = withSocketsDo $ do
--- >      request' <- parseUrl "http://example.com/secret-page"
+-- >      request' <- parseRequest "http://example.com/secret-page"
 -- >      manager <- newManager tlsManagerSettings
 -- >      let request = request' { cookieJar = Just $ createCookieJar [cookie] }
 -- >      (fmap Just (httpLbs request manager)) `E.catch`
@@ -121,7 +121,7 @@
 -- >
 -- > main :: IO ()
 -- > main = withSocketsDo $ do
--- >      request' <- parseUrl "http://www.yesodweb.com/does-not-exist"
+-- >      request' <- parseRequest "http://www.yesodweb.com/does-not-exist"
 -- >      let request = request' { checkStatus = \_ _ _ -> Nothing }
 -- >      manager <- newManager tlsManagerSettings
 -- >      res <- httpLbs request manager
@@ -137,7 +137,7 @@
 -- >
 -- > main :: IO ()
 -- > main = do
--- >     request <- parseUrl "https://github.com/"
+-- >     request <- parseRequest "https://github.com/"
 -- >     let settings = mkManagerSettings (TLSSettingsSimple True False False) Nothing
 -- >     manager <- newManager settings
 -- >     res <- httpLbs request manager
@@ -208,6 +208,10 @@ module Network.HTTP.Conduit
     , destroyCookieJar
       -- * Utility functions
     , parseUrl
+    , parseUrlThrow
+    , parseRequest
+    , parseRequest_
+    , defaultRequest
     , applyBasicAuth
     , addProxy
     , lbsResponse
@@ -243,7 +247,8 @@ import           Network.HTTP.Client.Internal (Manager, ManagerSettings,
                                                closeManager, managerConnCount,
                                                managerResponseTimeout,
                                                managerTlsConnection, newManager)
-import           Network.HTTP.Client          (parseUrl, urlEncodedBody, applyBasicAuth)
+import           Network.HTTP.Client          (parseUrl, parseUrlThrow, urlEncodedBody, applyBasicAuth,
+                                               defaultRequest, parseRequest, parseRequest_)
 import           Network.HTTP.Client.Internal (addProxy, alwaysDecompress,
                                                browserDecompress)
 import           Network.HTTP.Client.Internal (getRedirectedRequest)
@@ -284,7 +289,7 @@ httpLbs r m = liftIO $ Client.httpLbs r m
 --
 -- This function will 'throwIO' an 'HttpException' for any
 -- response with a non-2xx status code (besides 3xx redirects up
--- to a limit of 10 redirects). It uses 'parseUrl' to parse the
+-- to a limit of 10 redirects). It uses 'parseUrlThrow' to parse the
 -- input. This function essentially wraps 'httpLbs'.
 --
 -- Note: Even though this function returns a lazy bytestring, it
@@ -297,7 +302,7 @@ httpLbs r m = liftIO $ Client.httpLbs r m
 simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ do
     man <- newManager tlsManagerSettings
-    req <- liftIO $ parseUrl url
+    req <- liftIO $ parseUrlThrow url
     responseBody <$> httpLbs (setConnectionClose req) man
 
 conduitManagerSettings :: ManagerSettings

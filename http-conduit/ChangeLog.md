@@ -1,3 +1,7 @@
+## 2.1.11
+
+* Switch to non-throwing behavior in `Network.HTTP.Simple` [#193](https://github.com/snoyberg/http-client/issues/193)
+
 ## 2.1.10.1
 
 * Fix mistaken `@since` comments

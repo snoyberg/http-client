@@ -30,8 +30,9 @@ module Network.HTTP.Simple
     , H.HttpException (..)
     , H.Proxy (..)
       -- * Request constructions
-    , defaultRequest
-    , parseRequest
+    , H.defaultRequest
+    , H.parseRequest
+    , H.parseRequest_
       -- * Request lenses
       -- ** Basics
     , setRequestMethod
@@ -134,30 +135,6 @@ data JSONException
     | JSONConversionException H.Request (H.Response Value) String
   deriving (Show, Typeable)
 instance Exception JSONException
-
--- | The default request value. You'll almost certainly want to set the
--- 'requestHost', and likely the 'requestPath' as well.
---
--- See also 'parseRequest'
---
--- @since 2.1.10
-defaultRequest :: H.Request
-defaultRequest = def
-
--- | Parse a 'H.Request' from a 'String'. This is given as a URL, with an
--- optional leading request method, e.g.:
---
--- * @http://example.com@
--- * @https://example.com:1234/foo/bar?baz=bin@
--- * @PUT http://example.com/some-resource@
---
--- If parsing fails, 'Catch.throwM' will be called. The behavior of this
--- function is also used for the @IsString@ instance for use with
--- @OverloadedStrings@.
---
--- @since 2.1.10
-parseRequest :: Catch.MonadThrow m => String -> m H.Request
-parseRequest = H.parseUrl
 
 -- | Perform an HTTP request and consume the body with the given 'C.Sink'
 --

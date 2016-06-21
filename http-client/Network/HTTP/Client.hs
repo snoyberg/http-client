@@ -49,7 +49,7 @@
 -- The next core component is a 'Request', which represents a single HTTP
 -- request to be sent to a specific server. 'Request's allow for many settings
 -- to control exact how they function, but usually the simplest approach for
--- creating a 'Request' is to use 'parseUrl'.
+-- creating a 'Request' is to use 'parseRequest'.
 --
 -- Finally, a 'Response' is the result of sending a single 'Request' to a
 -- server, over a connection which was acquired from a 'Manager'. Note that you
@@ -70,7 +70,7 @@
 -- 'applyBasicAuth' are guaranteed to be total (or there\'s a bug in the
 -- library).
 --
--- One thing to be cautioned about: the type of 'parseUrl' allows it to work in
+-- One thing to be cautioned about: the type of 'parseRequest' allows it to work in
 -- different monads. If used in the 'IO' monad, it will throw an exception in
 -- the case of an invalid URI. In addition, if you leverage the @IsString@
 -- instance of the 'Request' value via @OverloadedStrings@, an invalid URI will
@@ -129,6 +129,11 @@ module Network.HTTP.Client
     , rawConnectionModifySocket
       -- * Request
     , parseUrl
+    , parseUrlThrow
+    , parseRequest
+    , parseRequest_
+    , defaultRequest
+
     , applyBasicAuth
     , urlEncodedBody
     , getUri
@@ -296,7 +301,7 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- > main = do
 -- >   manager <- newManager defaultManagerSettings
 -- >
--- >   request <- parseUrl "http://httpbin.org/post"
+-- >   request <- parseRequest "http://httpbin.org/post"
 -- >   response <- httpLbs request manager
 -- >
 -- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
@@ -316,7 +321,7 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >
 -- >   -- Create the request
 -- >   let requestObject = object ["name" .= "Michael", "age" .= 30]
--- >   initialRequest <- parseUrl "http://httpbin.org/post"
+-- >   initialRequest <- parseRequest "http://httpbin.org/post"
 -- >   let request = initialRequest { method = "POST", requestBody = RequestBodyLBS $ encode requestObject }
 -- >
 -- >   response <- httpLbs request manager

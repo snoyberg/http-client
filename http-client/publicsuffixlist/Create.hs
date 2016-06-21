@@ -23,7 +23,7 @@ import           Network.PublicSuffixList.Serialize
 
 generateDataStructure :: String -> IO (DataStructure, UTCTime)
 generateDataStructure url = do
-  req <- HC.parseUrl url
+  req <- HC.parseRequest url
   out <- HC.withManager $ \ manager -> do
     res <- HC.http req manager
     HC.responseBody res C.$$+- conduitFile "effective_tld_names.dat" C.=$ sink

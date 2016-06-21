@@ -8,6 +8,10 @@
 
 module Network.HTTP.Client.Request
     ( parseUrl
+    , parseUrlThrow
+    , parseRequest
+    , parseRequest_
+    , defaultRequest
     , setUriRelative
     , getUri
     , setUri
@@ -67,26 +71,20 @@ import Data.IORef
 import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 import Control.Monad (liftM)
 
--- | Convert a URL into a 'Request'.
+-- | Deprecated synonym for 'parseUrlThrow'. You probably want
+-- 'parseRequest' or 'parseRequest_' instead.
 --
--- This defaults some of the values in 'Request', such as setting 'method' to
--- GET and 'requestHeaders' to @[]@.
---
--- Since this function uses 'MonadThrow', the return monad can be anything that is
--- an instance of 'MonadThrow', such as 'IO' or 'Maybe'.
---
--- You can place the request method at the beginning of the URL separated by a
--- space, e.g.:
---
--- @@@
--- parseUrl "POST http://httpbin.org/post"
--- @@@
---
--- Note that the request method must be provided as all capital letters.
---
--- Since 0.1.0
+-- @since 0.1.0
 parseUrl :: MonadThrow m => String -> m Request
-parseUrl s' =
+parseUrl = parseUrlThrow
+{-# DEPRECATED parseUrl "Please use parseUrlThrow, parseRequest, or parseRequest_ instead" #-}
+
+-- | Same as 'parseRequest', except will throw an 'HttpException' in
+-- the event of a non-2XX response.
+--
+-- @since 0.4.30
+parseUrlThrow :: MonadThrow m => String -> m Request
+parseUrlThrow s' =
     case parseURI (encode s) of
         Just uri -> liftM setMethod (setUri def uri)
         Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
@@ -101,6 +99,37 @@ parseUrl s' =
         case mmethod of
             Nothing -> req
             Just m -> req { method = S8.pack m }
+
+
+-- | Convert a URL into a 'Request'.
+--
+-- This defaults some of the values in 'Request', such as setting 'method' to
+-- GET and 'requestHeaders' to @[]@.
+--
+-- Since this function uses 'MonadThrow', the return monad can be anything that is
+-- an instance of 'MonadThrow', such as 'IO' or 'Maybe'.
+--
+-- You can place the request method at the beginning of the URL separated by a
+-- space, e.g.:
+--
+-- @@@
+-- parseRequeset "POST http://httpbin.org/post"
+-- @@@
+--
+-- Note that the request method must be provided as all capital letters.
+--
+-- @since 0.4.30
+parseRequest :: MonadThrow m => String -> m Request
+parseRequest =
+    liftM noThrow . parseUrlThrow
+  where
+    noThrow req = req { checkStatus = \_ _ _ -> Nothing }
+
+-- | Same as 'parseRequest', but in the cases of a parse error
+-- generates an impure exception. Mostly useful for static strings which
+-- are known to be correctly formatted.
+parseRequest_ :: String -> Request
+parseRequest_ = either throw id . parseRequest
 
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
@@ -219,6 +248,12 @@ instance Show Request where
 useDefaultTimeout :: Maybe Int
 useDefaultTimeout = Just (-3425)
 
+-- | A default request value
+--
+-- @since 0.4.30
+defaultRequest :: Request
+defaultRequest = def { checkStatus = \_ _ _ -> Nothing }
+
 instance Default Request where
     def = Request
         { host = "localhost"
@@ -280,7 +315,7 @@ browserDecompress = (/= "application/x-tar")
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
 --
--- >  applyBasicAuth "user" "pass" $ fromJust $ parseUrl url
+-- >  applyBasicAuth "user" "pass" $ parseRequest_ url
 --
 -- Since 0.1.0
 applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
@@ -301,7 +336,7 @@ addProxy hst prt req =
 -- | Add a Proxy-Authorization header (with the specified username and
 -- password) to the given 'Request'. Ignore error handling:
 --
--- > applyBasicProxyAuth "user" "pass" <$> parseUrl "http://example.org"
+-- > applyBasicProxyAuth "user" "pass" <$> parseRequest "http://example.org"
 --
 -- Since 0.3.4
 

@@ -105,7 +105,7 @@ populateFile url filename = withFile filename WriteMode $ \ h -> do
   mapM_ (hPutStrLn h) header
   hPutStrLn h $ "-- DO NOT MODIFY! This file has been automatically generated from the CreateTest.hs script at " ++ show current_time
   mapM_ (hPutStrLn h) header2
-  req <- HC.parseUrl url
+  req <- HC.parseRequest url
   HC.withManager $ \ manager -> do
     res <- HC.http req manager
     HC.responseBody res C.$$+-

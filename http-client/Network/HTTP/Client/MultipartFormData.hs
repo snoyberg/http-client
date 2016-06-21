@@ -11,9 +11,9 @@
 -- > import Control.Monad
 -- >
 -- > main = withSocketsDo $ void $ withManager defaultManagerSettings $ \m -> do
--- >     req1 <- parseUrl "http://random-cat-photo.net/cat.jpg"
+-- >     req1 <- parseRequest "http://random-cat-photo.net/cat.jpg"
 -- >     res <- httpLbs req1 m
--- >     req2 <- parseUrl "http://example.org/~friedrich/blog/addPost.hs"
+-- >     req2 <- parseRequest "http://example.org/~friedrich/blog/addPost.hs"
 -- >     flip httpLbs m =<<
 -- >         (formDataBody [partBS "title" "Bleaurgh"
 -- >                       ,partBS "text" $ TE.encodeUtf8 "矢田矢田矢田矢田矢田"

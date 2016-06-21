@@ -33,7 +33,7 @@ import Network.HTTP.Client.Headers
 -- a new request from the old request, the server headers returned with the
 -- redirection, and the redirection code itself. This function returns 'Nothing'
 -- if the code is not a 3xx, there is no 'location' header included, or if the
--- redirected response couldn't be parsed with 'parseUrl'.
+-- redirected response couldn't be parsed with 'parseRequest'.
 --
 -- If a user of this library wants to know the url chain that results from a
 -- specific request, that user has to re-implement the redirect-following logic
