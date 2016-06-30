@@ -4,8 +4,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 
-{-# OPTIONS_GHC -fno-warn-orphans #-}
-
 module Network.HTTP.Client.Request
     ( parseUrl
     , parseUrlThrow
@@ -223,25 +221,6 @@ setUri req uri = do
             _ -> case sec of
                     False {- HTTP -} -> return 80
                     True {- HTTPS -} -> return 443
-
-instance Show Request where
-    show x = unlines
-        [ "Request {"
-        , "  host                 = " ++ show (host x)
-        , "  port                 = " ++ show (port x)
-        , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (requestHeaders x)
-        , "  path                 = " ++ show (path x)
-        , "  queryString          = " ++ show (queryString x)
-        --, "  requestBody          = " ++ show (requestBody x)
-        , "  method               = " ++ show (method x)
-        , "  proxy                = " ++ show (proxy x)
-        , "  rawBody              = " ++ show (rawBody x)
-        , "  redirectCount        = " ++ show (redirectCount x)
-        , "  responseTimeout      = " ++ show (responseTimeout x)
-        , "  requestVersion       = " ++ show (requestVersion x)
-        , "}"
-        ]
 
 -- | Magic value to be placed in a 'Request' to indicate that we should use the
 -- timeout value in the @Manager@.

@@ -412,7 +412,7 @@ main = withSocketsDo $ do
             withManagerSettings conduitManagerSettings { managerResponseTimeout = Just 1 } $ \man -> do
                 eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
                 case eres1 of
-                    Left (FailedConnectionException _ _) -> return ()
+                    Left ConnectionTimeout{} -> return ()
                     _ -> error "Did not time out"
                 _ <- httpLbs req2 man
                 return ()
