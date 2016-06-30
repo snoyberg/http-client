@@ -1,3 +1,9 @@
+## 0.4.30
+
+* Initial implementation of [#193](https://github.com/snoyberg/http-client/issues/193)
+    * Deprecate `parseUrl`
+    * Add `parseUrlThrow`, `parseRequest`, and `parseRequest_`
+
 ## 0.4.29
 
 * Changed the order of connecting a socket and tweaking a socket, such that the socket tweaking callback now happen before connecting.

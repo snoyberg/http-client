@@ -307,17 +307,17 @@ type GivesPopper a = NeedsPopper a -> IO a
 -- | All information on how to connect to a host and what should be sent in the
 -- HTTP request.
 --
--- If you simply wish to download from a URL, see 'parseUrl'.
+-- If you simply wish to download from a URL, see 'parseRequest'.
 --
 -- The constructor for this data type is not exposed. Instead, you should use
--- either the 'def' method to retrieve a default instance, or 'parseUrl' to
+-- either the 'defaultRequest' value, or 'parseRequest' to
 -- construct from a URL, and then use the records below to make modifications.
 -- This approach allows http-client to add configuration options without
 -- breaking backwards compatibility.
 --
 -- For example, to construct a POST request, you could do something like:
 --
--- > initReq <- parseUrl "http://www.example.com/path"
+-- > initReq <- parseRequest "http://www.example.com/path"
 -- > let req = initReq
 -- >             { method = "POST"
 -- >             }

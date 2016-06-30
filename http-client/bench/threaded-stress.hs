@@ -40,10 +40,7 @@ app gen _ = do
     return $ W.responseLBS status200 headers body
 
 req :: HC.Request
-req =
-    case HC.parseUrl "http://localhost:4567" of
-        Nothing -> error "bad request"
-        Just x -> x
+req = HC.parseRequest_ "http://localhost:4567"
 
 client :: HC.Manager -> MWC.GenIO -> Int -> IO String
 client man gen threadid = do
