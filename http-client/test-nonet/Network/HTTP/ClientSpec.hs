@@ -8,7 +8,6 @@ import qualified Control.Concurrent.Async  as Async
 import           Control.Exception         (bracket, catch, IOException)
 import           Control.Monad             (forever, replicateM_, void)
 import           Network.HTTP.Client
-import qualified Network.HTTP.Client       as NC
 import           Network.HTTP.Types        (status413)
 import           Network.Socket            (sClose)
 import           Test.Hspec
@@ -160,8 +159,7 @@ spec = describe "Client" $ do
         withManager defaultManagerSettings $ \man ->
             httpLbs req man `shouldThrow` \e ->
                 case e of
-                    ConnectionFailure req' _ -> host req == host req'
-                                             && NC.port req == NC.port req'
+                    FailedConnectionException2 "127.0.0.1" port' False _ -> port == port'
                     _ -> False
 
     describe "extra headers after 100 #49" $ do

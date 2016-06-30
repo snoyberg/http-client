@@ -10,6 +10,7 @@ module Network.HTTP.Client.Manager
     , closeManager
     , withManager
     , getConn
+    , failedConnectionException
     , defaultManagerSettings
     , rawConnectionModifySocket
     , proxyFromRequest
@@ -378,6 +379,14 @@ getManagedConn man key open = mask $ \restore -> do
 
     return (connRelease, ci, isManaged)
 
+-- | Create an exception to be thrown if the connection for the given request
+-- fails.
+failedConnectionException :: Request -> HttpException
+failedConnectionException req =
+    FailedConnectionException host' port'
+  where
+    (_, host', port') = getConnDest req
+
 getConnDest :: Request -> (Bool, String, Int)
 getConnDest req =
     case proxy req of
@@ -415,7 +424,8 @@ getConn req m
             _ -> (Nothing, HostName $ T.pack connhost)
 
     wrapConnectExc = handle $ \e ->
-        throwIO $ ConnectionFailure req (toException (e :: IOException))
+        throwIO $ FailedConnectionException2 connhost connport (secure req)
+            (toException (e :: IOException))
     go =
         case (secure req, useProxy) of
             (False, _) -> mRawConnection m
