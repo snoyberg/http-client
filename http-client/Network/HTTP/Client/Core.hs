@@ -97,7 +97,7 @@ httpRaw' req0 m = do
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         req
         (responseTimeout' req)
-        (failedConnectionException req)
+        (ConnectionTimeout req)
         (getConn req m)
 
     -- Originally, we would only test for exceptions when sending the request,
