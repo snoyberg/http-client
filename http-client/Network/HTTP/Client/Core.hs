@@ -31,6 +31,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import Data.Monoid
 import Control.Monad (void)
+import System.Timeout (timeout)
 
 -- | Perform a @Request@ using a connection acquired from the given @Manager@,
 -- and then provide the @Response@ to the given function. This function is
@@ -94,7 +95,6 @@ httpRaw' req0 m = do
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
         Nothing -> return (req', mempty)
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
-        req
         (responseTimeout' req)
         (ConnectionTimeout req)
         (getConn req m)
@@ -124,6 +124,21 @@ httpRaw' req0 m = do
                 return (req, res {responseCookieJar = cookie_jar})
             Nothing -> return (req, res)
   where
+    getConnectionWrapper mtimeout exc f =
+        case mtimeout of
+            Nothing -> fmap ((,) Nothing) f
+            Just timeout' -> do
+                before <- getCurrentTime
+                mres <- timeout timeout' f
+                case mres of
+                    Nothing -> throwIO exc
+                    Just res -> do
+                        now <- getCurrentTime
+                        let timeSpentMicro = diffUTCTime now before * 1000000
+                            remainingTime = round $ fromIntegral timeout' - timeSpentMicro
+                        if remainingTime <= 0
+                            then throwIO exc
+                            else return (Just remainingTime, res)
 
     responseTimeout' req =
         case responseTimeout req of

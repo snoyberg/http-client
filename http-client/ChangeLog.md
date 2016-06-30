@@ -5,6 +5,7 @@
 * Clean up the `HttpException` constructors
 * Rename `checkStatus` to `checkResponse` and modify type
 * Fix the ugly magic constant workaround for responseTimeout
+* Remove `getConnectionWrapper`
 
 ## 0.4.30
 

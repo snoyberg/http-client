@@ -246,21 +246,6 @@ defaultRequest = Request
         , redirectCount = 10
         , checkResponse = \_ _ -> return ()
         , responseTimeout = ResponseTimeoutDefault
-        , getConnectionWrapper = \mtimeout exc f ->
-            case mtimeout of
-                Nothing -> fmap ((,) Nothing) f
-                Just timeout' -> do
-                    before <- getCurrentTime
-                    mres <- timeout timeout' f
-                    case mres of
-                        Nothing -> throwIO exc
-                        Just res -> do
-                            now <- getCurrentTime
-                            let timeSpentMicro = diffUTCTime now before * 1000000
-                                remainingTime = round $ fromIntegral timeout' - timeSpentMicro
-                            if remainingTime <= 0
-                                then throwIO exc
-                                else return (Just remainingTime, res)
         , cookieJar = Just mempty
         , requestVersion = W.http11
         , onRequestBodyException = \se ->

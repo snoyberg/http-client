@@ -49,7 +49,6 @@ import           Network.HTTP.Client          hiding (closeManager,
                                                newManager, responseClose,
                                                responseOpen, withManager,
                                                withResponse, BodyReader, brRead, brConsume, httpNoBody)
-import           Network.HTTP.Client          (HasHttpManager(..))
 import qualified Network.HTTP.Client          as H
 import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 

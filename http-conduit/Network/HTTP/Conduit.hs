@@ -173,7 +173,6 @@ module Network.HTTP.Conduit
     , responseTimeout
     , cookieJar
     , requestVersion
-    , getConnectionWrapper
     , HCC.setQueryString
       -- *** Request body
     , requestBodySource

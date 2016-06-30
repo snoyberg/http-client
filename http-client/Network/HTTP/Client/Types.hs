@@ -452,19 +452,6 @@ data Request = Request
     -- 'managerResponseTimeout' (which by default is 30 seconds).
     --
     -- Since 0.1.0
-    , getConnectionWrapper :: Maybe Int
-                           -> HttpException
-                           -> IO (ConnRelease, Connection, ManagedConn)
-                           -> IO (Maybe Int, (ConnRelease, Connection, ManagedConn))
-    -- ^ Wraps the calls for getting new connections. This can be useful for
-    -- instituting some kind of timeouts. The first argument is the value of
-    -- @responseTimeout@. Second argument is the exception to be thrown on
-    -- in the case of timeout.
-    --
-    -- Default: If @responseTimeout@ is @Nothing@, does nothing. Otherwise,
-    -- institutes timeout, and returns remaining time for @responseTimeout@.
-    --
-    -- Since 0.1.0
     , cookieJar :: Maybe CookieJar
     -- ^ A user-defined cookie jar.
     -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers
