@@ -16,6 +16,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
 import Data.Maybe (isJust)
+import Data.Monoid (mempty)
 
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference, escapeURIString, isAllowedInURI)
@@ -120,6 +121,6 @@ getResponse connRelease timeout' req@(Request {..}) conn cont = do
         , responseVersion = version
         , responseHeaders = hs
         , responseBody = body
-        , responseCookieJar = mempty
+        , responseCookieJar = Data.Monoid.mempty
         , responseClose' = ResponseClose (cleanup False)
         }
