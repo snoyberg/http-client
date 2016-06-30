@@ -2,6 +2,7 @@
 
 * Remove `instance Default Request`
 * Modify `instance IsString Request` to use `parseRequest` instead of `parseUrlThrow`
+* Clean up the `HttpException` constructors
 
 ## 0.4.30
 

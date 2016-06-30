@@ -35,7 +35,6 @@ library
                  , monad-control
                  , mtl
                  , exceptions            >= 0.6
-                 , data-default-class
     exposed-modules: Network.HTTP.Conduit
                      Network.HTTP.Client.Conduit
                      Network.HTTP.Simple

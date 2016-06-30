@@ -202,7 +202,7 @@ main = withSocketsDo $ do
         it "cookie jar is available in response" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {cookieJar = Just def}) manager
+                response <- httpLbs (request {cookieJar = Just mempty}) manager
                 liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
         it "Cookie header isn't touched when no cookie jar supplied" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
@@ -214,7 +214,7 @@ main = withSocketsDo $ do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
                 response <- httpLbs (request {cookieJar = Nothing}) manager
-                liftIO $ (responseCookieJar response) @?= def
+                liftIO $ (responseCookieJar response) @?= mempty
         it "TLS" $ withAppTls app $ \port -> do
             request <- parseUrl $ "https://127.0.0.1:" ++ show port
             let set = mkManagerSettings

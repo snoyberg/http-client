@@ -86,7 +86,6 @@ import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
 import qualified Data.Conduit.Attoparsec as C
 import qualified Control.Monad.Catch as Catch
-import Data.Default.Class (def)
 import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
 

@@ -15,7 +15,7 @@ import qualified Data.CaseInsensitive as CI
 import Web.Cookie
 
 default_request :: HC.Request
-default_request = fromJust $ HC.parseUrl "http://www.google.com/"
+default_request = HC.parseRequest_ "http://www.google.com/"
 
 default_cookie :: Cookie
 default_cookie = Cookie { cookie_name = fromString "name"
