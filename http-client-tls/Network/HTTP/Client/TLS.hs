@@ -39,18 +39,7 @@ mkManagerSettings tls sock = defaultManagerSettings
         case () of
             ()
                 | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
-                | otherwise -> case fromException e of
-                    Just (_ :: IOException) -> True
-                    _ ->
-                        case fromException e of
-                            -- Note: Some servers will timeout connections by accepting
-                            -- the incoming packets for the new request, but closing
-                            -- the connection as soon as we try to read. To make sure
-                            -- we open a new connection under these circumstances, we
-                            -- check for the NoResponseDataReceived exception.
-                            Just NoResponseDataReceived -> True
-                            Just IncompleteHeaders -> True
-                            _ -> False
+                | otherwise -> managerRetryableException defaultManagerSettings e
     , managerWrapException = \req ->
         let wrapper se =
                 case fromException se of
@@ -61,7 +50,7 @@ mkManagerSettings tls sock = defaultManagerSettings
                       Just TLS.ConnectionNotEstablished -> se'
                       _ -> se
               where
-                se' = toException $ InternalException req se
+                se' = toException $ HttpExceptionRequest req $ InternalException se
          in handle $ throwIO . wrapper
     }
 

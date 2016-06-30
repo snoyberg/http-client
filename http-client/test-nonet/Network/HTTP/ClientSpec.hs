@@ -132,7 +132,7 @@ spec = describe "Client" $ do
                 man <- newManager defaultManagerSettings
                 _ <- httpLbs req man `shouldThrow` \e ->
                     case e of
-                        InvalidDestinationHost "" -> True
+                        HttpExceptionRequest _ (InvalidDestinationHost "") -> True
                         _ -> False
                 return ()
         mapM_ test ["http://", "https://", "http://:8000", "https://:8001"]
@@ -142,7 +142,7 @@ spec = describe "Client" $ do
         withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
             httpLbs req man `shouldThrow` \e ->
                 case e of
-                    TooManyRedirects _ -> True
+                    HttpExceptionRequest _ (TooManyRedirects _) -> True
                     _ -> False
     it "redirectCount=0" $ redirectServer $ \port -> do
         req' <- parseUrl $ "http://127.0.0.1:" ++ show port
@@ -150,7 +150,7 @@ spec = describe "Client" $ do
         withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
             httpLbs req man `shouldThrow` \e ->
                 case e of
-                    StatusCodeException{} -> True
+                    HttpExceptionRequest _ StatusCodeException{} -> True
                     _ -> False
     it "connecting to missing server gives nice error message" $ do
         (port, socket) <- N.bindRandomPortTCP "*4"
@@ -159,8 +159,9 @@ spec = describe "Client" $ do
         withManager defaultManagerSettings $ \man ->
             httpLbs req man `shouldThrow` \e ->
                 case e of
-                    ConnectionFailure req' _ -> host req == host req'
-                                             && NC.port req == NC.port req'
+                    HttpExceptionRequest req' (ConnectionFailure _)
+                        -> host req == host req'
+                        && NC.port req == NC.port req'
                     _ -> False
 
     describe "extra headers after 100 #49" $ do
@@ -201,5 +202,5 @@ spec = describe "Client" $ do
           withResponseHistory req man (const $ return ())
             `shouldThrow` \e ->
               case e of
-                TooManyRedirects _ -> True
+                HttpExceptionRequest _ (TooManyRedirects _) -> True
                 _ -> False

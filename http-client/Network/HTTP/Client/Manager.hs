@@ -93,14 +93,14 @@ defaultManagerSettings :: ManagerSettings
 defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
     , managerRawConnection = return $ openSocketConnection (const $ return ())
-    , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
-    , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwIO TlsNotSupported
+    , managerTlsConnection = return $ \_ _ _ -> throwHttp TlsNotSupported
+    , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwHttp TlsNotSupported
     , managerResponseTimeout = ResponseTimeoutDefault
     , managerRetryableException = \e ->
         case fromException e of
             Just (_ :: IOException) -> True
             _ ->
-                case fromException e of
+                case fmap unHttpExceptionContentWrapper $ fromException e of
                     -- Note: Some servers will timeout connections by accepting
                     -- the incoming packets for the new request, but closing
                     -- the connection as soon as we try to read. To make sure
@@ -109,12 +109,12 @@ defaultManagerSettings = ManagerSettings
                     Just NoResponseDataReceived -> True
                     Just IncompleteHeaders -> True
                     _ -> False
-    , managerWrapException = \req ->
+    , managerWrapException = \_req ->
         let wrapper se =
                 case fromException se of
-                    Just (_ :: IOException) -> toException $ InternalException req se
-                    Nothing -> se
-         in handle $ throwIO . wrapper
+                    Just (_ :: IOException) -> throwHttp $ InternalException se
+                    Nothing -> throwIO se
+         in handle wrapper
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
     , managerProxyInsecure = defaultProxy
@@ -402,7 +402,7 @@ getConn :: Request
 getConn req m
     -- Stop Mac OS X from getting high:
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
-    | S8.null h = throwIO $ InvalidDestinationHost h
+    | S8.null h = throwHttp $ InvalidDestinationHost h
     | otherwise =
         getManagedConn m (ConnKey connKeyHost connport (host req) (port req) (secure req)) $
             wrapConnectExc $ go connaddr connhost connport
@@ -415,7 +415,7 @@ getConn req m
             _ -> (Nothing, HostName $ T.pack connhost)
 
     wrapConnectExc = handle $ \e ->
-        throwIO $ ConnectionFailure req (toException (e :: IOException))
+        throwHttp $ ConnectionFailure (toException (e :: IOException))
     go =
         case (secure req, useProxy) of
             (False, _) -> mRawConnection m
@@ -438,7 +438,7 @@ getConn req m
                     parse conn = do
                         sh@(StatusHeaders status _ _) <- parseStatusHeaders conn Nothing Nothing
                         unless (status == status200) $
-                            throwIO $ ProxyConnectException ultHost ultPort status
+                            throwHttp $ ProxyConnectException ultHost ultPort status
                  in mTlsProxyConnection m connstr parse (S8.unpack ultHost)
 
 -- | Get the proxy settings from the @Request@ itself.
@@ -508,7 +508,7 @@ envHelper name eh = do
         Nothing  -> return noEnvProxy
         Just ""  -> return noEnvProxy
         Just str -> do
-            let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
+            let invalid = throwHttp $ InvalidProxyEnvironmentVariable name (T.pack str)
             (p, muserpass) <- maybe invalid return $ do
                 uri <- case U.parseURI str of
                     Just u | U.uriScheme u == "http:" -> return u

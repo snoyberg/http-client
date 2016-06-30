@@ -84,14 +84,14 @@ parseUrlThrow =
     liftM yesThrow . parseRequest
   where
     yesThrow req = req
-        { checkResponse = \req res ->
+        { checkResponse = \_req res ->
             let W.Status sci _ = responseStatus res in
             if 200 <= sci && sci < 300
                 then return ()
                 else do
                     chunk <- brReadSome (responseBody res) 1024
                     let res' = fmap (const ()) res
-                    throwIO $ StatusCodeException req res' (L.toStrict chunk)
+                    throwHttp $ StatusCodeException res' (L.toStrict chunk)
         }
 
 -- | Convert a URL into a 'Request'.

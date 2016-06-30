@@ -96,7 +96,6 @@ httpRaw' req0 m = do
         Nothing -> return (req', mempty)
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         (responseTimeout' req)
-        (ConnectionTimeout req)
         (getConn req m)
 
     -- Originally, we would only test for exceptions when sending the request,
@@ -124,20 +123,20 @@ httpRaw' req0 m = do
                 return (req, res {responseCookieJar = cookie_jar})
             Nothing -> return (req, res)
   where
-    getConnectionWrapper mtimeout exc f =
+    getConnectionWrapper mtimeout f =
         case mtimeout of
             Nothing -> fmap ((,) Nothing) f
             Just timeout' -> do
                 before <- getCurrentTime
                 mres <- timeout timeout' f
                 case mres of
-                    Nothing -> throwIO exc
+                    Nothing -> throwHttp ConnectionTimeout
                     Just res -> do
                         now <- getCurrentTime
                         let timeSpentMicro = diffUTCTime now before * 1000000
                             remainingTime = round $ fromIntegral timeout' - timeSpentMicro
                         if remainingTime <= 0
-                            then throwIO exc
+                            then throwHttp ConnectionTimeout
                             else return (Just remainingTime, res)
 
     responseTimeout' req =
@@ -180,14 +179,17 @@ httpRaw' req0 m = do
 --
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
-responseOpen req0 manager' = mWrapException manager req0 $ do
+responseOpen req0 manager' = wrapExc $ mWrapException manager req0 $ do
     (req, res) <-
         if redirectCount req0 == 0
             then httpRaw' req0 manager
             else go (redirectCount req0) req0
     checkResponse req req res
     return res
+        { responseBody = wrapExc (responseBody res)
+        }
   where
+    wrapExc = handle $ throwIO . toHttpException req0
     manager = fromMaybe manager' (requestManagerOverride req0)
 
     go count req' = httpRedirect'
@@ -221,7 +223,7 @@ httpRedirect'
      -> IO (Request, Response BodyReader)
 httpRedirect' count0 http' req0 = go count0 req0 []
   where
-    go count _ ress | count < 0 = throwIO $ TooManyRedirects ress
+    go count _ ress | count < 0 = throwHttp $ TooManyRedirects ress
     go count req' ress = do
         (res, req, isRedirect) <- http' req'
         if isRedirect then do
@@ -234,7 +236,10 @@ httpRedirect' count0 http' req0 = go count0 req0 []
                 -- The connection may already be closed, e.g.
                 -- when using withResponseHistory. See
                 -- https://github.com/snoyberg/http-client/issues/169
-                `catch` \(_ :: ConnectionClosed) -> return L.empty
+                `catch` \e ->
+                    case unHttpExceptionContentWrapper e of
+                        ConnectionClosed -> return L.empty
+                        _ -> throwIO e
             responseClose res
 
             -- And now perform the actual redirect

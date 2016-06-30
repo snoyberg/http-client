@@ -184,6 +184,7 @@ module Network.HTTP.Client
     , brConsume
       -- * Misc
     , HttpException (..)
+    , HttpExceptionContent (..)
     , Cookie (..)
     , CookieJar
     , Proxy (..)
@@ -207,7 +208,7 @@ import Data.Traversable (Traversable)
 import Network.HTTP.Types (statusCode)
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
-import Control.Exception (bracket)
+import Control.Exception (bracket, handle, throwIO)
 
 -- | A datatype holding information on redirected requests and the final response.
 --
@@ -235,7 +236,7 @@ data HistoriedResponse body = HistoriedResponse
 --
 -- Since 0.4.1
 responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory req0 man = do
+responseOpenHistory req0 man = handle (throwIO . toHttpException req0) $ do
     reqRef <- newIORef req0
     historyRef <- newIORef id
     let go req = do

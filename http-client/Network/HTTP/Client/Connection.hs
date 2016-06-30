@@ -27,7 +27,7 @@ import Data.Function (fix)
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
     bs <- connectionRead conn
-    when (S.null bs) $ throwIO IncompleteHeaders
+    when (S.null bs) $ throwHttp IncompleteHeaders
     connectionReadLineWith conn bs
 
 -- | Keep dropping input until a blank line is found.
@@ -44,9 +44,9 @@ connectionReadLineWith conn bs0 =
         case S.break (== charLF) bs of
             (_, "") -> do
                 let total' = total + S.length bs
-                when (total' > 4096) $ throwIO OverlongHeaders
+                when (total' > 4096) $ throwHttp OverlongHeaders
                 bs' <- connectionRead conn
-                when (S.null bs') $ throwIO IncompleteHeaders
+                when (S.null bs') $ throwHttp IncompleteHeaders
                 go bs' (front . (bs:)) total'
             (x, S.drop 1 -> y) -> do
                 unless (S.null y) $! connectionUnread conn y
@@ -94,8 +94,7 @@ makeConnection r w c = do
     return $! Connection
         { connectionRead = do
             closed <- readIORef closedVar
-            when closed $
-              throwIO ConnectionClosed
+            when closed $ throwHttp ConnectionClosed
             join $ atomicModifyIORef istack $ \stack ->
               case stack of
                   x:xs -> (xs, return x)
@@ -103,14 +102,12 @@ makeConnection r w c = do
 
         , connectionUnread = \x -> do
             closed <- readIORef closedVar
-            when closed $
-              throwIO ConnectionClosed
+            when closed $ throwHttp ConnectionClosed
             atomicModifyIORef istack $ \stack -> (x:stack, ())
 
         , connectionWrite = \x -> do
             closed <- readIORef closedVar
-            when closed $
-              throwIO ConnectionClosed
+            when closed $ throwHttp ConnectionClosed
             w x
 
         , connectionClose = do

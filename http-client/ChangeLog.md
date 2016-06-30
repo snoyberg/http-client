@@ -6,6 +6,8 @@
 * Rename `checkStatus` to `checkResponse` and modify type
 * Fix the ugly magic constant workaround for responseTimeout
 * Remove `getConnectionWrapper`
+* Add the `HttpExceptionRequest` wrapper so that all exceptions related to a
+  request are thrown with that request's information
 
 ## 0.4.30
 

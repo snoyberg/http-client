@@ -229,6 +229,7 @@ module Network.HTTP.Conduit
     , urlEncodedBody
       -- * Exceptions
     , HttpException (..)
+    , HCC.HttpExceptionContent (..)
     ) where
 
 import qualified Data.ByteString              as S

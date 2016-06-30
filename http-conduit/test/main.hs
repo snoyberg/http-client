@@ -174,7 +174,7 @@ main = withSocketsDo $ do
         it "throws exception on 404" $ withApp app $ \port -> do
             elbs <- try $ simpleHttp $ concat ["http://127.0.0.1:", show port, "/404"]
             case elbs of
-                Left (StatusCodeException _ _ _) -> return ()
+                Left (HttpExceptionRequest _ StatusCodeException {}) -> return ()
                 _ -> error "Expected an exception"
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ withApp app $ \port -> do
@@ -249,7 +249,7 @@ main = withSocketsDo $ do
                 let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
                 res1 <- try $ http req1 manager
                 case res1 of
-                    Left e -> liftIO $ show (e :: SomeException) @?= show OverlongHeaders
+                    Left e -> liftIO $ show (e :: SomeException) @?= show (HttpExceptionRequest req1 OverlongHeaders)
                     _ -> error "Shouldn't have worked"
         it "not overlong headers" $ notOverLongHeaders $ \port -> do
             withManager $ \manager -> do
@@ -277,7 +277,7 @@ main = withSocketsDo $ do
             E.catch (withManager $ \manager -> do
                 void $ http req{redirectCount=5} manager) $ \e ->
                     case e of
-                        TooManyRedirects redirs ->
+                        HttpExceptionRequest _ (TooManyRedirects redirs) ->
                             mapM_ go (zip redirs [5,4..0 :: Int])
                         _ -> error $ show e
     describe "chunked request body" $ do
@@ -312,7 +312,7 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show $ ResponseBodyTooShort 50 18)
+                 `shouldBe` Left (show $ HttpExceptionRequest req $ ResponseBodyTooShort 50 18)
 
     describe "chunked response body" $ do
         it "no chunk terminator" $ wrongLengthChunk1 $ \port -> do
@@ -320,19 +320,19 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show IncompleteHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req IncompleteHeaders))
         it "incomplete chunk" $ wrongLengthChunk2 $ \port -> do
             req <- parseUrl $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
         it "invalid chunk" $ invalidChunk $ \port -> do
             req <- parseUrl $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
         it "missing header" $ rawApp
           "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\n\r\n\r\n"
@@ -341,7 +341,7 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
         it "junk header" $ rawApp
           "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\njunk\r\n\r\n"
@@ -350,7 +350,7 @@ main = withSocketsDo $ do
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
     describe "redirect" $ do
         it "ignores large response bodies" $ do
@@ -412,7 +412,7 @@ main = withSocketsDo $ do
             withManagerSettings conduitManagerSettings { managerResponseTimeout = responseTimeoutMicro 1 } $ \man -> do
                 eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
                 case eres1 of
-                    Left ConnectionTimeout{} -> return ()
+                    Left (HttpExceptionRequest _ ConnectionTimeout{}) -> return ()
                     _ -> error "Did not time out"
                 _ <- httpLbs req2 man
                 return ()
