@@ -126,27 +126,45 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | InvalidHeader S.ByteString
                    -- ^ The given response header line could not be parsed
                    | InternalIOException IOException -- FIXME get rid of this?
-                   | ProxyConnectException S.ByteString Int (Either S.ByteString HttpException) -- ^ host/port
+                   | ProxyConnectException S.ByteString Int HttpException
+                   -- ^ An exception occurred trying to connect to the proxy
+                   -- server on the given host and port.
+                   --
+                   -- @since 0.5.0
                    | NoResponseDataReceived
-                   | TlsException SomeException
-                   -- ^ Just used internally, this library rethrows 'TlsExceptionHostPort'
+                   -- ^ No response data was received from the server at all.
+                   -- This exception may deserve special handling within the
+                   -- library, since it may indicate that a pipelining has been
+                   -- used, and a connection thought to be open was in fact
+                   -- closed.
+                   | TlsException SomeException -- FIXME remove
+                   -- Just used internally, this library rethrows 'TlsExceptionHostPort'
                    | TlsNotSupported
+                   -- ^ Exception thrown when using a @Manager@ which does not
+                   -- have support for secure connections. Typically, you will
+                   -- want to use @tlsManagerSettings@ from @http-client-tls@
+                   -- to overcome this.
                    | ResponseBodyTooShort Word64 Word64
-                   -- ^ Expected size/actual size.
+                   -- ^ The returned response body is too short. Provides the
+                   -- expected size and actual size.
                    --
                    -- Since 1.9.4
                    | InvalidChunkHeaders
-                   -- ^
+                   -- ^ A chunked response body had invalid headers.
                    --
                    -- Since 1.9.4
                    | IncompleteHeaders
+                   -- ^ An incomplete set of response headers were returned.
                    | InvalidDestinationHost S.ByteString
+                   -- ^ The host we tried to connect to is invalid (e.g., an
+                   -- empty string).
                    | HttpZlibException ZlibException
-                   -- ^
+                   -- ^ An exception was thrown when inflating a response body.
                    --
                    -- Since 0.3
                    | InvalidProxyEnvironmentVariable Text Text
-                   -- ^ Environment name and value
+                   -- ^ Values in the proxy environment variable were invalid.
+                   -- Provides the environment variable name and its value.
                    --
                    -- Since 0.4.7
                    | TlsExceptionHostPort SomeException S.ByteString Int

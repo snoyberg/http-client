@@ -438,7 +438,7 @@ getConn req m
                     parse conn = do
                         sh@(StatusHeaders status _ _) <- parseStatusHeaders conn Nothing Nothing
                         unless (status == status200) $
-                            throwIO $ ProxyConnectException ultHost ultPort $ Right $ StatusCodeException status [] (CJ [])
+                            throwIO $ ProxyConnectException ultHost ultPort $ StatusCodeException status [] (CJ [])
                  in mTlsProxyConnection m connstr parse (S8.unpack ultHost)
 
 -- | Get the proxy settings from the @Request@ itself.
