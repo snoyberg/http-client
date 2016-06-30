@@ -53,15 +53,17 @@ mkManagerSettings tls sock = defaultManagerSettings
                             Just NoResponseDataReceived -> True
                             Just IncompleteHeaders -> True
                             _ -> False
-    , managerWrapIOException = 
+    , managerWrapException = \req ->
         let wrapper se =
                 case fromException se of
-                    Just e -> toException $ InternalIOException e
+                    Just (_ :: IOException) -> se'
                     Nothing -> case fromException se of
-                      Just TLS.Terminated{} -> toException $ TlsException se
-                      Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                      Just TLS.ConnectionNotEstablished -> toException $ TlsException se
+                      Just TLS.Terminated{} -> se'
+                      Just TLS.HandshakeFailed{} -> se'
+                      Just TLS.ConnectionNotEstablished -> se'
                       _ -> se
+              where
+                se' = toException $ InternalException req se
          in handle $ throwIO . wrapper
     }
 

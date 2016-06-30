@@ -109,10 +109,10 @@ defaultManagerSettings = ManagerSettings
                     Just NoResponseDataReceived -> True
                     Just IncompleteHeaders -> True
                     _ -> False
-    , managerWrapIOException =
+    , managerWrapException = \req ->
         let wrapper se =
                 case fromException se of
-                    Just e -> toException $ InternalIOException e
+                    Just (_ :: IOException) -> toException $ InternalException req se
                     Nothing -> se
          in handle $ throwIO . wrapper
     , managerIdleConnectionCount = 512
@@ -198,7 +198,7 @@ newManager ms = do
             , mTlsConnection = tlsConnection
             , mTlsProxyConnection = tlsProxyConnection
             , mRetryableException = managerRetryableException ms
-            , mWrapIOException = managerWrapIOException ms
+            , mWrapException = managerWrapException ms
             , mIdleConnectionCount = managerIdleConnectionCount ms
             , mModifyRequest = managerModifyRequest ms
             , mSetProxy = \req ->

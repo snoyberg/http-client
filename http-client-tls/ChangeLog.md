@@ -1,3 +1,7 @@
+## 0.3.0
+
+* Support http-client 0.5
+
 ## 0.2.4.1
 
 * Cabal description fix

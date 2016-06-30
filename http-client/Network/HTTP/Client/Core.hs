@@ -162,7 +162,7 @@ httpRaw' req0 m = do
 --
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
-responseOpen req0 manager' = handle addTlsHostPort $ mWrapIOException manager $ do
+responseOpen req0 manager' = mWrapException manager req0 $ do
     (req, res) <-
         if redirectCount req0 == 0
             then httpRaw' req0 manager
@@ -170,9 +170,6 @@ responseOpen req0 manager' = handle addTlsHostPort $ mWrapIOException manager $ 
     maybe (return res) throwIO =<< applyCheckStatus req (checkStatus req) res
   where
     manager = fromMaybe manager' (requestManagerOverride req0)
-
-    addTlsHostPort (TlsException e) = throwIO $ TlsExceptionHostPort e (host req0) (port req0)
-    addTlsHostPort e = throwIO e
 
     go count req' = httpRedirect'
       count

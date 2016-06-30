@@ -111,7 +111,7 @@ module Network.HTTP.Client
     , managerTlsConnection
     , managerResponseTimeout
     , managerRetryableException
-    , managerWrapIOException
+    , managerWrapException
     , managerIdleConnectionCount
     , managerModifyRequest
       -- *** Manager proxy settings

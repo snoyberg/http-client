@@ -125,7 +125,12 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- ^ The status line returned by the server could not be parsed.
                    | InvalidHeader S.ByteString
                    -- ^ The given response header line could not be parsed
-                   | InternalIOException IOException -- FIXME get rid of this?
+                   | InternalException Request SomeException
+                   -- ^ An exception was raised by an underlying library when
+                   -- performing the request. Most often, this is caused by a
+                   -- failing socket action or a TLS exception.
+                   --
+                   -- @since 0.5.0
                    | ProxyConnectException S.ByteString Int HttpException
                    -- ^ An exception occurred trying to connect to the proxy
                    -- server on the given host and port.
@@ -137,8 +142,6 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- library, since it may indicate that a pipelining has been
                    -- used, and a connection thought to be open was in fact
                    -- closed.
-                   | TlsException SomeException -- FIXME remove
-                   -- Just used internally, this library rethrows 'TlsExceptionHostPort'
                    | TlsNotSupported
                    -- ^ Exception thrown when using a @Manager@ which does not
                    -- have support for secure connections. Typically, you will
@@ -167,10 +170,11 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    -- Provides the environment variable name and its value.
                    --
                    -- Since 0.4.7
-                   | TlsExceptionHostPort SomeException S.ByteString Int
-                   -- ^ TLS exception, together with the host and port
+                   | TlsException Request SomeException
+                   -- ^ An exception was raised by the underlying TLS mechanism
+                   -- when performing the given request.
                    --
-                   -- @since 0.4.24
+                   -- @since 0.5.0
     deriving (Show, T.Typeable)
 instance Exception HttpException
 
@@ -587,13 +591,13 @@ data ManagerSettings = ManagerSettings
     -- new one.
     --
     -- Since 0.1.0
-    , managerWrapIOException :: forall a. IO a -> IO a
+    , managerWrapException :: forall a. Request -> IO a -> IO a
     -- ^ Action wrapped around all attempted @Request@s, usually used to wrap
     -- up exceptions in library-specific types.
     --
-    -- Default: wrap all @IOException@s in the @InternalIOException@ constructor.
+    -- Default: wrap all @IOException@s in the @InternalException@ constructor.
     --
-    -- Since 0.1.0
+    -- @since 0.5.0
     , managerIdleConnectionCount :: Int
     -- ^ Total number of idle connection to keep open at a given time.
     --
@@ -655,7 +659,7 @@ data Manager = Manager
     , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mTlsProxyConnection :: S.ByteString -> (Connection -> IO ()) -> String -> Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mRetryableException :: SomeException -> Bool
-    , mWrapIOException :: forall a. IO a -> IO a
+    , mWrapException :: forall a. Request -> IO a -> IO a
     , mIdleConnectionCount :: Int
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
