@@ -119,6 +119,8 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | NoResponseDataReceived
                    | TlsException SomeException
                    | TlsNotSupported
+                   | WrongRequestBodyStreamSize Word64 Word64
+                   -- ^ Expected size/actual size
                    | ResponseBodyTooShort Word64 Word64
                    -- ^ Expected size/actual size.
                    --

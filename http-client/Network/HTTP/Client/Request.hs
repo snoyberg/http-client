@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
 
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
@@ -28,7 +29,7 @@ module Network.HTTP.Client.Request
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, fromJust, isJust, isNothing)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
@@ -370,7 +371,7 @@ requestBuilder req Connection {..} = do
     toTriple (RequestBodyStream len stream) = do
         -- See https://github.com/snoyberg/http-client/issues/74 for usage
         -- of flush here.
-        let body = writeStream False (fromIntegral len) stream
+        let body = writeStream (Just . fromIntegral $ len) stream
             -- Don't check for a bad send on the headers themselves.
             -- Ideally, we'd do the same thing for the other request body
             -- types, but it would also introduce a performance hit since
@@ -378,23 +379,25 @@ requestBuilder req Connection {..} = do
             now  = flushHeaders (Just len) >> checkBadSend body
         return (Just len, now, body)
     toTriple (RequestBodyStreamChunked stream) = do
-        let body = writeStream True 0 stream
+        let body = writeStream Nothing stream
             now  = flushHeaders Nothing >> checkBadSend body
         return (Nothing, now, body)
     toTriple (RequestBodyIO mbody) = mbody >>= toTriple
 
-    writeStream isChunked len withStream =
+    writeStream mlen withStream =
         withStream (loop 0) 
       where
-        loop n stream = do
+        -- When stream is chunked, no length is provided 
+        isChunked = isNothing mlen
+        loop !n stream = do
             bs <- stream
             if S.null bs
                 then 
                     if isChunked then connectionWrite "0\r\n\r\n"
                     -- If not chunked, then length argument is present
                     -- and should be validated
-                    else if ( len /= n) 
-                             then throwM $ StatusCodeException W.status400 [] (CJ{expose=[]}) 
+                    else if ( fromJust mlen /= n) 
+                             then throwIO $ WrongRequestBodyStreamSize (fromIntegral . fromJust $ mlen) (fromIntegral n)
                              else return ()
                 else do
                     connectionWrite $
