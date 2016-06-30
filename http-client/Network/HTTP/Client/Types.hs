@@ -41,7 +41,6 @@ import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
 import Data.Int (Int64)
-import Data.Default.Class
 import Data.Foldable (Foldable)
 import Data.Monoid
 import Data.String (IsString, fromString)
@@ -183,15 +182,12 @@ instance Ord Cookie where
     | cookie_creation_time c1 > cookie_creation_time c2 = GT
     | otherwise = LT
 
-instance Default CookieJar where
-  def = CJ []
-
 instance Eq CookieJar where
   (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
 
 -- | Since 1.9
 instance Monoid CookieJar where
-  mempty = def
+  mempty = CJ []
   (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a `mappend` b)
     where compare' c1 c2 =
             -- inverse so that recent cookies are kept by nub over older

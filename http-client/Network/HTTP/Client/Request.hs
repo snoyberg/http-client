@@ -40,8 +40,6 @@ import Control.Applicative ((<$>))
 import Control.Monad (when, unless, guard)
 import Numeric (showHex)
 
-import Data.Default.Class (Default (def))
-
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
 
@@ -84,22 +82,15 @@ parseUrl = parseUrlThrow
 --
 -- @since 0.4.30
 parseUrlThrow :: MonadThrow m => String -> m Request
-parseUrlThrow s' =
-    case parseURI (encode s) of
-        Just uri -> liftM setMethod (setUri def uri)
-        Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
+parseUrlThrow =
+    liftM yesThrow . parseRequest
   where
-    encode = escapeURIString isAllowedInURI
-    (mmethod, s) =
-        case break (== ' ') s' of
-            (x, ' ':y) | all (\c -> 'A' <= c && c <= 'Z') x -> (Just x, y)
-            _ -> (Nothing, s')
-
-    setMethod req =
-        case mmethod of
-            Nothing -> req
-            Just m -> req { method = S8.pack m }
-
+    yesThrow req = req
+        { checkStatus = \s@(W.Status sci _) hs cookie_jar ->
+            if 200 <= sci && sci < 300
+                then Nothing
+                else Just $ toException $ StatusCodeException s hs cookie_jar
+        }
 
 -- | Convert a URL into a 'Request'.
 --
@@ -120,10 +111,21 @@ parseUrlThrow s' =
 --
 -- @since 0.4.30
 parseRequest :: MonadThrow m => String -> m Request
-parseRequest =
-    liftM noThrow . parseUrlThrow
+parseRequest s' =
+    case parseURI (encode s) of
+        Just uri -> liftM setMethod (setUri defaultRequest uri)
+        Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
   where
-    noThrow req = req { checkStatus = \_ _ _ -> Nothing }
+    encode = escapeURIString isAllowedInURI
+    (mmethod, s) =
+        case break (== ' ') s' of
+            (x, ' ':y) | all (\c -> 'A' <= c && c <= 'Z') x -> (Just x, y)
+            _ -> (Nothing, s')
+
+    setMethod req =
+        case mmethod of
+            Nothing -> req
+            Just m -> req { method = S8.pack m }
 
 -- | Same as 'parseRequest', but in the cases of a parse error
 -- generates an impure exception. Mostly useful for static strings which
@@ -252,10 +254,7 @@ useDefaultTimeout = Just (-3425)
 --
 -- @since 0.4.30
 defaultRequest :: Request
-defaultRequest = def { checkStatus = \_ _ _ -> Nothing }
-
-instance Default Request where
-    def = Request
+defaultRequest = Request
         { host = "localhost"
         , port = 80
         , secure = False
@@ -269,10 +268,7 @@ instance Default Request where
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10
-        , checkStatus = \s@(W.Status sci _) hs cookie_jar ->
-            if 200 <= sci && sci < 300
-                then Nothing
-                else Just $ toException $ StatusCodeException s hs cookie_jar
+        , checkStatus = \_ _ _ -> Nothing
         , responseTimeout = useDefaultTimeout
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
@@ -289,7 +285,7 @@ instance Default Request where
                             if remainingTime <= 0
                                 then throwIO exc
                                 else return (Just remainingTime, res)
-        , cookieJar = Just def
+        , cookieJar = Just mempty
         , requestVersion = W.http11
         , onRequestBodyException = \se ->
             case E.fromException se of
@@ -298,11 +294,13 @@ instance Default Request where
         , requestManagerOverride = Nothing
         }
 
+-- | Parses a URL via 'parseRequest_'
+--
+-- /NOTE/: Prior to version 0.5.0, this instance used 'parseUrlThrow'
+-- instead.
 instance IsString Request where
-    fromString s =
-        case parseUrl s of
-            Left e -> throw e
-            Right r -> r
+    fromString = parseRequest_
+    {-# INLINE fromString #-}
 
 -- | Always decompress a compressed stream.
 alwaysDecompress :: S.ByteString -> Bool

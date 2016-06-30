@@ -15,8 +15,6 @@ import Control.Exception (throwIO)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
-import Data.Default.Class (def)
-
 import Data.Maybe (isJust)
 
 import qualified Network.HTTP.Types as W
@@ -122,6 +120,6 @@ getResponse connRelease timeout' req@(Request {..}) conn cont = do
         , responseVersion = version
         , responseHeaders = hs
         , responseBody = body
-        , responseCookieJar = def
+        , responseCookieJar = mempty
         , responseClose' = ResponseClose (cleanup False)
         }

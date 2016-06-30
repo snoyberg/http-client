@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.4.30
+version:             0.5.0
 synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client
@@ -40,7 +40,6 @@ library
                      , text              >= 0.11
                      , http-types        >= 0.8
                      , blaze-builder     >= 0.3
-                     , data-default-class
                      , time              >= 1.2
                      , network           >= 2.3
                      , streaming-commons >= 0.1.0.2 && < 0.2

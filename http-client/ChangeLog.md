@@ -1,3 +1,8 @@
+## 0.5.0
+
+* Remove `instance Default Request`
+* Modify `instance IsString Request` to use `parseRequest` instead of `parseUrlThrow`
+
 ## 0.4.30
 
 * Initial implementation of [#193](https://github.com/snoyberg/http-client/issues/193)
