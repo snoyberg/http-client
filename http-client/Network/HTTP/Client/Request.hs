@@ -21,7 +21,6 @@ module Network.HTTP.Client.Request
     , urlEncodedBody
     , needsGunzip
     , requestBuilder
-    , useDefaultTimeout
     , setRequestIgnoreStatus
     , setQueryString
     , streamFile
@@ -227,13 +226,6 @@ setUri req uri = do
                     False {- HTTP -} -> return 80
                     True {- HTTPS -} -> return 443
 
--- | Magic value to be placed in a 'Request' to indicate that we should use the
--- timeout value in the @Manager@.
---
--- Since 1.9.3
-useDefaultTimeout :: Maybe Int
-useDefaultTimeout = Just (-3425)
-
 -- | A default request value
 --
 -- @since 0.4.30
@@ -253,7 +245,7 @@ defaultRequest = Request
         , decompress = browserDecompress
         , redirectCount = 10
         , checkResponse = \_ _ -> return ()
-        , responseTimeout = useDefaultTimeout
+        , responseTimeout = ResponseTimeoutDefault
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
                 Nothing -> fmap ((,) Nothing) f

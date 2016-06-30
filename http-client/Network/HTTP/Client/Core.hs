@@ -125,11 +125,15 @@ httpRaw' req0 m = do
             Nothing -> return (req, res)
   where
 
-    responseTimeout' req
-        | rt == useDefaultTimeout = mResponseTimeout m
-        | otherwise = rt
-      where
-        rt = responseTimeout req
+    responseTimeout' req =
+        case responseTimeout req of
+            ResponseTimeoutDefault ->
+                case mResponseTimeout m of
+                    ResponseTimeoutDefault -> Just 30000000
+                    ResponseTimeoutNone -> Nothing
+                    ResponseTimeoutMicro u -> Just u
+            ResponseTimeoutNone -> Nothing
+            ResponseTimeoutMicro u -> Just u
 
 -- | The most low-level function for initiating an HTTP request.
 --

@@ -31,6 +31,7 @@ module Network.HTTP.Client.Types
     , ConnKey (..)
     , ProxyOverride (..)
     , StreamFileStatus (..)
+    , ResponseTimeout (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -445,7 +446,7 @@ data Request = Request
     -- behavior (doing nothing).
     --
     -- @since 0.5.0
-    , responseTimeout :: Maybe Int
+    , responseTimeout :: ResponseTimeout
     -- ^ Number of microseconds to wait for a response. If
     -- @Nothing@, will wait indefinitely. Default: use
     -- 'managerResponseTimeout' (which by default is 30 seconds).
@@ -494,6 +495,15 @@ data Request = Request
     -- @since 0.4.28
     }
     deriving T.Typeable
+
+-- | How to deal with timing out a response
+--
+-- @since 0.5.0
+data ResponseTimeout
+    = ResponseTimeoutMicro !Int
+    | ResponseTimeoutNone
+    | ResponseTimeoutDefault
+    deriving Show
 
 instance Show Request where
     show x = unlines
@@ -585,13 +595,13 @@ data ManagerSettings = ManagerSettings
       -- ^ Create a TLS proxy connection. Default behavior: throw an exception that TLS is not supported.
       --
       -- Since 0.2.2
-    , managerResponseTimeout :: Maybe Int
-      -- ^ Default timeout (in microseconds) to be applied to requests which do
-      -- not provide a timeout value.
+    , managerResponseTimeout :: ResponseTimeout
+      -- ^ Default timeout to be applied to requests which do not provide a
+      -- timeout value.
       --
       -- Default is 30 seconds
       --
-      -- Since 0.1.0
+      -- @since 0.5.0
     , managerRetryableException :: SomeException -> Bool
     -- ^ Exceptions for which we should retry our request if we were reusing an
     -- already open connection. In the case of IOExceptions, for example, we
@@ -661,7 +671,7 @@ data Manager = Manager
     -- there are no connections to manage.
     , mMaxConns :: Int
     -- ^ This is a per-@ConnKey@ value.
-    , mResponseTimeout :: Maybe Int
+    , mResponseTimeout :: ResponseTimeout
     -- ^ Copied from 'managerResponseTimeout'
     , mRawConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection

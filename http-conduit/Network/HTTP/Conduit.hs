@@ -201,6 +201,11 @@ module Network.HTTP.Conduit
     , managerConnCount
     , managerResponseTimeout
     , managerTlsConnection
+      -- ** Response timeout
+    , HC.ResponseTimeout
+    , HC.responseTimeoutMicro
+    , HC.responseTimeoutNone
+    , HC.responseTimeoutDefault
       -- * Cookies
     , Cookie(..)
     , CookieJar
@@ -240,6 +245,7 @@ import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
 import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen, responseClose)
+import qualified Network.HTTP.Client          as HC
 import qualified Network.HTTP.Client.Conduit  as HCC
 import           Network.HTTP.Client.Internal (createCookieJar,
                                                destroyCookieJar)

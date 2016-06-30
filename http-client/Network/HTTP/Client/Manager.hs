@@ -95,7 +95,7 @@ defaultManagerSettings = ManagerSettings
     , managerRawConnection = return $ openSocketConnection (const $ return ())
     , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
     , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwIO TlsNotSupported
-    , managerResponseTimeout = Just 30000000
+    , managerResponseTimeout = ResponseTimeoutDefault
     , managerRetryableException = \e ->
         case fromException e of
             Just (_ :: IOException) -> True

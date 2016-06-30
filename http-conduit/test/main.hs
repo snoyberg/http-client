@@ -408,8 +408,8 @@ main = withSocketsDo $ do
     describe "managerResponseTimeout" $ do
         it "works" $ withApp app $ \port -> do
             req1 <- parseUrl $ "http://localhost:" ++ show port
-            let req2 = req1 { responseTimeout = Just 5000000 }
-            withManagerSettings conduitManagerSettings { managerResponseTimeout = Just 1 } $ \man -> do
+            let req2 = req1 { responseTimeout = responseTimeoutMicro 5000000 }
+            withManagerSettings conduitManagerSettings { managerResponseTimeout = responseTimeoutMicro 1 } $ \man -> do
                 eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
                 case eres1 of
                     Left ConnectionTimeout{} -> return ()

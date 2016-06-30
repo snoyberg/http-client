@@ -125,6 +125,11 @@ module Network.HTTP.Client
     , proxyEnvironment
     , proxyEnvironmentNamed
     , defaultProxy
+      -- *** Response timeouts
+    , ResponseTimeout
+    , responseTimeoutMicro
+    , responseTimeoutNone
+    , responseTimeoutDefault
       -- *** Helpers
     , rawConnectionModifySocket
       -- * Request
@@ -328,3 +333,26 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
 -- >   print $ responseBody response
 --
+
+
+-- | Specify a response timeout in microseconds
+--
+-- @since 0.5.0
+responseTimeoutMicro :: Int -> ResponseTimeout
+responseTimeoutMicro = ResponseTimeoutMicro
+
+-- | Do not have a response timeout
+--
+-- @since 0.5.0
+responseTimeoutNone :: ResponseTimeout
+responseTimeoutNone = ResponseTimeoutNone
+
+-- | Use the default response timeout
+--
+-- When used on a 'Request', means: use the manager's timeout value
+--
+-- When used on a 'ManagerSettings', means: default to 30 seconds
+--
+-- @since 0.5.0
+responseTimeoutDefault :: ResponseTimeout
+responseTimeoutDefault = ResponseTimeoutDefault
