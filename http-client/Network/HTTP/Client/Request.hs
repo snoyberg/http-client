@@ -55,6 +55,7 @@ import qualified Control.Exception as E
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
+import Network.HTTP.Client.Body
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Util
 import Network.HTTP.Client.Connection
@@ -84,10 +85,14 @@ parseUrlThrow =
     liftM yesThrow . parseRequest
   where
     yesThrow req = req
-        { checkStatus = \s@(W.Status sci _) hs cookie_jar ->
+        { checkResponse = \req res ->
+            let W.Status sci _ = responseStatus res in
             if 200 <= sci && sci < 300
-                then Nothing
-                else Just $ toException $ StatusCodeException s hs cookie_jar
+                then return ()
+                else do
+                    chunk <- brReadSome (responseBody res) 1024
+                    let res' = fmap (const ()) res
+                    throwIO $ StatusCodeException req res' (L.toStrict chunk)
         }
 
 -- | Convert a URL into a 'Request'.
@@ -247,7 +252,7 @@ defaultRequest = Request
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10
-        , checkStatus = \_ _ _ -> Nothing
+        , checkResponse = \_ _ -> return ()
         , responseTimeout = useDefaultTimeout
         , getConnectionWrapper = \mtimeout exc f ->
             case mtimeout of
@@ -487,7 +492,7 @@ requestBuilder req Connection {..} = do
 --
 -- @since 0.4.29
 setRequestIgnoreStatus :: Request -> Request
-setRequestIgnoreStatus req = req { checkStatus = \_ _ _ -> Nothing }
+setRequestIgnoreStatus req = req { checkResponse = \_ _ -> return () }
 
 -- | Set the query string to the given key/value pairs.
 --

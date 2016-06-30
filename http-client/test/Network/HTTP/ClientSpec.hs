@@ -27,10 +27,7 @@ spec = describe "Client" $ do
             responseStatus res `shouldBe` status200
 
         it "failure" $ withSocketsDo $ do
-            req' <- parseUrl "PUT http://httpbin.org/post"
-            let req = req'
-                    { checkStatus = \_ _ _ -> Nothing
-                    }
+            req <- parseRequest "PUT http://httpbin.org/post"
             man <- newManager defaultManagerSettings
             res <- httpLbs req man
             responseStatus res `shouldBe` status405
@@ -43,7 +40,7 @@ spec = describe "Client" $ do
             responseStatus res `shouldBe` status200
 
     it "managerModifyRequestCheckStatus" $ do
-        let modify req = return req { checkStatus = \s hs cj -> Just $ toException $ StatusCodeException s hs cj }
+        let modify req = return req { checkResponse = \_ _ -> error "some exception" }
             settings = defaultManagerSettings { managerModifyRequest = modify }
         withManager settings $ \man ->
             httpLbs "http://httpbin.org" man `shouldThrow` anyException

@@ -169,7 +169,7 @@ module Network.HTTP.Conduit
     , rawBody
     , decompress
     , redirectCount
-    , checkStatus
+    , checkResponse
     , responseTimeout
     , cookieJar
     , requestVersion

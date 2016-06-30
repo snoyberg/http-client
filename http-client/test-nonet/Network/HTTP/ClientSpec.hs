@@ -121,7 +121,6 @@ serveWith resp inner = bracket
 getChunkedResponse :: Int -> Manager -> IO (Response SL.ByteString)
 getChunkedResponse port' man = flip httpLbs man "http://localhost"
   { port        = port'
-  , checkStatus = \_ _ _ -> Nothing
   , requestBody = RequestBodyStreamChunked ($ return (S.replicate 100000 65))
   }
 

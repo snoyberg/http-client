@@ -153,7 +153,7 @@ module Network.HTTP.Client
     , applyBasicProxyAuth
     , decompress
     , redirectCount
-    , checkStatus
+    , checkResponse
     , responseTimeout
     , cookieJar
     , requestVersion

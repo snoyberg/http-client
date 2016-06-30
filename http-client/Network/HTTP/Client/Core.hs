@@ -9,7 +9,6 @@ module Network.HTTP.Client.Core
     , httpRaw'
     , responseOpen
     , responseClose
-    , applyCheckStatus
     , httpRedirect
     , httpRedirect'
     ) where
@@ -167,7 +166,8 @@ responseOpen req0 manager' = mWrapException manager req0 $ do
         if redirectCount req0 == 0
             then httpRaw' req0 manager
             else go (redirectCount req0) req0
-    maybe (return res) throwIO =<< applyCheckStatus req (checkStatus req) res
+    checkResponse req req res
+    return res
   where
     manager = fromMaybe manager' (requestManagerOverride req0)
 
@@ -178,41 +178,6 @@ responseOpen req0 manager' = mWrapException manager req0 $ do
         let mreq = getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
-
--- | Apply 'Request'\'s 'checkStatus' and return resulting exception if any.
-applyCheckStatus
-    :: Request
-    -> (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException)
-    -> Response BodyReader
-    -> IO (Maybe SomeException)
-applyCheckStatus req checkStatus' res =
-    case checkStatus' (responseStatus res) (responseHeaders res) (responseCookieJar res) of
-        Nothing -> return Nothing
-        Just exc -> do
-            exc' <-
-                case fromException exc of
-                    Just (StatusCodeException s hdrs cookie_jar) -> do
-                        lbs <- brReadSome (responseBody res) 1024
-                        return $ toException $ StatusCodeException s (hdrs ++
-                            [ ("X-Response-Body-Start", toStrict' lbs)
-                            , ("X-Request-URL", S.concat
-                                [ method req
-                                , " "
-                                , S8.pack $ show $ getUri req
-                                ])
-                            ]) cookie_jar
-                    _ -> return exc
-            responseClose res
-            return (Just exc')
-  where
-#ifndef MIN_VERSION_bytestring
-#define MIN_VERSION_bytestring(x,y,z) 1
-#endif
-#if MIN_VERSION_bytestring(0,10,0)
-    toStrict' = L.toStrict
-#else
-    toStrict' = S.concat . L.toChunks
-#endif
 
 -- | Redirect loop.
 httpRedirect
