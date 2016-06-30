@@ -10,8 +10,6 @@ module Network.HTTP.Client.TLS
       -- * Global manager
     , getGlobalManager
     , setGlobalManager
-      -- * Internal
-    , getTlsConnection
     ) where
 
 import Data.Default.Class

@@ -573,7 +573,6 @@ data ManagerSettings = ManagerSettings
       -- ^ Create an insecure connection.
       --
       -- Since 0.1.0
-    -- FIXME in the future, combine managerTlsConnection and managerTlsProxyConnection
     , managerTlsConnection :: IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
       --
