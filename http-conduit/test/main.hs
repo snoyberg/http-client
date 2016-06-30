@@ -53,6 +53,7 @@ import Network.Connection (settingDisableCertificateValidation)
 import Data.Default.Class (def)
 import qualified Data.Aeson as A
 import qualified Network.HTTP.Simple as Simple
+import Data.Monoid (mempty)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -202,7 +203,7 @@ main = withSocketsDo $ do
         it "cookie jar is available in response" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {cookieJar = Just mempty}) manager
+                response <- httpLbs (request {cookieJar = Just Data.Monoid.mempty}) manager
                 liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
         it "Cookie header isn't touched when no cookie jar supplied" $ withApp app $ \port -> do
             request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
