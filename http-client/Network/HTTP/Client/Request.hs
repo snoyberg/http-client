@@ -396,9 +396,7 @@ requestBuilder req Connection {..} = do
                     if isChunked then connectionWrite "0\r\n\r\n"
                     -- If not chunked, then length argument is present
                     -- and should be validated
-                    else if ( fromJust mlen == n) 
-                             then return ()
-                             else throwIO $ WrongRequestBodyStreamSize (fromIntegral . fromJust $ mlen) (fromIntegral n)
+                    else unless (fromJust mlen == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral . fromJust $ mlen) (fromIntegral n)
                 else do
                     connectionWrite $
                         if isChunked
