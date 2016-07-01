@@ -240,7 +240,11 @@ responseOpenHistory req0 man = handle (throwIO . toHttpException req0) $ do
     reqRef <- newIORef req0
     historyRef <- newIORef id
     let go req = do
-            (req', res) <- httpRaw' req man
+            (req', res') <- httpRaw' req man
+            let res = res'
+                    { responseBody = handle (throwIO . toHttpException req0)
+                                            (responseBody res')
+                    }
             case getRedirectedRequest
                     req'
                     (responseHeaders res)
