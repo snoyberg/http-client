@@ -12,3 +12,24 @@ main = withOpenSSL $ hspec $ do
         manager <- newManager $ opensslManagerSettings SSL.context
         withResponse (parseRequest_ "https://httpbin.org/status/418") manager $ \res ->
             responseStatus res `shouldBe` status418
+
+    it "BadSSL: expired" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let action = withResponse "https://expired.badssl.com/"
+                { checkStatus = \_ _ _ -> Nothing
+                } manager (const (pure ()))
+        action `shouldThrow` anyException
+
+    it "BadSSL: self-signed" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let action = withResponse "https://self-signed.badssl.com/"
+                { checkStatus = \_ _ _ -> Nothing
+                } manager (const (pure ()))
+        action `shouldThrow` anyException
+
+    it "BadSSL: wrong.host" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let action = withResponse "https://wrong.host.badssl.com/"
+                { checkStatus = \_ _ _ -> Nothing
+                } manager (const (pure ()))
+        action `shouldThrow` anyException
