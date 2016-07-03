@@ -392,11 +392,11 @@ requestBuilder req Connection {..} = do
         loop !n stream = do
             bs <- stream
             if S.null bs
-                then 
-                    if isChunked then connectionWrite "0\r\n\r\n"
-                    -- If not chunked, then length argument is present
-                    -- and should be validated
-                    else unless (fromJust mlen == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral . fromJust $ mlen) (fromIntegral n)
+                then case mlen of 
+                    -- If stream is chunked, no length argument
+                    Nothing -> connectionWrite "0\r\n\r\n"
+                    -- Not chunked - validate length argument
+                    Just len -> unless (len == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
                 else do
                     connectionWrite $
                         if isChunked
