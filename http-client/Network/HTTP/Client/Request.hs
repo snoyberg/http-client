@@ -29,7 +29,7 @@ module Network.HTTP.Client.Request
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, fromJust, isJust, isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
@@ -387,8 +387,6 @@ requestBuilder req Connection {..} = do
     writeStream mlen withStream =
         withStream (loop 0) 
       where
-        -- When stream is chunked, no length is provided 
-        isChunked = isNothing mlen
         loop !n stream = do
             bs <- stream
             if S.null bs
@@ -399,7 +397,7 @@ requestBuilder req Connection {..} = do
                     Just len -> unless (len == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
                 else do
                     connectionWrite $
-                        if isChunked
+                        if (isNothing mlen) -- Chunked
                             then S.concat
                                 [ S8.pack $ showHex (S.length bs) "\r\n"
                                 , bs
