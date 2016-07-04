@@ -26,8 +26,6 @@ import Network.HTTP.Client.Cookies
 import Data.Maybe (fromMaybe, isJust)
 import Data.Time
 import Control.Exception
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import Data.Monoid
 import Control.Monad (void)
@@ -93,7 +91,7 @@ httpRaw' req0 m = do
         Just cj -> do
             now <- getCurrentTime
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
-        Nothing -> return (req', mempty)
+        Nothing -> return (req', Data.Monoid.mempty)
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
         (responseTimeout' req)
         (getConn req m)

@@ -2,7 +2,6 @@
 import Test.Hspec
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
-import Network.HTTP.Client.Internal
 import Network.HTTP.Types
 
 main :: IO ()

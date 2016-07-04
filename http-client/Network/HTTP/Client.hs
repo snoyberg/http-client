@@ -200,7 +200,6 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Types
 
-import Data.Text (Text)
 import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
 import qualified Data.ByteString.Lazy as L
 import Data.Foldable (Foldable)
@@ -228,7 +227,7 @@ data HistoriedResponse body = HistoriedResponse
     --
     -- Since 0.4.1
     }
-    deriving (Functor, Traversable, Foldable, Show, Typeable, Generic)
+    deriving (Functor, Data.Traversable.Traversable, Data.Foldable.Foldable, Show, Typeable, Generic)
 
 -- | A variant of @responseOpen@ which keeps a history of all redirects
 -- performed in the interim, together with the first 1024 bytes of their

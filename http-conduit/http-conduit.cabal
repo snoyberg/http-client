@@ -75,6 +75,7 @@ test-suite test
                  , streaming-commons
                  , aeson
                  , temporary
+                 , resourcet
 
 source-repository head
   type:     git

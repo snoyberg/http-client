@@ -12,8 +12,8 @@ main :: IO ()
 main = hspec spec
 
 brComplete :: BodyReader -> IO Bool
-brComplete brRead = do
-  xs <- brRead
+brComplete brRead' = do
+  xs <- brRead'
   return (xs == "")
 
 spec :: Spec

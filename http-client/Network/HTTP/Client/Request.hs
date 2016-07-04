@@ -4,6 +4,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Network.HTTP.Client.Request
     ( parseUrl
@@ -34,8 +35,8 @@ import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
-import Control.Applicative ((<$>))
-import Control.Monad (when, unless, guard)
+import Control.Applicative as A ((<$>))
+import Control.Monad (unless, guard)
 import Numeric (showHex)
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
@@ -47,10 +48,9 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 import qualified Network.HTTP.Types as W
-import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, unEscapeString, isAllowedInURI, isReserved)
+import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, unEscapeString, isAllowedInURI)
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Exception (Exception, toException, throw, throwIO, IOException)
+import Control.Exception (throw, throwIO, IOException)
 import qualified Control.Exception as E
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
@@ -58,12 +58,8 @@ import qualified Data.ByteString.Base64 as B64
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Util
-import Network.HTTP.Client.Connection
 
-import Network.HTTP.Client.Util (readDec, (<>))
-import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
-import Data.IORef
 
 import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 import Control.Monad (liftM)
@@ -182,7 +178,7 @@ applyAnyUriBasedAuth uri req =
 -- Return Nothing when there is no auth info in URI.
 extractBasicAuthInfo :: URI -> Maybe (S8.ByteString, S8.ByteString)
 extractBasicAuthInfo uri = do
-    userInfo <- uriUserInfo <$> uriAuthority uri
+    userInfo <- uriUserInfo A.<$> uriAuthority uri
     guard (':' `elem` userInfo)
     let (username, ':':password) = break (==':') . takeWhile (/='@') $ userInfo
     return (toLiteral username, toLiteral password)
@@ -247,7 +243,7 @@ defaultRequest = Request
         , redirectCount = 10
         , checkResponse = \_ _ -> return ()
         , responseTimeout = ResponseTimeoutDefault
-        , cookieJar = Just mempty
+        , cookieJar = Just Data.Monoid.mempty
         , requestVersion = W.http11
         , onRequestBodyException = \se ->
             case E.fromException se of
@@ -343,7 +339,7 @@ requestBuilder req Connection {..} = do
     expectContinue   = Just "100-continue" == lookup "Expect" (requestHeaders req)
     checkBadSend f   = f `E.catch` onRequestBodyException req
     writeBuilder     = toByteStringIO connectionWrite
-    writeHeadersWith contentLength = writeBuilder . (builder contentLength `mappend`)
+    writeHeadersWith contentLength = writeBuilder . (builder contentLength `Data.Monoid.mappend`)
     flushHeaders contentLength     = writeHeadersWith contentLength flush
 
     toTriple (RequestBodyLBS lbs) = do

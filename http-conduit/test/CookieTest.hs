@@ -8,7 +8,6 @@ import Network.HTTP.Client
 import qualified Network.HTTP.Conduit as HC
 import Data.ByteString.UTF8
 import Data.Monoid
-import Data.Maybe
 import Data.Time.Clock
 import Data.Time.Calendar
 import qualified Data.CaseInsensitive as CI
@@ -444,7 +443,7 @@ testReceiveSetCookieExistingHttpOnly = assertEqual "Existing http-only cookie ge
 
 testMonoidPreferRecent :: IO ()
 testMonoidPreferRecent = assertEqual "Monoid prefers more recent cookies"
-  (cct $ createCookieJar [c2]) (cct $ createCookieJar [c1] `mappend` createCookieJar [c2])
+  (cct $ createCookieJar [c2]) (cct $ createCookieJar [c1] `Data.Monoid.mappend` createCookieJar [c2])
   where c1 = default_cookie {cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 1)}
         c2 = default_cookie {cookie_creation_time = UTCTime (ModifiedJulianDay 0) (secondsToDiffTime 2)}
         cct cj = cookie_creation_time $ head $ destroyCookieJar cj

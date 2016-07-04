@@ -32,14 +32,6 @@ import qualified Data.Text as T
 import qualified Data.Text.Read
 import System.Timeout (timeout)
 
-import System.IO.Unsafe (unsafePerformIO)
-import Control.Exception (mask_, Exception, throwTo, try, finally, SomeException, assert)
-import Control.Monad (join, when, void)
-import Control.Concurrent (myThreadId, threadDelay, forkIO)
-import Data.IORef
-import Data.Function (fix)
-import Data.Typeable (Typeable)
-
 #ifndef MIN_VERSION_base
 #define MIN_VERSION_base(x,y,z) 1
 #endif
@@ -80,8 +72,8 @@ illegalBufferSize handle fn sz =
 #endif
 
 infixr 5 <>
-(<>) :: Monoid m => m -> m -> m
-(<>) = mappend
+(<>) :: Data.Monoid.Monoid m => m -> m -> m
+(<>) = Data.Monoid.mappend
 
 readDec :: Integral i => String -> Maybe i
 readDec s =

@@ -239,8 +239,7 @@ import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
 import           Data.Int                     (Int64)
-import           Control.Applicative          ((<$>))
-import           Control.Exception.Lifted     (bracket)
+import           Control.Applicative          as A ((<$>))
 import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
@@ -309,7 +308,7 @@ simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ do
     man <- newManager tlsManagerSettings
     req <- liftIO $ parseUrlThrow url
-    responseBody <$> httpLbs (setConnectionClose req) man
+    responseBody A.<$> httpLbs (setConnectionClose req) man
 
 conduitManagerSettings :: ManagerSettings
 conduitManagerSettings = tlsManagerSettings

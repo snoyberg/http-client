@@ -5,9 +5,9 @@ module Network.HTTP.ClientSpec where
 import           Control.Concurrent        (forkIO, threadDelay)
 import           Control.Concurrent.Async  (withAsync)
 import qualified Control.Concurrent.Async  as Async
-import           Control.Exception         (bracket, catch, IOException)
-import           Control.Monad             (forever, replicateM_, void)
-import           Network.HTTP.Client
+import           Control.Exception         (bracket)
+import           Control.Monad             (forever, replicateM_)
+import           Network.HTTP.Client       hiding (port)
 import qualified Network.HTTP.Client       as NC
 import           Network.HTTP.Types        (status413)
 import           Network.Socket            (sClose)
@@ -29,7 +29,7 @@ redirectServer inner = bracket
         (const $ inner port)
   where
     app ad = do
-        forkIO $ forever $ N.appRead ad
+        _ <- forkIO $ forever $ N.appRead ad
         forever $ do
             N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
             threadDelay 10000
@@ -60,7 +60,7 @@ bad100Server extraHeaders inner = bracket
         (const $ inner port)
   where
     app ad = do
-        forkIO $ forever $ N.appRead ad
+        _ <- forkIO $ forever $ N.appRead ad
         forever $ do
             N.appWrite ad $ S.concat
                 [ "HTTP/1.1 100 Continue\r\n"
@@ -120,7 +120,7 @@ serveWith resp inner = bracket
 
 getChunkedResponse :: Int -> Manager -> IO (Response SL.ByteString)
 getChunkedResponse port' man = flip httpLbs man "http://localhost"
-  { port        = port'
+  { NC.port     = port'
   , requestBody = RequestBodyStreamChunked ($ return (S.replicate 100000 65))
   }
 
@@ -128,7 +128,7 @@ spec :: Spec
 spec = describe "Client" $ do
     describe "fails on empty hostnames #40" $ do
         let test url = it url $ do
-                req <- parseUrl url
+                req <- parseUrlThrow url
                 man <- newManager defaultManagerSettings
                 _ <- httpLbs req man `shouldThrow` \e ->
                     case e of
@@ -137,17 +137,19 @@ spec = describe "Client" $ do
                 return ()
         mapM_ test ["http://", "https://", "http://:8000", "https://:8001"]
     it "redirecting #41" $ redirectServer $ \port -> do
-        req' <- parseUrl $ "http://127.0.0.1:" ++ show port
+        req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         let req = req' { redirectCount = 1 }
-        withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
+        man <- newManager defaultManagerSettings
+        replicateM_ 10 $ do
             httpLbs req man `shouldThrow` \e ->
                 case e of
                     HttpExceptionRequest _ (TooManyRedirects _) -> True
                     _ -> False
     it "redirectCount=0" $ redirectServer $ \port -> do
-        req' <- parseUrl $ "http://127.0.0.1:" ++ show port
+        req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         let req = req' { redirectCount = 0 }
-        withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
+        man <- newManager defaultManagerSettings
+        replicateM_ 10 $ do
             httpLbs req man `shouldThrow` \e ->
                 case e of
                     HttpExceptionRequest _ StatusCodeException{} -> True
@@ -155,52 +157,53 @@ spec = describe "Client" $ do
     it "connecting to missing server gives nice error message" $ do
         (port, socket) <- N.bindRandomPortTCP "*4"
         sClose socket
-        req <- parseUrl $ "http://127.0.0.1:" ++ show port
-        withManager defaultManagerSettings $ \man ->
-            httpLbs req man `shouldThrow` \e ->
-                case e of
-                    HttpExceptionRequest req' (ConnectionFailure _)
-                        -> host req == host req'
-                        && NC.port req == NC.port req'
-                    _ -> False
+        req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+        man <- newManager defaultManagerSettings
+        httpLbs req man `shouldThrow` \e ->
+            case e of
+                HttpExceptionRequest req' (ConnectionFailure _)
+                    -> host req == host req'
+                    && NC.port req == NC.port req'
+                _ -> False
 
     describe "extra headers after 100 #49" $ do
         let test x = it (show x) $ bad100Server x $ \port -> do
-                req <- parseUrl $ "http://127.0.0.1:" ++ show port
-                withManager defaultManagerSettings $ \man -> replicateM_ 10 $ do
-                    x <- httpLbs req man
-                    responseBody x `shouldBe` "hello"
+                req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+                man <- newManager defaultManagerSettings
+                replicateM_ 10 $ do
+                    x' <- httpLbs req man
+                    responseBody x' `shouldBe` "hello"
         test False
         test True
 
     it "early close on a 413" $ earlyClose413 $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
-            res <- getChunkedResponse port' man
-            responseBody res `shouldBe` "goodbye"
-            responseStatus res `shouldBe` status413
+        man <- newManager defaultManagerSettings
+        res <- getChunkedResponse port' man
+        responseBody res `shouldBe` "goodbye"
+        responseStatus res `shouldBe` status413
 
     it "length zero and chunking zero #108" $ lengthZeroAndChunkZero $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
-            res <- getChunkedResponse port' man
-            responseBody res `shouldBe` ""
+        man <- newManager defaultManagerSettings
+        res <- getChunkedResponse port' man
+        responseBody res `shouldBe` ""
 
     it "length zero and chunking" $ lengthZeroAndChunked $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
-            res <- getChunkedResponse port' man
-            responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
+        man <- newManager defaultManagerSettings
+        res <- getChunkedResponse port' man
+        responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
 
     it "length and chunking" $ lengthAndChunked $ \port' -> do
-        withManager defaultManagerSettings $ \man -> do
-            res <- getChunkedResponse port' man
-            responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
+        man <- newManager defaultManagerSettings
+        res <- getChunkedResponse port' man
+        responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
 
     it "withResponseHistory and redirect" $ redirectCloseServer $ \port -> do
         -- see https://github.com/snoyberg/http-client/issues/169
-        req' <- parseUrl $ "http://127.0.0.1:" ++ show port
+        req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         let req = req' {redirectCount = 1}
-        withManager defaultManagerSettings $ \man -> do
-          withResponseHistory req man (const $ return ())
-            `shouldThrow` \e ->
-              case e of
-                HttpExceptionRequest _ (TooManyRedirects _) -> True
-                _ -> False
+        man <- newManager defaultManagerSettings
+        withResponseHistory req man (const $ return ())
+        `shouldThrow` \e ->
+            case e of
+            HttpExceptionRequest _ (TooManyRedirects _) -> True
+            _ -> False

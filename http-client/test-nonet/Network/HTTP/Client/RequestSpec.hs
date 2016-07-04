@@ -2,12 +2,10 @@
 module Network.HTTP.Client.RequestSpec where
 
 import Blaze.ByteString.Builder (fromByteString)
-import Control.Applicative ((<$>))
+import Control.Applicative as A ((<$>))
 import Control.Monad (join, forM_, (<=<))
 import Data.IORef
 import Data.Maybe (isJust, fromMaybe, fromJust)
-import qualified Data.ByteString.Char8 as S8
-import Network.HTTP.Client (parseUrl, requestHeaders, applyBasicProxyAuth)
 import Network.HTTP.Client.Internal
 import Network.URI (URI(..), URIAuth(..), parseURI) 
 import Test.Hspec
@@ -16,30 +14,30 @@ spec :: Spec
 spec = do
     describe "case insensitive scheme" $ do
         forM_ ["http://example.com", "httP://example.com", "HttP://example.com", "HttPs://example.com"] $ \url ->
-            it url $ case parseUrl url of
+            it url $ case parseUrlThrow url of
                 Nothing -> error "failed"
                 Just _ -> return () :: IO ()
         forM_ ["ftp://example.com"] $ \url ->
-            it url $ case parseUrl url of
+            it url $ case parseUrlThrow url of
                 Nothing -> return () :: IO ()
                 Just req -> error $ show req
 
     describe "authentication in url" $ do
       it "passes validation" $ do
-        case parseUrl "http://agent:topsecret@example.com" of
+        case parseUrlThrow "http://agent:topsecret@example.com" of
           Nothing -> error "failed"
           Just _ -> return () :: IO ()
 
       it "add username/password to headers section" $ do
-        let request = parseUrl "http://user:pass@example.com"
-            field = join $ lookup "Authorization" . requestHeaders <$> request
+        let request = parseUrlThrow "http://user:pass@example.com"
+            field = join $ lookup "Authorization" . requestHeaders A.<$> request
             requestHostnameWithoutAuth = "example.com"
         (uriRegName $ fromJust $ uriAuthority $ getUri $ fromJust request) `shouldBe` requestHostnameWithoutAuth
         field `shouldSatisfy` isJust
         field `shouldBe` Just "Basic dXNlcjpwYXNz"
 
     describe "applyBasicProxyAuth" $ do
-        let request = applyBasicProxyAuth "user" "pass" <$> parseUrl "http://example.org"
+        let request = applyBasicProxyAuth "user" "pass" <$> parseUrlThrow "http://example.org"
             field   = join $ lookup "Proxy-Authorization" . requestHeaders <$> request
         it "Should add a proxy-authorization header" $ do
             field `shouldSatisfy` isJust
@@ -67,16 +65,16 @@ spec = do
 
     describe "requestBuilder" $ do
         it "sends the full request, combining headers and body in the non-streaming case" $ do
-            let Just req  = parseUrl "http://localhost"
+            let Just req  = parseUrlThrow "http://localhost"
             let      req' = req { method = "PUT", path = "foo" }
             (conn, out, _) <- dummyConnection []
             forM_ (bodies `zip` out1) $ \(b, o) -> do
                 cont <- requestBuilder (req' { requestBody = b } ) conn
-                (const "<IO ()>" <$> cont) `shouldBe` Nothing
+                (const ("<IO ()>" :: String) <$> cont) `shouldBe` Nothing
                 out >>= (`shouldBe` o)
 
         it "sends only headers and returns an action for the body on 'Expect: 100-continue'" $ do
-            let Just req  = parseUrl "http://localhost"
+            let Just req  = parseUrlThrow "http://localhost"
             let      req' = req { requestHeaders = [("Expect", "100-continue")]
                                 , method = "PUT"
                                 , path = "foo"

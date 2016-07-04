@@ -5,7 +5,7 @@ module Network.HTTP.Client.Headers
     ( parseStatusHeaders
     ) where
 
-import           Control.Applicative            ((<$>), (<*>))
+import           Control.Applicative            as A ((<$>), (<*>))
 import           Control.Monad
 import qualified Data.ByteString                as S
 import qualified Data.ByteString.Char8          as S8
@@ -16,9 +16,7 @@ import           Network.HTTP.Client.Util       (timeout)
 import           Network.HTTP.Types
 import Data.Word (Word8)
 
-charLF, charCR, charSpace, charColon, charPeriod :: Word8
-charLF = 10
-charCR = 13
+charSpace, charColon, charPeriod :: Word8
 charSpace = 32
 charColon = 58
 charPeriod = 46
@@ -47,7 +45,7 @@ parseStatusHeaders conn timeout' cont
         (s, v) <- nextStatusLine
         if statusCode s == 100
             then connectionDropTillBlankLine conn >> return Nothing
-            else Just . StatusHeaders s v <$> parseHeaders 0 id
+            else Just . StatusHeaders s v A.<$> parseHeaders (0 :: Int) id
 
     nextStatusLine :: IO (Status, HttpVersion)
     nextStatusLine = do
@@ -63,7 +61,7 @@ parseStatusHeaders conn timeout' cont
         let (ver, bs2) = S.break (== charSpace) bs
             (code, bs3) = S.break (== charSpace) $ S.dropWhile (== charSpace) bs2
             msg = S.dropWhile (== charSpace) bs3
-        case (,) <$> parseVersion ver <*> readInt code of
+        case (,) <$> parseVersion ver A.<*> readInt code of
             Just (ver', code') -> return (Status code' msg, ver')
             Nothing -> throwHttp $ InvalidStatusLine bs
 

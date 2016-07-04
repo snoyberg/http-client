@@ -14,7 +14,6 @@ module Network.HTTP.Client.Connection
 import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
-import Control.Exception (throwIO)
 import Network.HTTP.Client.Types
 import Network.Socket (Socket, sClose, HostAddress)
 import qualified Network.Socket as NS
@@ -136,14 +135,14 @@ openSocketConnectionSize :: (Socket -> IO ())
                          -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
-openSocketConnectionSize tweakSocket chunksize hostAddress host port = do
+openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
                         }
-    addrs <- case hostAddress of
+    addrs <- case hostAddress' of
         Nothing ->
-            NS.getAddrInfo (Just hints) (Just host) (Just $ show port)
+            NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
         Just ha ->
             return
                 [NS.AddrInfo
@@ -151,7 +150,7 @@ openSocketConnectionSize tweakSocket chunksize hostAddress host port = do
                  , NS.addrFamily = NS.AF_INET
                  , NS.addrSocketType = NS.Stream
                  , NS.addrProtocol = 6 -- tcp
-                 , NS.addrAddress = NS.SockAddrInet (toEnum port) ha
+                 , NS.addrAddress = NS.SockAddrInet (toEnum port') ha
                  , NS.addrCanonName = Nothing
                  }]
 

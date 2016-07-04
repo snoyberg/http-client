@@ -107,7 +107,7 @@ instance Show Part where
 partBS :: Text              -- ^ Name of the corresponding \<input\>.
        -> BS.ByteString     -- ^ The body for this 'Part'.
        -> Part
-partBS n b = Part n mempty mempty mempty $ return $ RequestBodyBS b
+partBS n b = Part n Data.Monoid.mempty mempty mempty $ return $ RequestBodyBS b
 
 -- | Make a 'Part' whose content is a lazy 'BL.ByteString'.
 --
@@ -225,7 +225,7 @@ renderPart boundary (Part name mfilename mcontenttype hdrs get) = liftM render g
                         <> cp "Content-Type: "
                         <> cp ct
                 _ -> mempty)
-         <> foldMap (\(k, v) ->
+         <> Data.Foldable.foldMap (\(k, v) ->
                cp "\r\n"
             <> cp (CI.original k)
             <> cp ": "

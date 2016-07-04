@@ -7,8 +7,8 @@ import Control.Exception
 import System.IO
 import Data.IORef
 import qualified Data.ByteString as BS
-import Network.HTTP.Client (streamFile, parseUrl, requestBody)
-import Network.HTTP.Client.Internal (dummyConnection, Connection, connectionWrite, requestBuilder)
+import Network.HTTP.Client (streamFile, parseUrlThrow, requestBody)
+import Network.HTTP.Client.Internal (dummyConnection, connectionWrite, requestBuilder)
 import System.Directory (getTemporaryDirectory)
 
 spec :: Spec
@@ -19,11 +19,11 @@ spec = describe "streamFile" $ it "works" $ withTmpFile $ \(path, h) -> do
     withBinaryFile path ReadMode $ \h' -> do
         conn <- verifyFileConnection h'
 
-        req0 <- parseUrl "http://example.com"
+        req0 <- parseUrlThrow "http://example.com"
         body <- streamFile path
         let req = req0 { requestBody = body }
 
-        requestBuilder req conn
+        _ <- requestBuilder req conn
         hIsEOF h' `shouldReturn` True
   where
     withTmpFile = bracket getTmpFile closeTmpFile

@@ -39,7 +39,7 @@ module Network.HTTP.Client.Types
 
 import qualified Data.Typeable as T (Typeable)
 import Network.HTTP.Types
-import Control.Exception (Exception, IOException, SomeException, throwIO)
+import Control.Exception (Exception, SomeException, throwIO)
 import Data.Word (Word64)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -277,7 +277,7 @@ instance Eq CookieJar where
   (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
 
 -- | Since 1.9
-instance Monoid CookieJar where
+instance Data.Monoid.Monoid CookieJar where
   mempty = CJ []
   (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a `mappend` b)
     where compare' c1 c2 =
@@ -358,6 +358,7 @@ simplify (RequestBodyBS bs) = Left (fromIntegral $ S.length bs, fromByteString b
 simplify (RequestBodyBuilder len b) = Left (len, b)
 simplify (RequestBodyStream i gp) = Right (Just i, gp)
 simplify (RequestBodyStreamChunked gp) = Right (Nothing, gp)
+simplify (RequestBodyIO _mbody) = error "FIXME No support for Monoid on RequestBodyIO"
 
 builderToStream :: (Int64, Builder) -> (Maybe Int64, GivesPopper ())
 builderToStream (len, builder) =
@@ -607,7 +608,7 @@ data Response body = Response
     --
     -- Since 0.1.0
     }
-    deriving (Show, Eq, T.Typeable, Functor, Foldable, Traversable)
+    deriving (Show, Eq, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving T.Typeable

@@ -15,7 +15,7 @@ module Network.HTTP.Client.Body
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Types
 import Control.Exception (assert)
-import Data.ByteString (ByteString, empty, uncons)
+import Data.ByteString (empty, uncons)
 import Data.IORef
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -38,23 +38,23 @@ brRead = id
 --
 -- Since 0.4.20
 brReadSome :: BodyReader -> Int -> IO L.ByteString
-brReadSome brRead =
+brReadSome brRead' =
     loop id
   where
-    loop front rem
-        | rem <= 0 = return $ L.fromChunks $ front []
+    loop front rem'
+        | rem' <= 0 = return $ L.fromChunks $ front []
         | otherwise = do
-            bs <- brRead
+            bs <- brRead'
             if S.null bs
                 then return $ L.fromChunks $ front []
-                else loop (front . (bs:)) (rem - S.length bs)
+                else loop (front . (bs:)) (rem' - S.length bs)
 
 brEmpty :: BodyReader
 brEmpty = return S.empty
 
 brAddCleanup :: IO () -> BodyReader -> BodyReader
-brAddCleanup cleanup brRead = do
-    bs <- brRead
+brAddCleanup cleanup brRead' = do
+    bs <- brRead'
     when (S.null bs) cleanup
     return bs
 
@@ -62,17 +62,17 @@ brAddCleanup cleanup brRead = do
 --
 -- Since 0.1.0
 brConsume :: BodyReader -> IO [S.ByteString]
-brConsume brRead =
+brConsume brRead' =
     go id
   where
     go front = do
-        x <- brRead
+        x <- brRead'
         if S.null x
             then return $ front []
             else go (front . (x:))
 
 makeGzipReader :: BodyReader -> IO BodyReader
-makeGzipReader brRead = do
+makeGzipReader brRead' = do
     inf <- Z.initInflate $ Z.WindowBits 31
     istate <- newIORef Nothing
     let goPopper popper = do
@@ -90,7 +90,7 @@ makeGzipReader brRead = do
                             return bs
                 Z.PRError e -> throwHttp $ HttpZlibException e
         start = do
-            bs <- brRead
+            bs <- brRead'
             if S.null bs
                 then return S.empty
                 else do
@@ -195,8 +195,8 @@ makeChunkedReader raw conn@Connection {..} = do
             _ -> Nothing
     parseHex' i bs =
         case uncons bs of
-            Just (w, bs)
-                | Just i' <- toI w -> parseHex' (i * 16 + i') bs
+            Just (w, bs')
+                | Just i' <- toI w -> parseHex' (i * 16 + i') bs'
             _ -> i
 
     toI w

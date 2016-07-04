@@ -13,8 +13,8 @@ module Network.HTTP.Client.TLS
     ) where
 
 import Data.Default.Class
-import Network.HTTP.Client
-import Network.HTTP.Client.Internal
+import Network.HTTP.Client hiding (host, port)
+import Network.HTTP.Client.Internal hiding (host, port)
 import Control.Exception
 import qualified Network.Connection as NC
 import Network.Socket (HostAddress)
