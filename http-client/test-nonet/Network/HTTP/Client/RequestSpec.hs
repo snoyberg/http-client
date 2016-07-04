@@ -112,7 +112,7 @@ spec = do
 
         popper dat = do
             r <- newIORef dat
-            return . atomicModifyIORef' r $ \xs ->
+            return . atomicModifyIORef r $ \xs ->
                 case xs of
                     (x:xs') -> (xs', x)
                     [] -> ([], "")
