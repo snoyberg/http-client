@@ -10,5 +10,5 @@ main :: IO ()
 main = withOpenSSL $ hspec $ do
     it "make a TLS connection" $ do
         manager <- newManager $ opensslManagerSettings SSL.context
-        withResponse "https://httpbin.org/status/418" manager $ \res ->
+        withResponse (parseRequest_ "https://httpbin.org/status/418") manager $ \res ->
             responseStatus res `shouldBe` status418
