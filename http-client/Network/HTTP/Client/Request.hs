@@ -379,16 +379,16 @@ requestBuilder req Connection {..} = do
     toTriple (RequestBodyIO mbody) = mbody >>= toTriple
 
     writeStream mlen withStream =
-        withStream (loop 0) 
+        withStream (loop 0)
       where
         loop !n stream = do
             bs <- stream
             if S.null bs
-                then case mlen of 
+                then case mlen of
                     -- If stream is chunked, no length argument
                     Nothing -> connectionWrite "0\r\n\r\n"
                     -- Not chunked - validate length argument
-                    Just len -> unless (len == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
+                    Just len -> unless (len == n) $ throwHttp $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
                 else do
                     connectionWrite $
                         if (isNothing mlen) -- Chunked
