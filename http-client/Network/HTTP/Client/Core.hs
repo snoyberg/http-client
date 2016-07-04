@@ -236,10 +236,15 @@ httpRedirect' count0 http' req0 = go count0 req0 []
                 -- The connection may already be closed, e.g.
                 -- when using withResponseHistory. See
                 -- https://github.com/snoyberg/http-client/issues/169
-                `catch` \e ->
-                    case unHttpExceptionContentWrapper e of
-                        ConnectionClosed -> return L.empty
-                        _ -> throwIO e
+                `catch` \se ->
+                    case () of
+                      ()
+                        | Just ConnectionClosed <-
+                            fmap unHttpExceptionContentWrapper
+                            (fromException se) -> return L.empty
+                        | Just (HttpExceptionRequest _ ConnectionClosed) <-
+                            fromException se -> return L.empty
+                      _ -> throwIO se
             responseClose res
 
             -- And now perform the actual redirect
