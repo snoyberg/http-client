@@ -3,6 +3,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE BangPatterns #-}
 
 module Network.HTTP.Client.Request
     ( parseUrl
@@ -29,7 +30,7 @@ module Network.HTTP.Client.Request
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
@@ -364,7 +365,7 @@ requestBuilder req Connection {..} = do
     toTriple (RequestBodyStream len stream) = do
         -- See https://github.com/snoyberg/http-client/issues/74 for usage
         -- of flush here.
-        let body = writeStream False stream
+        let body = writeStream (Just . fromIntegral $ len) stream
             -- Don't check for a bad send on the headers themselves.
             -- Ideally, we'd do the same thing for the other request body
             -- types, but it would also introduce a performance hit since
@@ -372,28 +373,32 @@ requestBuilder req Connection {..} = do
             now  = flushHeaders (Just len) >> checkBadSend body
         return (Just len, now, body)
     toTriple (RequestBodyStreamChunked stream) = do
-        let body = writeStream True stream
+        let body = writeStream Nothing stream
             now  = flushHeaders Nothing >> checkBadSend body
         return (Nothing, now, body)
     toTriple (RequestBodyIO mbody) = mbody >>= toTriple
 
-    writeStream isChunked withStream =
-        withStream loop
+    writeStream mlen withStream =
+        withStream (loop 0) 
       where
-        loop stream = do
+        loop !n stream = do
             bs <- stream
             if S.null bs
-                then when isChunked $ connectionWrite "0\r\n\r\n"
+                then case mlen of 
+                    -- If stream is chunked, no length argument
+                    Nothing -> connectionWrite "0\r\n\r\n"
+                    -- Not chunked - validate length argument
+                    Just len -> unless (len == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
                 else do
                     connectionWrite $
-                        if isChunked
+                        if (isNothing mlen) -- Chunked
                             then S.concat
                                 [ S8.pack $ showHex (S.length bs) "\r\n"
                                 , bs
                                 , "\r\n"
                                 ]
                             else bs
-                    loop stream
+                    loop (n + (S.length bs)) stream
 
 
     hh

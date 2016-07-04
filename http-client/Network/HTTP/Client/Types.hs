@@ -197,6 +197,12 @@ data HttpExceptionContent
                    -- to overcome this.
                    --
                    -- @since 0.5.0
+                   | WrongRequestBodyStreamSize Word64 Word64
+                   -- ^ The request body provided did not match the expected size.
+                   --
+                   -- Provides the expected and actual size.
+                   --
+                   -- @since 0.4.31
                    | ResponseBodyTooShort Word64 Word64
                    -- ^ The returned response body is too short. Provides the
                    -- expected size and actual size.

@@ -9,6 +9,10 @@
 * Add the `HttpExceptionRequest` wrapper so that all exceptions related to a
   request are thrown with that request's information
 
+## 0.4.31
+
+* Added length validation for RequestBodyStream [#205](https://github.com/snoyberg/http-client/pull/205)
+
 ## 0.4.30
 
 * Initial implementation of [#193](https://github.com/snoyberg/http-client/issues/193)
