@@ -120,7 +120,11 @@ data HttpException = StatusCodeException Status ResponseHeaders CookieJar
                    | TlsException SomeException
                    | TlsNotSupported
                    | WrongRequestBodyStreamSize Word64 Word64
-                   -- ^ Expected size/actual size
+                   -- ^ The request body provided did not match the expected size.
+                   --
+                   -- Provides the expected and actual size.
+                   --
+                   -- @since 0.4.31
                    | ResponseBodyTooShort Word64 Word64
                    -- ^ Expected size/actual size.
                    --
