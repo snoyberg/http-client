@@ -1,6 +1,6 @@
 name:                http-client
 version:             0.5.0
-synopsis:            An HTTP client engine, intended as a base layer for more user-friendly packages.
+synopsis:            An HTTP client engine
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client
 license:             MIT
