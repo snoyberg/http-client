@@ -4,7 +4,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE BangPatterns #-}
-
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 module Network.HTTP.Client.Request
@@ -24,7 +23,6 @@ module Network.HTTP.Client.Request
     , urlEncodedBody
     , needsGunzip
     , requestBuilder
-    , useDefaultTimeout
     , setRequestIgnoreStatus
     , setQueryString
     , streamFile
@@ -37,11 +35,9 @@ import Data.Maybe (fromMaybe, isJust, isNothing)
 import Data.Monoid (mempty, mappend)
 import Data.String (IsString(..))
 import Data.Char (toLower)
-import Control.Applicative ((<$>))
-import Control.Monad (when, unless, guard)
+import Control.Applicative as A ((<$>))
+import Control.Monad (unless, guard)
 import Numeric (showHex)
-
-import Data.Default.Class (Default (def))
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
@@ -52,22 +48,18 @@ import qualified Data.ByteString.Lazy as L
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
 import qualified Network.HTTP.Types as W
-import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, unEscapeString, isAllowedInURI, isReserved)
+import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIString, unEscapeString, isAllowedInURI)
 
-import Control.Monad.IO.Class (liftIO)
-import Control.Exception (Exception, toException, throw, throwIO, IOException)
+import Control.Exception (throw, throwIO, IOException)
 import qualified Control.Exception as E
 import qualified Data.CaseInsensitive as CI
 import qualified Data.ByteString.Base64 as B64
 
+import Network.HTTP.Client.Body
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Util
-import Network.HTTP.Client.Connection
 
-import Network.HTTP.Client.Util (readDec, (<>))
-import Data.Time.Clock
 import Control.Monad.Catch (MonadThrow, throwM)
-import Data.IORef
 
 import System.IO (withBinaryFile, hTell, hFileSize, Handle, IOMode (ReadMode))
 import Control.Monad (liftM)
@@ -85,22 +77,19 @@ parseUrl = parseUrlThrow
 --
 -- @since 0.4.30
 parseUrlThrow :: MonadThrow m => String -> m Request
-parseUrlThrow s' =
-    case parseURI (encode s) of
-        Just uri -> liftM setMethod (setUri def uri)
-        Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
+parseUrlThrow =
+    liftM yesThrow . parseRequest
   where
-    encode = escapeURIString isAllowedInURI
-    (mmethod, s) =
-        case break (== ' ') s' of
-            (x, ' ':y) | all (\c -> 'A' <= c && c <= 'Z') x -> (Just x, y)
-            _ -> (Nothing, s')
-
-    setMethod req =
-        case mmethod of
-            Nothing -> req
-            Just m -> req { method = S8.pack m }
-
+    yesThrow req = req
+        { checkResponse = \_req res ->
+            let W.Status sci _ = responseStatus res in
+            if 200 <= sci && sci < 300
+                then return ()
+                else do
+                    chunk <- brReadSome (responseBody res) 1024
+                    let res' = fmap (const ()) res
+                    throwHttp $ StatusCodeException res' (L.toStrict chunk)
+        }
 
 -- | Convert a URL into a 'Request'.
 --
@@ -121,10 +110,21 @@ parseUrlThrow s' =
 --
 -- @since 0.4.30
 parseRequest :: MonadThrow m => String -> m Request
-parseRequest =
-    liftM noThrow . parseUrlThrow
+parseRequest s' =
+    case parseURI (encode s) of
+        Just uri -> liftM setMethod (setUri defaultRequest uri)
+        Nothing  -> throwM $ InvalidUrlException s "Invalid URL"
   where
-    noThrow req = req { checkStatus = \_ _ _ -> Nothing }
+    encode = escapeURIString isAllowedInURI
+    (mmethod, s) =
+        case break (== ' ') s' of
+            (x, ' ':y) | all (\c -> 'A' <= c && c <= 'Z') x -> (Just x, y)
+            _ -> (Nothing, s')
+
+    setMethod req =
+        case mmethod of
+            Nothing -> req
+            Just m -> req { method = S8.pack m }
 
 -- | Same as 'parseRequest', but in the cases of a parse error
 -- generates an impure exception. Mostly useful for static strings which
@@ -178,7 +178,7 @@ applyAnyUriBasedAuth uri req =
 -- Return Nothing when there is no auth info in URI.
 extractBasicAuthInfo :: URI -> Maybe (S8.ByteString, S8.ByteString)
 extractBasicAuthInfo uri = do
-    userInfo <- uriUserInfo <$> uriAuthority uri
+    userInfo <- uriUserInfo A.<$> uriAuthority uri
     guard (':' `elem` userInfo)
     let (username, ':':password) = break (==':') . takeWhile (/='@') $ userInfo
     return (toLiteral username, toLiteral password)
@@ -223,40 +223,11 @@ setUri req uri = do
                     False {- HTTP -} -> return 80
                     True {- HTTPS -} -> return 443
 
-instance Show Request where
-    show x = unlines
-        [ "Request {"
-        , "  host                 = " ++ show (host x)
-        , "  port                 = " ++ show (port x)
-        , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (requestHeaders x)
-        , "  path                 = " ++ show (path x)
-        , "  queryString          = " ++ show (queryString x)
-        --, "  requestBody          = " ++ show (requestBody x)
-        , "  method               = " ++ show (method x)
-        , "  proxy                = " ++ show (proxy x)
-        , "  rawBody              = " ++ show (rawBody x)
-        , "  redirectCount        = " ++ show (redirectCount x)
-        , "  responseTimeout      = " ++ show (responseTimeout x)
-        , "  requestVersion       = " ++ show (requestVersion x)
-        , "}"
-        ]
-
--- | Magic value to be placed in a 'Request' to indicate that we should use the
--- timeout value in the @Manager@.
---
--- Since 1.9.3
-useDefaultTimeout :: Maybe Int
-useDefaultTimeout = Just (-3425)
-
 -- | A default request value
 --
 -- @since 0.4.30
 defaultRequest :: Request
-defaultRequest = def { checkStatus = \_ _ _ -> Nothing }
-
-instance Default Request where
-    def = Request
+defaultRequest = Request
         { host = "localhost"
         , port = 80
         , secure = False
@@ -270,27 +241,9 @@ instance Default Request where
         , rawBody = False
         , decompress = browserDecompress
         , redirectCount = 10
-        , checkStatus = \s@(W.Status sci _) hs cookie_jar ->
-            if 200 <= sci && sci < 300
-                then Nothing
-                else Just $ toException $ StatusCodeException s hs cookie_jar
-        , responseTimeout = useDefaultTimeout
-        , getConnectionWrapper = \mtimeout exc f ->
-            case mtimeout of
-                Nothing -> fmap ((,) Nothing) f
-                Just timeout' -> do
-                    before <- getCurrentTime
-                    mres <- timeout timeout' f
-                    case mres of
-                        Nothing -> throwIO exc
-                        Just res -> do
-                            now <- getCurrentTime
-                            let timeSpentMicro = diffUTCTime now before * 1000000
-                                remainingTime = round $ fromIntegral timeout' - timeSpentMicro
-                            if remainingTime <= 0
-                                then throwIO exc
-                                else return (Just remainingTime, res)
-        , cookieJar = Just def
+        , checkResponse = \_ _ -> return ()
+        , responseTimeout = ResponseTimeoutDefault
+        , cookieJar = Just Data.Monoid.mempty
         , requestVersion = W.http11
         , onRequestBodyException = \se ->
             case E.fromException se of
@@ -299,11 +252,13 @@ instance Default Request where
         , requestManagerOverride = Nothing
         }
 
+-- | Parses a URL via 'parseRequest_'
+--
+-- /NOTE/: Prior to version 0.5.0, this instance used 'parseUrlThrow'
+-- instead.
 instance IsString Request where
-    fromString s =
-        case parseUrl s of
-            Left e -> throw e
-            Right r -> r
+    fromString = parseRequest_
+    {-# INLINE fromString #-}
 
 -- | Always decompress a compressed stream.
 alwaysDecompress :: S.ByteString -> Bool
@@ -384,7 +339,7 @@ requestBuilder req Connection {..} = do
     expectContinue   = Just "100-continue" == lookup "Expect" (requestHeaders req)
     checkBadSend f   = f `E.catch` onRequestBodyException req
     writeBuilder     = toByteStringIO connectionWrite
-    writeHeadersWith contentLength = writeBuilder . (builder contentLength `mappend`)
+    writeHeadersWith contentLength = writeBuilder . (builder contentLength `Data.Monoid.mappend`)
     flushHeaders contentLength     = writeHeadersWith contentLength flush
 
     toTriple (RequestBodyLBS lbs) = do
@@ -420,16 +375,16 @@ requestBuilder req Connection {..} = do
     toTriple (RequestBodyIO mbody) = mbody >>= toTriple
 
     writeStream mlen withStream =
-        withStream (loop 0) 
+        withStream (loop 0)
       where
         loop !n stream = do
             bs <- stream
             if S.null bs
-                then case mlen of 
+                then case mlen of
                     -- If stream is chunked, no length argument
                     Nothing -> connectionWrite "0\r\n\r\n"
                     -- Not chunked - validate length argument
-                    Just len -> unless (len == n) $ throwIO $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
+                    Just len -> unless (len == n) $ throwHttp $ WrongRequestBodyStreamSize (fromIntegral len) (fromIntegral n)
                 else do
                     connectionWrite $
                         if (isNothing mlen) -- Chunked
@@ -515,7 +470,7 @@ requestBuilder req Connection {..} = do
 --
 -- @since 0.4.29
 setRequestIgnoreStatus :: Request -> Request
-setRequestIgnoreStatus req = req { checkStatus = \_ _ _ -> Nothing }
+setRequestIgnoreStatus req = req { checkResponse = \_ _ -> return () }
 
 -- | Set the query string to the given key/value pairs.
 --

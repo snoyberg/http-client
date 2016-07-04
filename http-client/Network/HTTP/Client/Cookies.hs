@@ -30,8 +30,6 @@ import qualified Network.PublicSuffixList.Lookup as PSL
 import Data.Text.Encoding (decodeUtf8With)
 import Data.Text.Encoding.Error (lenientDecode)
 
-import qualified Network.HTTP.Client.Request as Req
-import qualified Network.HTTP.Client.Response as Res
 import Network.HTTP.Client.Types as Req
 
 slash :: Integral a => a
@@ -39,7 +37,7 @@ slash = 47 -- '/'
 
 isIpAddress :: BS.ByteString -> Bool
 isIpAddress =
-    go 4
+    go (4 :: Int)
   where
     go 0 bs = BS.null bs
     go rest bs =

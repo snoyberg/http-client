@@ -10,13 +10,11 @@ module Network.HTTP.Client.TLS
       -- * Global manager
     , getGlobalManager
     , setGlobalManager
-      -- * Internal
-    , getTlsConnection
     ) where
 
 import Data.Default.Class
-import Network.HTTP.Client
-import Network.HTTP.Client.Internal
+import Network.HTTP.Client hiding (host, port)
+import Network.HTTP.Client.Internal hiding (host, port)
 import Control.Exception
 import qualified Network.Connection as NC
 import Network.Socket (HostAddress)
@@ -41,27 +39,18 @@ mkManagerSettings tls sock = defaultManagerSettings
         case () of
             ()
                 | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
-                | otherwise -> case fromException e of
-                    Just (_ :: IOException) -> True
-                    _ ->
-                        case fromException e of
-                            -- Note: Some servers will timeout connections by accepting
-                            -- the incoming packets for the new request, but closing
-                            -- the connection as soon as we try to read. To make sure
-                            -- we open a new connection under these circumstances, we
-                            -- check for the NoResponseDataReceived exception.
-                            Just NoResponseDataReceived -> True
-                            Just IncompleteHeaders -> True
-                            _ -> False
-    , managerWrapIOException = 
+                | otherwise -> managerRetryableException defaultManagerSettings e
+    , managerWrapException = \req ->
         let wrapper se =
                 case fromException se of
-                    Just e -> toException $ InternalIOException e
+                    Just (_ :: IOException) -> se'
                     Nothing -> case fromException se of
-                      Just TLS.Terminated{} -> toException $ TlsException se
-                      Just TLS.HandshakeFailed{} -> toException $ TlsException se
-                      Just TLS.ConnectionNotEstablished -> toException $ TlsException se
+                      Just TLS.Terminated{} -> se'
+                      Just TLS.HandshakeFailed{} -> se'
+                      Just TLS.ConnectionNotEstablished -> se'
                       _ -> se
+              where
+                se' = toException $ HttpExceptionRequest req $ InternalException se
          in handle $ throwIO . wrapper
     }
 

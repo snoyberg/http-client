@@ -12,7 +12,7 @@ import Network.HTTP.Client (streamFile)
 import System.IO.Temp (withSystemTempFile)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
-import Network.HTTP.Conduit hiding (port)
+import Network.HTTP.Conduit hiding (port, withManager, withManagerSettings)
 import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Client.MultipartFormData
 import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar, threadDelay)
@@ -25,7 +25,7 @@ import Network.Socket (sClose)
 import qualified Network.BSD
 import CookieTest (cookieTest)
 #if MIN_VERSION_conduit(1,1,0)
-import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), appSink, appSource, ServerSettings)
+import Data.Conduit.Network (runTCPServer, serverSettings, appSink, appSource, ServerSettings)
 import Data.Streaming.Network (bindPortTCP, setAfterBind)
 #define bindPort bindPortTCP
 #else
@@ -53,6 +53,15 @@ import Network.Connection (settingDisableCertificateValidation)
 import Data.Default.Class (def)
 import qualified Data.Aeson as A
 import qualified Network.HTTP.Simple as Simple
+import Data.Monoid (mempty)
+import Control.Monad.Trans.Resource (ResourceT, runResourceT)
+
+-- I'm too lazy to rewrite code below
+withManager :: (Manager -> ResourceT IO a) -> IO a
+withManager = withManagerSettings tlsManagerSettings
+
+withManagerSettings :: ManagerSettings -> (Manager -> ResourceT IO a) -> IO a
+withManagerSettings set f = newManager set >>= (runResourceT . f)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -174,49 +183,49 @@ main = withSocketsDo $ do
         it "throws exception on 404" $ withApp app $ \port -> do
             elbs <- try $ simpleHttp $ concat ["http://127.0.0.1:", show port, "/404"]
             case elbs of
-                Left (StatusCodeException _ _ _) -> return ()
+                Left (HttpExceptionRequest _ StatusCodeException {}) -> return ()
                 _ -> error "Expected an exception"
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
                 response <- httpLbs request manager
                 let setCookie = mk (fromString "Set-Cookie")
                     (setCookieHeaders, _) = partition ((== setCookie) . fst) (NHC.responseHeaders response)
                 liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
         it "redirects set cookies" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookie_redir1"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookie_redir1"]
             withManager $ \manager -> do
                 response <- httpLbs request manager
                 liftIO $ (responseBody response) @?= "nom-nom-nom"
         it "user-defined cookie jar works" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
                 response <- httpLbs (request {redirectCount = 1, cookieJar = Just cookie_jar}) manager
                 liftIO $ (responseBody response) @?= "key=value"
         it "user-defined cookie jar is not ignored when redirection is disabled" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
                 response <- httpLbs (request {redirectCount = 0, cookieJar = Just cookie_jar}) manager
                 liftIO $ (responseBody response) @?= "key=value"
         it "cookie jar is available in response" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
-                response <- httpLbs (request {cookieJar = Just def}) manager
+                response <- httpLbs (request {cookieJar = Just Data.Monoid.mempty}) manager
                 liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
         it "Cookie header isn't touched when no cookie jar supplied" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
             withManager $ \manager -> do
                 let request_headers = (mk "Cookie", "key2=value2") : filter ((/= mk "Cookie") . fst) (NHC.requestHeaders request)
                 response <- httpLbs (request {NHC.requestHeaders = request_headers, cookieJar = Nothing}) manager
                 liftIO $ (responseBody response) @?= "key2=value2"
         it "Response cookie jar is nothing when request cookie jar is nothing" $ withApp app $ \port -> do
-            request <- parseUrl $ concat ["http://127.0.0.1:", show port, "/cookies"]
+            request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookies"]
             withManager $ \manager -> do
                 response <- httpLbs (request {cookieJar = Nothing}) manager
-                liftIO $ (responseCookieJar response) @?= def
+                liftIO $ (responseCookieJar response) @?= mempty
         it "TLS" $ withAppTls app $ \port -> do
-            request <- parseUrl $ "https://127.0.0.1:" ++ show port
+            request <- parseUrlThrow $ "https://127.0.0.1:" ++ show port
             let set = mkManagerSettings
                     def
                         { settingDisableCertificateValidation = True
@@ -228,8 +237,8 @@ main = withSocketsDo $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             --FIXME clearSocketsList
             withManager $ \manager -> do
-                let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port1
-                let Just req2 = parseUrl $ "http://127.0.0.1:" ++ show port2
+                let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port1
+                let Just req2 = parseUrlThrow $ "http://127.0.0.1:" ++ show port2
                 _res1a <- http req1 manager
                 _res1b <- http req1 manager
                 _res2 <- http req2 manager
@@ -238,7 +247,7 @@ main = withSocketsDo $ do
     describe "http" $ do
         it "response body" $ withApp app $ \port -> do
             withManager $ \manager -> do
-                req <- liftIO $ parseUrl $ "http://127.0.0.1:" ++ show port
+                req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- http req manager
                 bss <- responseBody res1 $$+- CL.consume
                 res2 <- httpLbs req manager
@@ -246,21 +255,21 @@ main = withSocketsDo $ do
     describe "DOS protection" $ do
         it "overlong headers" $ overLongHeaders $ \port -> do
             withManager $ \manager -> do
-                let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
+                let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- try $ http req1 manager
                 case res1 of
-                    Left e -> liftIO $ show (e :: SomeException) @?= show OverlongHeaders
+                    Left e -> liftIO $ show (e :: SomeException) @?= show (HttpExceptionRequest req1 OverlongHeaders)
                     _ -> error "Shouldn't have worked"
         it "not overlong headers" $ notOverLongHeaders $ \port -> do
             withManager $ \manager -> do
-                let Just req1 = parseUrl $ "http://127.0.0.1:" ++ show port
+                let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 _ <- httpLbs req1 manager
                 return ()
     describe "redirects" $ do
         it "doesn't double escape" $ redir $ \port -> do
             withManager $ \manager -> do
                 let go (encoded, final) = do
-                        let Just req1 = parseUrl $ concat ["http://127.0.0.1:", show port, "/redir/", encoded]
+                        let Just req1 = parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/redir/", encoded]
                         res <- httpLbs req1 manager
                         liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
                         liftIO $ responseBody res @?= L.fromChunks [TE.encodeUtf8 final]
@@ -272,19 +281,19 @@ main = withSocketsDo $ do
                     , ("hello%20world%3f%23", "hello world?#")
                     ]
         it "TooManyRedirects: redirect request body is preserved" $ withApp app $ \port -> do
-            let Just req = parseUrl $ concat ["http://127.0.0.1:", show port, "/infredir/0"]
+            let Just req = parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/infredir/0"]
             let go (res, i) = liftIO $ responseBody res @?= (L8.pack $ show i)
             E.catch (withManager $ \manager -> do
                 void $ http req{redirectCount=5} manager) $ \e ->
                     case e of
-                        TooManyRedirects redirs ->
+                        HttpExceptionRequest _ (TooManyRedirects redirs) ->
                             mapM_ go (zip redirs [5,4..0 :: Int])
                         _ -> error $ show e
     describe "chunked request body" $ do
         it "works" $ echo $ \port -> do
             withManager $ \manager -> do
                 let go bss = do
-                        let Just req1 = parseUrl $ "POST http://127.0.0.1:" ++ show port
+                        let Just req1 = parseUrlThrow $ "POST http://127.0.0.1:" ++ show port
                             src = sourceList bss
                             lbs = L.fromChunks bss
                         res <- httpLbs req1
@@ -299,7 +308,7 @@ main = withSocketsDo $ do
                     ]
     describe "no status message" $ do
         it "works" $ noStatusMessage $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 res <- httpLbs req manager
                 liftIO $ do
@@ -308,49 +317,49 @@ main = withSocketsDo $ do
 
     describe "response body too short" $ do
         it "throws an exception" $ wrongLength $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show $ ResponseBodyTooShort 50 18)
+                 `shouldBe` Left (show $ HttpExceptionRequest req $ ResponseBodyTooShort 50 18)
 
     describe "chunked response body" $ do
         it "no chunk terminator" $ wrongLengthChunk1 $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show IncompleteHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req IncompleteHeaders))
         it "incomplete chunk" $ wrongLengthChunk2 $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
         it "invalid chunk" $ invalidChunk $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
         it "missing header" $ rawApp
           "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\n\r\n\r\n"
           $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
         it "junk header" $ rawApp
           "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\njunk\r\n\r\n"
           $ \port -> do
-            req <- parseUrl $ "http://127.0.0.1:" ++ show port
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             withManager $ \manager -> do
                 eres <- try $ httpLbs req manager
                 liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show InvalidChunkHeaders)
+                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
     describe "redirect" $ do
         it "ignores large response bodies" $ do
@@ -359,7 +368,7 @@ main = withSocketsDo $ do
                         ["foo"] -> return $ responseLBS status200 [] "Hello World!"
                         _ -> return $ responseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
             withApp' app' $ \port -> withManager $ \manager -> do
-                req <- liftIO $ parseUrl $ "http://127.0.0.1:" ++ show port
+                req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res <- httpLbs req manager
                 liftIO $ do
                     Network.HTTP.Conduit.responseStatus res `shouldBe` status200
@@ -392,7 +401,7 @@ main = withSocketsDo $ do
                     _ <- appSource app' $$ await
                     yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" $$ appSink app'
             withCApp baseHTTP $ \port -> withManager $ \manager -> do
-                req <- liftIO $ parseUrl $ "http://127.0.0.1:" ++ show port
+                req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- httpLbs req manager
                 res2 <- httpLbs req manager
                 liftIO $ res1 @?= res2
@@ -400,33 +409,33 @@ main = withSocketsDo $ do
     describe "hostAddress" $ do
         it "overrides host" $ withApp app $ \port -> do
             entry <- Network.BSD.getHostByName "127.0.0.1"
-            req' <- parseUrl $ "http://example.com:" ++ show port
+            req' <- parseUrlThrow $ "http://example.com:" ++ show port
             let req = req' { hostAddress = Just $ Network.BSD.hostAddress entry }
             res <- withManager $ httpLbs req
             responseBody res @?= "homepage for example.com"
 
     describe "managerResponseTimeout" $ do
         it "works" $ withApp app $ \port -> do
-            req1 <- parseUrl $ "http://localhost:" ++ show port
-            let req2 = req1 { responseTimeout = Just 5000000 }
-            withManagerSettings conduitManagerSettings { managerResponseTimeout = Just 1 } $ \man -> do
+            req1 <- parseUrlThrow $ "http://localhost:" ++ show port
+            let req2 = req1 { responseTimeout = responseTimeoutMicro 5000000 }
+            withManagerSettings tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 1 } $ \man -> do
                 eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
                 case eres1 of
-                    Left (FailedConnectionException _ _) -> return ()
+                    Left (HttpExceptionRequest _ ConnectionTimeout{}) -> return ()
                     _ -> error "Did not time out"
                 _ <- httpLbs req2 man
                 return ()
 
     describe "delayed body" $ do
         it "works" $ withApp app $ \port -> do
-            req <- parseUrl $ "http://localhost:" ++ show port ++ "/delayed"
+            req <- parseUrlThrow $ "http://localhost:" ++ show port ++ "/delayed"
             withManager $ \man -> do
                 _ <- http req man
                 return ()
 
     it "reuse/connection close tries again" $ do
         withAppSettings (setTimeout 1) (const app) $ \port -> do
-            req <- parseUrl $ "http://localhost:" ++ show port
+            req <- parseUrlThrow $ "http://localhost:" ++ show port
             withManager $ \man -> do
                 res1 <- httpLbs req man
                 liftIO $ threadDelay 3000000
@@ -450,7 +459,7 @@ main = withSocketsDo $ do
                     , ("noval", Nothing)
                     ]
             withManager $ \man -> do
-                req <- parseUrl $ "http://localhost:" ++ show port
+                req <- parseUrlThrow $ "http://localhost:" ++ show port
                 _ <- httpLbs (setQueryString qs req) man
                 return ()
             res <- I.readIORef ref
@@ -458,7 +467,7 @@ main = withSocketsDo $ do
 
     describe "Simple" $ do
         it "JSON" $ jsonApp $ \port -> do
-            req <- parseUrl $ "http://localhost:" ++ show port
+            req <- parseUrlThrow $ "http://localhost:" ++ show port
             value <- Simple.httpJSON req
             responseBody value `shouldBe` jsonValue
 
@@ -469,7 +478,7 @@ main = withSocketsDo $ do
                         mapM_ (S.hPutStr tmph) bss
                         hClose tmph
 
-                    let Just req1 = parseUrl $ "POST http://127.0.0.1:" ++ show port
+                    let Just req1 = parseUrlThrow $ "POST http://127.0.0.1:" ++ show port
                         lbs = L.fromChunks bss
                     res <- httpLbs req1
                         { requestBody = RequestBodyIO (streamFile tmpfp)

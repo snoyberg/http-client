@@ -9,7 +9,6 @@ module Network.HTTP.Client.Core
     , httpRaw'
     , responseOpen
     , responseClose
-    , applyCheckStatus
     , httpRedirect
     , httpRedirect'
     ) where
@@ -27,11 +26,10 @@ import Network.HTTP.Client.Cookies
 import Data.Maybe (fromMaybe, isJust)
 import Data.Time
 import Control.Exception
-import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import Data.Monoid
 import Control.Monad (void)
+import System.Timeout (timeout)
 
 -- | Perform a @Request@ using a connection acquired from the given @Manager@,
 -- and then provide the @Response@ to the given function. This function is
@@ -93,11 +91,9 @@ httpRaw' req0 m = do
         Just cj -> do
             now <- getCurrentTime
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
-        Nothing -> return (req', mempty)
+        Nothing -> return (req', Data.Monoid.mempty)
     (timeout', (connRelease, ci, isManaged)) <- getConnectionWrapper
-        req
         (responseTimeout' req)
-        (failedConnectionException req)
         (getConn req m)
 
     -- Originally, we would only test for exceptions when sending the request,
@@ -125,12 +121,31 @@ httpRaw' req0 m = do
                 return (req, res {responseCookieJar = cookie_jar})
             Nothing -> return (req, res)
   where
+    getConnectionWrapper mtimeout f =
+        case mtimeout of
+            Nothing -> fmap ((,) Nothing) f
+            Just timeout' -> do
+                before <- getCurrentTime
+                mres <- timeout timeout' f
+                case mres of
+                    Nothing -> throwHttp ConnectionTimeout
+                    Just res -> do
+                        now <- getCurrentTime
+                        let timeSpentMicro = diffUTCTime now before * 1000000
+                            remainingTime = round $ fromIntegral timeout' - timeSpentMicro
+                        if remainingTime <= 0
+                            then throwHttp ConnectionTimeout
+                            else return (Just remainingTime, res)
 
-    responseTimeout' req
-        | rt == useDefaultTimeout = mResponseTimeout m
-        | otherwise = rt
-      where
-        rt = responseTimeout req
+    responseTimeout' req =
+        case responseTimeout req of
+            ResponseTimeoutDefault ->
+                case mResponseTimeout m of
+                    ResponseTimeoutDefault -> Just 30000000
+                    ResponseTimeoutNone -> Nothing
+                    ResponseTimeoutMicro u -> Just u
+            ResponseTimeoutNone -> Nothing
+            ResponseTimeoutMicro u -> Just u
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -162,17 +177,18 @@ httpRaw' req0 m = do
 --
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
-responseOpen req0 manager' = handle addTlsHostPort $ mWrapIOException manager $ do
+responseOpen req0 manager' = wrapExc $ mWrapException manager req0 $ do
     (req, res) <-
         if redirectCount req0 == 0
             then httpRaw' req0 manager
             else go (redirectCount req0) req0
-    maybe (return res) throwIO =<< applyCheckStatus req (checkStatus req) res
+    checkResponse req req res
+    return res
+        { responseBody = wrapExc (responseBody res)
+        }
   where
+    wrapExc = handle $ throwIO . toHttpException req0
     manager = fromMaybe manager' (requestManagerOverride req0)
-
-    addTlsHostPort (TlsException e) = throwIO $ TlsExceptionHostPort e (host req0) (port req0)
-    addTlsHostPort e = throwIO e
 
     go count req' = httpRedirect'
       count
@@ -181,41 +197,6 @@ responseOpen req0 manager' = handle addTlsHostPort $ mWrapIOException manager $ 
         let mreq = getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
-
--- | Apply 'Request'\'s 'checkStatus' and return resulting exception if any.
-applyCheckStatus
-    :: Request
-    -> (Status -> ResponseHeaders -> CookieJar -> Maybe SomeException)
-    -> Response BodyReader
-    -> IO (Maybe SomeException)
-applyCheckStatus req checkStatus' res =
-    case checkStatus' (responseStatus res) (responseHeaders res) (responseCookieJar res) of
-        Nothing -> return Nothing
-        Just exc -> do
-            exc' <-
-                case fromException exc of
-                    Just (StatusCodeException s hdrs cookie_jar) -> do
-                        lbs <- brReadSome (responseBody res) 1024
-                        return $ toException $ StatusCodeException s (hdrs ++
-                            [ ("X-Response-Body-Start", toStrict' lbs)
-                            , ("X-Request-URL", S.concat
-                                [ method req
-                                , " "
-                                , S8.pack $ show $ getUri req
-                                ])
-                            ]) cookie_jar
-                    _ -> return exc
-            responseClose res
-            return (Just exc')
-  where
-#ifndef MIN_VERSION_bytestring
-#define MIN_VERSION_bytestring(x,y,z) 1
-#endif
-#if MIN_VERSION_bytestring(0,10,0)
-    toStrict' = L.toStrict
-#else
-    toStrict' = S.concat . L.toChunks
-#endif
 
 -- | Redirect loop.
 httpRedirect
@@ -240,7 +221,7 @@ httpRedirect'
      -> IO (Request, Response BodyReader)
 httpRedirect' count0 http' req0 = go count0 req0 []
   where
-    go count _ ress | count < 0 = throwIO $ TooManyRedirects ress
+    go count _ ress | count < 0 = throwHttp $ TooManyRedirects ress
     go count req' ress = do
         (res, req, isRedirect) <- http' req'
         if isRedirect then do
@@ -253,7 +234,15 @@ httpRedirect' count0 http' req0 = go count0 req0 []
                 -- The connection may already be closed, e.g.
                 -- when using withResponseHistory. See
                 -- https://github.com/snoyberg/http-client/issues/169
-                `catch` \(_ :: ConnectionClosed) -> return L.empty
+                `catch` \se ->
+                    case () of
+                      ()
+                        | Just ConnectionClosed <-
+                            fmap unHttpExceptionContentWrapper
+                            (fromException se) -> return L.empty
+                        | Just (HttpExceptionRequest _ ConnectionClosed) <-
+                            fromException se -> return L.empty
+                      _ -> throwIO se
             responseClose res
 
             -- And now perform the actual redirect

@@ -14,7 +14,6 @@ module Network.HTTP.Client.Connection
 import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
-import Control.Exception (throwIO)
 import Network.HTTP.Client.Types
 import Network.Socket (Socket, sClose, HostAddress)
 import qualified Network.Socket as NS
@@ -27,7 +26,7 @@ import Data.Function (fix)
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
     bs <- connectionRead conn
-    when (S.null bs) $ throwIO IncompleteHeaders
+    when (S.null bs) $ throwHttp IncompleteHeaders
     connectionReadLineWith conn bs
 
 -- | Keep dropping input until a blank line is found.
@@ -44,9 +43,9 @@ connectionReadLineWith conn bs0 =
         case S.break (== charLF) bs of
             (_, "") -> do
                 let total' = total + S.length bs
-                when (total' > 4096) $ throwIO OverlongHeaders
+                when (total' > 4096) $ throwHttp OverlongHeaders
                 bs' <- connectionRead conn
-                when (S.null bs') $ throwIO IncompleteHeaders
+                when (S.null bs') $ throwHttp IncompleteHeaders
                 go bs' (front . (bs:)) total'
             (x, S.drop 1 -> y) -> do
                 unless (S.null y) $! connectionUnread conn y
@@ -94,8 +93,7 @@ makeConnection r w c = do
     return $! Connection
         { connectionRead = do
             closed <- readIORef closedVar
-            when closed $
-              throwIO ConnectionClosed
+            when closed $ throwHttp ConnectionClosed
             join $ atomicModifyIORef istack $ \stack ->
               case stack of
                   x:xs -> (xs, return x)
@@ -103,14 +101,12 @@ makeConnection r w c = do
 
         , connectionUnread = \x -> do
             closed <- readIORef closedVar
-            when closed $
-              throwIO ConnectionClosed
+            when closed $ throwHttp ConnectionClosed
             atomicModifyIORef istack $ \stack -> (x:stack, ())
 
         , connectionWrite = \x -> do
             closed <- readIORef closedVar
-            when closed $
-              throwIO ConnectionClosed
+            when closed $ throwHttp ConnectionClosed
             w x
 
         , connectionClose = do
@@ -139,14 +135,14 @@ openSocketConnectionSize :: (Socket -> IO ())
                          -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
-openSocketConnectionSize tweakSocket chunksize hostAddress host port = do
+openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
     let hints = NS.defaultHints {
                           NS.addrFlags = [NS.AI_ADDRCONFIG]
                         , NS.addrSocketType = NS.Stream
                         }
-    addrs <- case hostAddress of
+    addrs <- case hostAddress' of
         Nothing ->
-            NS.getAddrInfo (Just hints) (Just host) (Just $ show port)
+            NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
         Just ha ->
             return
                 [NS.AddrInfo
@@ -154,7 +150,7 @@ openSocketConnectionSize tweakSocket chunksize hostAddress host port = do
                  , NS.addrFamily = NS.AF_INET
                  , NS.addrSocketType = NS.Stream
                  , NS.addrProtocol = 6 -- tcp
-                 , NS.addrAddress = NS.SockAddrInet (toEnum port) ha
+                 , NS.addrAddress = NS.SockAddrInet (toEnum port') ha
                  , NS.addrCanonName = Nothing
                  }]
 

@@ -3,7 +3,6 @@ module Network.HTTP.Client.CookieSpec where
 
 import           Data.Time.Clock
 import           Network.HTTP.Client.Internal
-import           Network.HTTP.Types
 import           Test.Hspec
 
 main :: IO ()

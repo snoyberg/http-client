@@ -111,7 +111,7 @@ module Network.HTTP.Client
     , managerTlsConnection
     , managerResponseTimeout
     , managerRetryableException
-    , managerWrapIOException
+    , managerWrapException
     , managerIdleConnectionCount
     , managerModifyRequest
       -- *** Manager proxy settings
@@ -125,6 +125,11 @@ module Network.HTTP.Client
     , proxyEnvironment
     , proxyEnvironmentNamed
     , defaultProxy
+      -- *** Response timeouts
+    , ResponseTimeout
+    , responseTimeoutMicro
+    , responseTimeoutNone
+    , responseTimeoutDefault
       -- *** Helpers
     , rawConnectionModifySocket
       -- * Request
@@ -153,7 +158,7 @@ module Network.HTTP.Client
     , applyBasicProxyAuth
     , decompress
     , redirectCount
-    , checkStatus
+    , checkResponse
     , responseTimeout
     , cookieJar
     , requestVersion
@@ -179,6 +184,7 @@ module Network.HTTP.Client
     , brConsume
       -- * Misc
     , HttpException (..)
+    , HttpExceptionContent (..)
     , Cookie (..)
     , CookieJar
     , Proxy (..)
@@ -194,7 +200,6 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Types
 
-import Data.Text (Text)
 import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
 import qualified Data.ByteString.Lazy as L
 import Data.Foldable (Foldable)
@@ -202,7 +207,7 @@ import Data.Traversable (Traversable)
 import Network.HTTP.Types (statusCode)
 import GHC.Generics (Generic)
 import Data.Typeable (Typeable)
-import Control.Exception (bracket)
+import Control.Exception (bracket, handle, throwIO)
 
 -- | A datatype holding information on redirected requests and the final response.
 --
@@ -222,7 +227,7 @@ data HistoriedResponse body = HistoriedResponse
     --
     -- Since 0.4.1
     }
-    deriving (Functor, Traversable, Foldable, Show, Typeable, Generic)
+    deriving (Functor, Data.Traversable.Traversable, Data.Foldable.Foldable, Show, Typeable, Generic)
 
 -- | A variant of @responseOpen@ which keeps a history of all redirects
 -- performed in the interim, together with the first 1024 bytes of their
@@ -230,11 +235,15 @@ data HistoriedResponse body = HistoriedResponse
 --
 -- Since 0.4.1
 responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory req0 man = do
+responseOpenHistory req0 man = handle (throwIO . toHttpException req0) $ do
     reqRef <- newIORef req0
     historyRef <- newIORef id
     let go req = do
-            (req', res) <- httpRaw' req man
+            (req', res') <- httpRaw' req man
+            let res = res'
+                    { responseBody = handle (throwIO . toHttpException req0)
+                                            (responseBody res')
+                    }
             case getRedirectedRequest
                     req'
                     (responseHeaders res)
@@ -328,3 +337,26 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
 -- >   print $ responseBody response
 --
+
+
+-- | Specify a response timeout in microseconds
+--
+-- @since 0.5.0
+responseTimeoutMicro :: Int -> ResponseTimeout
+responseTimeoutMicro = ResponseTimeoutMicro
+
+-- | Do not have a response timeout
+--
+-- @since 0.5.0
+responseTimeoutNone :: ResponseTimeout
+responseTimeoutNone = ResponseTimeoutNone
+
+-- | Use the default response timeout
+--
+-- When used on a 'Request', means: use the manager's timeout value
+--
+-- When used on a 'ManagerSettings', means: default to 30 seconds
+--
+-- @since 0.5.0
+responseTimeoutDefault :: ResponseTimeout
+responseTimeoutDefault = ResponseTimeoutDefault

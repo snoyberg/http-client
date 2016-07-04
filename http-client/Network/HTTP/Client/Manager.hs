@@ -10,7 +10,6 @@ module Network.HTTP.Client.Manager
     , closeManager
     , withManager
     , getConn
-    , failedConnectionException
     , defaultManagerSettings
     , rawConnectionModifySocket
     , proxyFromRequest
@@ -30,32 +29,23 @@ import Prelude hiding (catch)
 #endif
 import Control.Applicative ((<|>))
 import Control.Arrow (first)
-import Data.Monoid (mappend)
-import System.IO (hClose, hFlush, IOMode(..))
 import qualified Data.IORef as I
 import qualified Data.Map as Map
 
 import qualified Data.ByteString.Char8 as S8
-import qualified Data.ByteString.Lazy as L
-
-import qualified Blaze.ByteString.Builder as Blaze
 
 import Data.Char (toLower)
 import Data.Text (Text)
 import qualified Data.Text as T
 import Data.Text.Read (decimal)
 
-import Control.Monad.IO.Class (MonadIO, liftIO)
-import Control.Monad (unless, join, when, void, mplus)
-import Control.Exception (mask_, SomeException, bracket, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
+import Control.Monad (unless, join, void)
+import Control.Exception (mask_, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
 import Control.Concurrent (forkIO, threadDelay)
-import Data.Time (UTCTime (..), Day (..), DiffTime, getCurrentTime, addUTCTime)
-import Control.DeepSeq (deepseq)
+import Data.Time (UTCTime (..), getCurrentTime, addUTCTime)
 
 import qualified Network.Socket as NS
 
-import Data.Maybe (mapMaybe)
-import System.IO (Handle)
 import System.Mem.Weak (Weak, deRefWeak)
 import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
@@ -76,12 +66,14 @@ rawConnectionModifySocket :: (NS.Socket -> IO ())
                           -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocket = return . openSocketConnection
 
+{- FIXME was this intended to be exported?
 -- | Same as @rawConnectionModifySocket@, but also takes in a chunk size.
 --
 -- Since 0.4.5
 rawConnectionModifySocketSize :: (NS.Socket -> IO ())
                               -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocketSize = return . openSocketConnectionSize
+-}
 
 -- | Default value for @ManagerSettings@.
 --
@@ -94,14 +86,14 @@ defaultManagerSettings :: ManagerSettings
 defaultManagerSettings = ManagerSettings
     { managerConnCount = 10
     , managerRawConnection = return $ openSocketConnection (const $ return ())
-    , managerTlsConnection = return $ \_ _ _ -> throwIO TlsNotSupported
-    , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwIO TlsNotSupported
-    , managerResponseTimeout = Just 30000000
+    , managerTlsConnection = return $ \_ _ _ -> throwHttp TlsNotSupported
+    , managerTlsProxyConnection = return $ \_ _ _ _ _ _ -> throwHttp TlsNotSupported
+    , managerResponseTimeout = ResponseTimeoutDefault
     , managerRetryableException = \e ->
         case fromException e of
             Just (_ :: IOException) -> True
             _ ->
-                case fromException e of
+                case fmap unHttpExceptionContentWrapper $ fromException e of
                     -- Note: Some servers will timeout connections by accepting
                     -- the incoming packets for the new request, but closing
                     -- the connection as soon as we try to read. To make sure
@@ -110,12 +102,12 @@ defaultManagerSettings = ManagerSettings
                     Just NoResponseDataReceived -> True
                     Just IncompleteHeaders -> True
                     _ -> False
-    , managerWrapIOException =
+    , managerWrapException = \_req ->
         let wrapper se =
                 case fromException se of
-                    Just e -> toException $ InternalIOException e
-                    Nothing -> se
-         in handle $ throwIO . wrapper
+                    Just (_ :: IOException) -> throwHttp $ InternalException se
+                    Nothing -> throwIO se
+         in handle wrapper
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
     , managerProxyInsecure = defaultProxy
@@ -199,7 +191,7 @@ newManager ms = do
             , mTlsConnection = tlsConnection
             , mTlsProxyConnection = tlsProxyConnection
             , mRetryableException = managerRetryableException ms
-            , mWrapIOException = managerWrapIOException ms
+            , mWrapException = managerWrapException ms
             , mIdleConnectionCount = managerIdleConnectionCount ms
             , mModifyRequest = managerModifyRequest ms
             , mSetProxy = \req ->
@@ -252,6 +244,7 @@ reap baton wmapRef =
                     Nothing -> keep
                     Just x -> keep . ((connkey, x):)
 
+    {- FIXME why isn't this being used anymore?
     flushStaleCerts now =
         Map.fromList . mapMaybe flushStaleCerts' . Map.toList
       where
@@ -283,6 +276,7 @@ reap baton wmapRef =
 
         seqDT :: DiffTime -> b -> b
         seqDT = seq
+    -}
 
 neToList :: NonEmptyList a -> [(UTCTime, a)]
 neToList (One a t) = [(t, a)]
@@ -318,7 +312,7 @@ closeManager' connsRef = mask_ $ do
     !m <- I.atomicModifyIORef connsRef $ \x -> (ManagerClosed, x)
     case m of
         ManagerClosed -> return ()
-        ManagerOpen _ m -> mapM_ (nonEmptyMapM_ safeConnClose) $ Map.elems m
+        ManagerOpen _ m' -> mapM_ (nonEmptyMapM_ safeConnClose) $ Map.elems m'
 
 -- | Create, use and close a 'Manager'.
 --
@@ -369,23 +363,15 @@ getManagedConn man key open = mask $ \restore -> do
             I.writeIORef toReuseRef r
             releaseHelper
 
-        releaseHelper = mask $ \restore -> do
+        releaseHelper = mask $ \restore' -> do
             wasReleased <- I.atomicModifyIORef wasReleasedRef $ \x -> (True, x)
             unless wasReleased $ do
                 toReuse <- I.readIORef toReuseRef
-                restore $ case toReuse of
+                restore' $ case toReuse of
                     Reuse -> putSocket man key ci
                     DontReuse -> connectionClose ci
 
     return (connRelease, ci, isManaged)
-
--- | Create an exception to be thrown if the connection for the given request
--- fails.
-failedConnectionException :: Request -> HttpException
-failedConnectionException req =
-    FailedConnectionException host' port'
-  where
-    (_, host', port') = getConnDest req
 
 getConnDest :: Request -> (Bool, String, Int)
 getConnDest req =
@@ -397,13 +383,13 @@ getConnDest req =
 -- secure proxy.
 dropProxyAuthSecure :: Request -> Request
 dropProxyAuthSecure req
-    | secure req && useProxy = req
+    | secure req && useProxy' = req
         { requestHeaders = filter (\(k, _) -> k /= "Proxy-Authorization")
                                   (requestHeaders req)
         }
     | otherwise = req
   where
-    (useProxy, _, _) = getConnDest req
+    (useProxy', _, _) = getConnDest req
 
 getConn :: Request
         -> Manager
@@ -411,29 +397,28 @@ getConn :: Request
 getConn req m
     -- Stop Mac OS X from getting high:
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
-    | S8.null h = throwIO $ InvalidDestinationHost h
+    | S8.null h = throwHttp $ InvalidDestinationHost h
     | otherwise =
         getManagedConn m (ConnKey connKeyHost connport (host req) (port req) (secure req)) $
             wrapConnectExc $ go connaddr connhost connport
   where
     h = host req
-    (useProxy, connhost, connport) = getConnDest req
+    (useProxy', connhost, connport) = getConnDest req
     (connaddr, connKeyHost) =
-        case (hostAddress req, useProxy) of
+        case (hostAddress req, useProxy') of
             (Just ha, False) -> (Just ha, HostAddress ha)
             _ -> (Nothing, HostName $ T.pack connhost)
 
     wrapConnectExc = handle $ \e ->
-        throwIO $ FailedConnectionException2 connhost connport (secure req)
-            (toException (e :: IOException))
+        throwHttp $ ConnectionFailure (toException (e :: IOException))
     go =
-        case (secure req, useProxy) of
+        case (secure req, useProxy') of
             (False, _) -> mRawConnection m
             (True, False) -> mTlsConnection m
             (True, True) ->
                 let ultHost = host req
                     ultPort = port req
-                    proxyAuthorizationHeader = maybe "" (\h -> S8.concat ["Proxy-Authorization: ", h, "\r\n"]) . lookup "Proxy-Authorization" $ requestHeaders req
+                    proxyAuthorizationHeader = maybe "" (\h' -> S8.concat ["Proxy-Authorization: ", h', "\r\n"]) . lookup "Proxy-Authorization" $ requestHeaders req
                     hostHeader = S8.concat ["Host: ", ultHost, (S8.pack $ show ultPort), "\r\n"]
                     connstr = S8.concat
                         [ "CONNECT "
@@ -446,9 +431,9 @@ getConn req m
                         , "\r\n"
                         ]
                     parse conn = do
-                        sh@(StatusHeaders status _ _) <- parseStatusHeaders conn Nothing Nothing
+                        StatusHeaders status _ _ <- parseStatusHeaders conn Nothing Nothing
                         unless (status == status200) $
-                            throwIO $ ProxyConnectException ultHost ultPort $ Right $ StatusCodeException status [] (CJ [])
+                            throwHttp $ ProxyConnectException ultHost ultPort status
                  in mTlsProxyConnection m connstr parse (S8.unpack ultHost)
 
 -- | Get the proxy settings from the @Request@ itself.
@@ -477,8 +462,8 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 -- Since 0.4.7
 proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
                  -> ProxyOverride
-proxyEnvironment mp = ProxyOverride $ \secure ->
-    envHelper (envName secure) $ maybe EHNoProxy EHUseProxy mp
+proxyEnvironment mp = ProxyOverride $ \secure' ->
+    envHelper (envName secure') $ maybe EHNoProxy EHUseProxy mp
 
 envName :: Bool -- ^ secure?
         -> Text
@@ -501,8 +486,8 @@ proxyEnvironmentNamed name =
 --
 -- Since 0.4.7
 defaultProxy :: ProxyOverride
-defaultProxy = ProxyOverride $ \secure ->
-    envHelper (envName secure) EHFromRequest
+defaultProxy = ProxyOverride $ \secure' ->
+    envHelper (envName secure') EHFromRequest
 
 data EnvHelper = EHFromRequest
                | EHNoProxy
@@ -518,7 +503,7 @@ envHelper name eh = do
         Nothing  -> return noEnvProxy
         Just ""  -> return noEnvProxy
         Just str -> do
-            let invalid = throwIO $ InvalidProxyEnvironmentVariable name (T.pack str)
+            let invalid = throwHttp $ InvalidProxyEnvironmentVariable name (T.pack str)
             (p, muserpass) <- maybe invalid return $ do
                 uri <- case U.parseURI str of
                     Just u | U.uriScheme u == "http:" -> return u
@@ -530,7 +515,7 @@ envHelper name eh = do
                 guard $ null $ U.uriFragment uri
 
                 auth <- U.uriAuthority uri
-                port <-
+                port' <-
                     case U.uriPort auth of
                         "" -> Just 80
                         ':':rest ->
@@ -539,7 +524,7 @@ envHelper name eh = do
                                 _ -> Nothing
                         _ -> Nothing
 
-                Just $ (Proxy (S8.pack $ U.uriRegName auth) port, extractBasicAuthInfo uri)
+                Just $ (Proxy (S8.pack $ U.uriRegName auth) port', extractBasicAuthInfo uri)
             return $ \req ->
                 if host req `hasDomainSuffixIn` noProxyDomains
                 then noEnvProxy req
@@ -554,4 +539,4 @@ envHelper name eh = do
           domainSuffixes Nothing = []
           domainSuffixes (Just "") = []
           domainSuffixes (Just no_proxy) = [prefixed $ S8.dropWhile (== ' ') suffix | suffix <- S8.split ',' (S8.pack (map toLower no_proxy)), not (S8.null suffix)]
-          hasDomainSuffixIn host = any (`S8.isSuffixOf` prefixed (S8.map toLower host))
+          hasDomainSuffixIn host' = any (`S8.isSuffixOf` prefixed (S8.map toLower host'))

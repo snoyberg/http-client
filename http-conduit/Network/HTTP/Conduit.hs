@@ -169,11 +169,10 @@ module Network.HTTP.Conduit
     , rawBody
     , decompress
     , redirectCount
-    , checkStatus
+    , checkResponse
     , responseTimeout
     , cookieJar
     , requestVersion
-    , getConnectionWrapper
     , HCC.setQueryString
       -- *** Request body
     , requestBodySource
@@ -201,6 +200,11 @@ module Network.HTTP.Conduit
     , managerConnCount
     , managerResponseTimeout
     , managerTlsConnection
+      -- ** Response timeout
+    , HC.ResponseTimeout
+    , HC.responseTimeoutMicro
+    , HC.responseTimeoutNone
+    , HC.responseTimeoutDefault
       -- * Cookies
     , Cookie(..)
     , CookieJar
@@ -225,6 +229,7 @@ module Network.HTTP.Conduit
     , urlEncodedBody
       -- * Exceptions
     , HttpException (..)
+    , HCC.HttpExceptionContent (..)
     ) where
 
 import qualified Data.ByteString              as S
@@ -234,12 +239,12 @@ import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
 import           Data.Int                     (Int64)
-import           Control.Applicative          ((<$>))
-import           Control.Exception.Lifted     (bracket)
+import           Control.Applicative          as A ((<$>))
 import           Control.Monad.IO.Class       (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
 import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen, responseClose)
+import qualified Network.HTTP.Client          as HC
 import qualified Network.HTTP.Client.Conduit  as HCC
 import           Network.HTTP.Client.Internal (createCookieJar,
                                                destroyCookieJar)
@@ -303,7 +308,7 @@ simpleHttp :: MonadIO m => String -> m L.ByteString
 simpleHttp url = liftIO $ do
     man <- newManager tlsManagerSettings
     req <- liftIO $ parseUrlThrow url
-    responseBody <$> httpLbs (setConnectionClose req) man
+    responseBody A.<$> httpLbs (setConnectionClose req) man
 
 conduitManagerSettings :: ManagerSettings
 conduitManagerSettings = tlsManagerSettings

@@ -5,8 +5,7 @@ module Network.HTTP.Client.Headers
     ( parseStatusHeaders
     ) where
 
-import           Control.Applicative            ((<$>), (<*>))
-import           Control.Exception              (throwIO)
+import           Control.Applicative            as A ((<$>), (<*>))
 import           Control.Monad
 import qualified Data.ByteString                as S
 import qualified Data.ByteString.Char8          as S8
@@ -17,9 +16,7 @@ import           Network.HTTP.Client.Util       (timeout)
 import           Network.HTTP.Types
 import Data.Word (Word8)
 
-charLF, charCR, charSpace, charColon, charPeriod :: Word8
-charLF = 10
-charCR = 13
+charSpace, charColon, charPeriod :: Word8
 charSpace = 32
 charColon = 58
 charPeriod = 46
@@ -32,7 +29,7 @@ parseStatusHeaders conn timeout' cont
   where
     withTimeout = case timeout' of
         Nothing -> id
-        Just  t -> timeout t >=> maybe (throwIO ResponseTimeout) return
+        Just  t -> timeout t >=> maybe (throwHttp ResponseTimeout) return
 
     getStatus = withTimeout next
       where
@@ -48,14 +45,14 @@ parseStatusHeaders conn timeout' cont
         (s, v) <- nextStatusLine
         if statusCode s == 100
             then connectionDropTillBlankLine conn >> return Nothing
-            else Just . StatusHeaders s v <$> parseHeaders 0 id
+            else Just . StatusHeaders s v A.<$> parseHeaders (0 :: Int) id
 
     nextStatusLine :: IO (Status, HttpVersion)
     nextStatusLine = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
         bs <- connectionRead conn
-        when (S.null bs) $ throwIO NoResponseDataReceived
+        when (S.null bs) $ throwHttp NoResponseDataReceived
         connectionReadLineWith conn bs >>= parseStatus 3
 
     parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
@@ -64,9 +61,9 @@ parseStatusHeaders conn timeout' cont
         let (ver, bs2) = S.break (== charSpace) bs
             (code, bs3) = S.break (== charSpace) $ S.dropWhile (== charSpace) bs2
             msg = S.dropWhile (== charSpace) bs3
-        case (,) <$> parseVersion ver <*> readInt code of
+        case (,) <$> parseVersion ver A.<*> readInt code of
             Just (ver', code') -> return (Status code' msg, ver')
-            Nothing -> throwIO $ InvalidStatusLine bs
+            Nothing -> throwHttp $ InvalidStatusLine bs
 
     stripPrefixBS x y
         | x `S.isPrefixOf` y = Just $ S.drop (S.length x) y
@@ -81,7 +78,7 @@ parseStatusHeaders conn timeout' cont
             Just (i, "") -> Just i
             _ -> Nothing
 
-    parseHeaders 100 _ = throwIO OverlongHeaders
+    parseHeaders 100 _ = throwHttp OverlongHeaders
     parseHeaders count front = do
         line <- connectionReadLine conn
         if S.null line
@@ -93,7 +90,7 @@ parseStatusHeaders conn timeout' cont
     parseHeader :: S.ByteString -> IO Header
     parseHeader bs = do
         let (key, bs2) = S.break (== charColon) bs
-        when (S.null bs2) $ throwIO $ InvalidHeader bs
+        when (S.null bs2) $ throwHttp $ InvalidHeader bs
         return (CI.mk $! strip key, strip $! S.drop 1 bs2)
 
     strip = S.dropWhile (== charSpace) . fst . S.spanEnd (== charSpace)

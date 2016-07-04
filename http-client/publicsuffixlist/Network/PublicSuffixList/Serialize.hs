@@ -48,13 +48,13 @@ putTree :: Tree T.Text -> Builder
 putTree = putMap . children
 
 putMap :: Map T.Text (Tree T.Text) -> Builder
-putMap m = foldMap putPair (Map.toList m) `mappend` fromWord8 0
+putMap m = Data.Foldable.foldMap putPair (Map.toList m) `mappend` fromWord8 0
 
 putPair :: (T.Text, Tree T.Text) -> Builder
 putPair (x, y) = putText x `mappend` putTree y
 
 putText :: T.Text -> Builder
-putText t = fromText t `mappend` fromWord8 0
+putText t = fromText t `Data.Monoid.mappend` fromWord8 0
 
 putDataStructure :: DataStructure -> BS.ByteString
 putDataStructure (x, y) = toByteString $ putTree x `mappend` putTree y

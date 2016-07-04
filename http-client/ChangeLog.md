@@ -1,3 +1,14 @@
+## 0.5.0
+
+* Remove `instance Default Request`
+* Modify `instance IsString Request` to use `parseRequest` instead of `parseUrlThrow`
+* Clean up the `HttpException` constructors
+* Rename `checkStatus` to `checkResponse` and modify type
+* Fix the ugly magic constant workaround for responseTimeout
+* Remove `getConnectionWrapper`
+* Add the `HttpExceptionRequest` wrapper so that all exceptions related to a
+  request are thrown with that request's information
+
 ## 0.4.31
 
 * Added length validation for RequestBodyStream [#205](https://github.com/snoyberg/http-client/pull/205)
