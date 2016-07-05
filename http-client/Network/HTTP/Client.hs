@@ -229,10 +229,11 @@ data HistoriedResponse body = HistoriedResponse
 --
 -- Since 0.4.1
 responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory req0 man = handle (throwIO . toHttpException req0) $ do
+responseOpenHistory req0 man0 = handle (throwIO . toHttpException req0) $ do
     reqRef <- newIORef req0
     historyRef <- newIORef id
-    let go req = do
+    let go req0 = do
+            (man, req) <- getModifiedRequestManager man0 req0
             (req', res') <- httpRaw' req man
             let res = res'
                     { responseBody = handle (throwIO . toHttpException req0)

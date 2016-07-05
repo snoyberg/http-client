@@ -7,6 +7,7 @@ module Network.HTTP.Client.Core
     , httpNoBody
     , httpRaw
     , httpRaw'
+    , getModifiedRequestManager
     , responseOpen
     , responseClose
     , httpRedirect
@@ -80,13 +81,13 @@ httpRaw = fmap (fmap snd) . httpRaw'
 
 -- | Get a 'Response' without any redirect following.
 --
--- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
+-- This extended version of 'httpRaw' also returns the potentially modified Request.
 httpRaw'
      :: Request
      -> Manager
      -> IO (Request, Response BodyReader)
 httpRaw' req0 m = do
-    req' <- mModifyRequest m $ mSetProxy m req0
+    let req' = mSetProxy m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
             now <- getCurrentTime
@@ -147,6 +148,19 @@ httpRaw' req0 m = do
             ResponseTimeoutNone -> Nothing
             ResponseTimeoutMicro u -> Just u
 
+-- | The used Manager can be overridden (by requestManagerOverride) and the used
+-- Request can be modified (through managerModifyRequest). This function allows
+-- to retrieve the possibly overridden Manager and the possibly modified
+-- Request.
+--
+-- (In case the Manager is overridden by requestManagerOverride, the Request is
+-- being modified by managerModifyRequest of the new Manager, not the old one.)
+getModifiedRequestManager :: Manager -> Request -> IO (Manager, Request)
+getModifiedRequestManager manager0 req0 = do
+  let manager = fromMaybe manager0 (requestManagerOverride req0)
+  req <- mModifyRequest manager req0
+  return (manager, req)
+
 -- | The most low-level function for initiating an HTTP request.
 --
 -- The first argument to this function gives a full specification
@@ -177,24 +191,26 @@ httpRaw' req0 m = do
 --
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
-responseOpen req0 manager' = wrapExc $ mWrapException manager req0 $ do
-    (req, res) <-
-        if redirectCount req0 == 0
-            then httpRaw' req0 manager
-            else go (redirectCount req0) req0
+responseOpen inputReq manager' = do
+  (manager, req0) <- getModifiedRequestManager manager' inputReq
+  wrapExc req0 $ mWrapException manager req0 $ do
+    (req, res) <- go manager (redirectCount req0) req0
     checkResponse req req res
     return res
-        { responseBody = wrapExc (responseBody res)
+        { responseBody = wrapExc req0 (responseBody res)
         }
   where
-    wrapExc = handle $ throwIO . toHttpException req0
-    manager = fromMaybe manager' (requestManagerOverride req0)
+    wrapExc :: Request -> IO a -> IO a
+    wrapExc req0 = handle $ throwIO . toHttpException req0
 
-    go count req' = httpRedirect'
+    go manager0 count req' = httpRedirect'
       count
       (\req -> do
-        (req'', res) <- httpRaw' req manager
-        let mreq = getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
+        (manager, modReq) <- getModifiedRequestManager manager0 req
+        (req'', res) <- httpRaw' modReq manager
+        let mreq = if redirectCount modReq == 0
+              then Nothing
+              else getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
 
