@@ -1,3 +1,7 @@
+## 0.5.0.1
+
+* Doc fix
+
 ## 0.5.0
 
 * Remove `instance Default Request`
