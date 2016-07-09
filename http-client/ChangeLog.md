@@ -1,3 +1,7 @@
+## 0.5.1
+
+* Enable managerModifyRequest to modify redirectCount [#208](https://github.com/snoyberg/http-client/pull/208)
+
 ## 0.5.0.1
 
 * Doc fix
