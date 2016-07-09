@@ -3,8 +3,9 @@ module Network.HTTP.ClientSpec where
 
 import           Network                   (withSocketsDo)
 import           Network.HTTP.Client
-import           Network.HTTP.Types        (status200, status405)
+import           Network.HTTP.Types        (status200, found302, status405)
 import           Test.Hspec
+import           Control.Applicative       ((<$>))
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
 
 main :: IO ()
@@ -31,15 +32,37 @@ spec = describe "Client" $ do
             res <- httpLbs req man
             responseStatus res `shouldBe` status405
 
-    it "managerModifyRequest" $ do
-        let modify req = return req { port = 80 }
-            settings = defaultManagerSettings { managerModifyRequest = modify }
-        man <- newManager settings
-        res <- httpLbs "http://httpbin.org:1234" man
-        responseStatus res `shouldBe` status200
+    describe "redirects" $ do
+        it "follows redirects" $ do
+            req <- parseRequest "http://httpbin.org/redirect-to?url=http://httpbin.org"
+            man <- newManager defaultManagerSettings
+            res <- httpLbs req man
+            responseStatus res `shouldBe` status200
 
-    it "managerModifyRequestCheckStatus" $ do
-        let modify req = return req { checkResponse = \_ _ -> error "some exception" }
-            settings = defaultManagerSettings { managerModifyRequest = modify }
-        man <- newManager settings
-        httpLbs "http://httpbin.org" man `shouldThrow` anyException
+        it "allows to disable redirect following" $ do
+            req <- (\ r -> r{ redirectCount = 0 }) <$>
+              parseRequest "http://httpbin.org/redirect-to?url=http://httpbin.org"
+            man <- newManager defaultManagerSettings
+            res <- httpLbs req man
+            responseStatus res `shouldBe` found302
+
+    context "managerModifyRequest" $ do
+        it "port" $ do
+            let modify req = return req { port = 80 }
+                settings = defaultManagerSettings { managerModifyRequest = modify }
+            man <- newManager settings
+            res <- httpLbs "http://httpbin.org:1234" man
+            responseStatus res `shouldBe` status200
+
+        it "checkResponse" $ do
+            let modify req = return req { checkResponse = \_ _ -> error "some exception" }
+                settings = defaultManagerSettings { managerModifyRequest = modify }
+            man <- newManager settings
+            httpLbs "http://httpbin.org" man `shouldThrow` anyException
+
+        it "redirectCount" $ do
+            let modify req = return req { redirectCount = 0 }
+                settings = defaultManagerSettings { managerModifyRequest = modify }
+            man <- newManager settings
+            response <- httpLbs "http://httpbin.org/redirect-to?url=foo" man
+            responseStatus response `shouldBe` found302
