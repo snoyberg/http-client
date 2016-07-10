@@ -58,13 +58,21 @@ mkManagerSettings tls sock = defaultManagerSettings
 tlsManagerSettings :: ManagerSettings
 tlsManagerSettings = mkManagerSettings def Nothing
 
+-- | This internal global value is used to avoid needing to
+reinitialize the connection context across managers, and to share the
+context between managerTlsConnection and
+managerTlsProxyConnection. See:
+https://github.com/snoyberg/http-client/issues/214
+connectionContext :: NC.ConnectionContext
+connectionContext = unsafePerformIO NC.initConnectionContext
+{-# NOINLINE connectionContext #-}
+
 getTlsConnection :: Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings
                  -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsConnection tls sock = do
-    context <- NC.initConnectionContext
+getTlsConnection tls sock =
     return $ \_ha host port -> do
-        conn <- NC.connectTo context NC.ConnectionParams
+        conn <- NC.connectTo connectionContext NC.ConnectionParams
             { NC.connectionHostname = host
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = tls
@@ -76,11 +84,10 @@ getTlsProxyConnection
     :: NC.TLSSettings
     -> Maybe NC.SockSettings
     -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsProxyConnection tls sock = do
-    context <- NC.initConnectionContext
+getTlsProxyConnection tls sock =
     return $ \connstr checkConn serverName _ha host port -> do
         --error $ show (connstr, host, port)
-        conn <- NC.connectTo context NC.ConnectionParams
+        conn <- NC.connectTo connectionContext NC.ConnectionParams
             { NC.connectionHostname = serverName
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = Nothing
@@ -95,7 +102,7 @@ getTlsProxyConnection tls sock = do
 
         checkConn conn'
 
-        NC.connectionSetSecure context conn tls
+        NC.connectionSetSecure connectionContext conn tls
 
         return conn'
 
