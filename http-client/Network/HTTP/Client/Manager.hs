@@ -12,6 +12,7 @@ module Network.HTTP.Client.Manager
     , getConn
     , defaultManagerSettings
     , rawConnectionModifySocket
+    , rawConnectionModifySocketSize
     , proxyFromRequest
     , noProxy
     , useProxy
@@ -66,14 +67,13 @@ rawConnectionModifySocket :: (NS.Socket -> IO ())
                           -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocket = return . openSocketConnection
 
-{- FIXME was this intended to be exported?
 -- | Same as @rawConnectionModifySocket@, but also takes in a chunk size.
 --
 -- Since 0.4.5
 rawConnectionModifySocketSize :: (NS.Socket -> IO ())
                               -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocketSize = return . openSocketConnectionSize
--}
+
 
 -- | Default value for @ManagerSettings@.
 --
