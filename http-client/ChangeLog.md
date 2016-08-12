@@ -1,3 +1,7 @@
+## 0.5.2
+
+* Enable rawConnectionModifySocketSize to expose openSocketConnectionSize [#218](https://github.com/snoyberg/http-client/pull/218)
+
 ## 0.5.1
 
 * Enable managerModifyRequest to modify redirectCount [#208](https://github.com/snoyberg/http-client/pull/208)

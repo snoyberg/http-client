@@ -69,7 +69,7 @@ rawConnectionModifySocket = return . openSocketConnection
 
 -- | Same as @rawConnectionModifySocket@, but also takes in a chunk size.
 --
--- Since 0.4.5
+-- @since 0.5.2
 rawConnectionModifySocketSize :: (NS.Socket -> IO ())
                               -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocketSize = return . openSocketConnectionSize
