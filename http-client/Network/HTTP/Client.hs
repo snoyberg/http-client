@@ -126,6 +126,7 @@ module Network.HTTP.Client
     , responseTimeoutDefault
       -- *** Helpers
     , rawConnectionModifySocket
+    , rawConnectionModifySocketSize
       -- * Request
     , parseUrl
     , parseUrlThrow
