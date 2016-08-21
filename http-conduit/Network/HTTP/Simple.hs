@@ -6,17 +6,15 @@
 -- available at
 -- <https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md>.
 --
--- Important note: 'Request' is an instance of 'IsString', and therefore
--- recommended usage is to turn on @OverloadedStrings@, e.g.
+-- Important note: 'H.Request' is an instance of 'Data.String.IsString', and
+-- therefore recommended usage is to turn on @OverloadedStrings@, e.g.
 --
--- @@@
--- {-# LANGUAGE OverloadedStrings #-}
--- import Network.HTTP.Simple
--- import qualified Data.ByteString.Lazy.Char8 as L8
---
--- main :: IO ()
--- main = httpLBS "http://example.com" >>= L8.putStrLn
--- @@@
+-- > {-# LANGUAGE OverloadedStrings #-}
+-- > import Network.HTTP.Simple
+-- > import qualified Data.ByteString.Lazy.Char8 as L8
+-- >
+-- > main :: IO ()
+-- > main = httpLBS "http://example.com" >>= L8.putStrLn
 module Network.HTTP.Simple
     ( -- * Perform requests
       httpLBS
