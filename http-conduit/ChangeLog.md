@@ -1,3 +1,7 @@
+## 2.2.0.1
+
+* Doc fixes
+
 ## 2.2.0
 
 * Upgrade to http-client 0.5
