@@ -91,9 +91,13 @@
 -- >      request' <- parseRequest "http://example.com/secret-page"
 -- >      manager <- newManager tlsManagerSettings
 -- >      let request = request' { cookieJar = Just $ createCookieJar [cookie] }
--- >      (fmap Just (httpLbs request manager)) `E.catch`
--- >              (\(StatusCodeException s _ _) ->
--- >                if statusCode s==403 then (putStrLn "login failed" >> return Nothing) else return Nothing)
+-- >      fmap Just (httpLbs request manager) `E.catch`
+-- >              (\ex -> case ex of
+-- >                  HttpExceptionRequest _ (StatusCodeException res _) ->
+-- >                      if statusCode (responseStatus res) == 403
+-- >                        then (putStrLn "login failed" >> return Nothing)
+-- >                        else return Nothing
+-- >                  _ -> E.throw ex)
 --
 -- Any network code on Windows requires some initialization, and the network
 -- library provides withSocketsDo to perform it. Therefore, proper usage of
