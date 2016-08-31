@@ -1,3 +1,7 @@
+## 0.5.3
+
+* Expose `makeConnection` and `socketConnection` as a stable API [#223](https://github.com/snoyberg/http-client/issues/223)
+
 ## 0.5.2
 
 * Enable rawConnectionModifySocketSize to expose openSocketConnectionSize [#218](https://github.com/snoyberg/http-client/pull/218)

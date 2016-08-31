@@ -177,6 +177,9 @@ module Network.HTTP.Client
     , brRead
     , brReadSome
     , brConsume
+      -- * Advanced connection creation
+    , makeConnection
+    , socketConnection
       -- * Misc
     , HttpException (..)
     , HttpExceptionContent (..)
@@ -188,6 +191,7 @@ module Network.HTTP.Client
     ) where
 
 import Network.HTTP.Client.Body
+import Network.HTTP.Client.Connection (makeConnection, socketConnection)
 import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Core
 import Network.HTTP.Client.Manager

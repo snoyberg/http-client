@@ -9,6 +9,7 @@ module Network.HTTP.Client.Connection
     , openSocketConnection
     , openSocketConnectionSize
     , makeConnection
+    , socketConnection
     ) where
 
 import Data.ByteString (ByteString, empty)
@@ -78,6 +79,9 @@ dummyConnection input0 = do
         , connectionClose = return ()
         }, atomicModifyIORef ioutput $ \output -> ([], output), readIORef iinput)
 
+-- | Create a new 'Connection' from a read, write, and close function.
+--
+-- @since 0.5.3
 makeConnection :: IO ByteString -- ^ read
                -> (ByteString -> IO ()) -- ^ write
                -> IO () -- ^ close
@@ -116,7 +120,12 @@ makeConnection r w c = do
             writeIORef closedVar True
         }
 
-socketConnection :: Socket -> Int -> IO Connection
+-- | Create a new 'Connection' from a 'Socket'.
+--
+-- @since 0.5.3
+socketConnection :: Socket
+                 -> Int -- ^ chunk size
+                 -> IO Connection
 socketConnection socket chunksize = makeConnection
     (recv socket chunksize)
     (sendAll socket)
