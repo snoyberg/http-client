@@ -2,10 +2,11 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.ClientSpec where
 
-import           Control.Concurrent        (forkIO, threadDelay)
+import           Control.Concurrent        (threadDelay)
 import           Control.Concurrent.Async  (withAsync)
 import qualified Control.Concurrent.Async  as Async
 import           Control.Exception         (bracket)
+import qualified Control.Exception         as E
 import           Control.Monad             (forever, replicateM_)
 import           Network.HTTP.Client       hiding (port)
 import qualified Network.HTTP.Client       as NC
@@ -20,6 +21,11 @@ import           Data.ByteString.Lazy.Char8 () -- orphan instance
 main :: IO ()
 main = hspec spec
 
+silentIOError :: IO () -> IO ()
+silentIOError a = a `E.catch` \e -> do
+  let _ = e :: IOError
+  return ()
+
 redirectServer :: (Int -> IO a) -> IO a
 redirectServer inner = bracket
     (N.bindRandomPortTCP "*4")
@@ -28,13 +34,13 @@ redirectServer inner = bracket
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
   where
-    app ad = do
-        _ <- forkIO $ forever $ N.appRead ad
-        forever $ do
+    app ad = Async.race_
+        (silentIOError $ forever (N.appRead ad))
+        (silentIOError $ forever $ do
             N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
             threadDelay 10000
             N.appWrite ad "hello\r\n"
-            threadDelay 10000
+            threadDelay 10000)
 
 redirectCloseServer :: (Int -> IO a) -> IO a
 redirectCloseServer inner = bracket
@@ -46,8 +52,8 @@ redirectCloseServer inner = bracket
   where
     app ad = do
       Async.race_
-          (forever (N.appRead ad))
-          (N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\nConnection: close\r\n\r\nhello")
+          (silentIOError $ forever (N.appRead ad))
+          (silentIOError $ N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\nConnection: close\r\n\r\nhello")
       N.appCloseConnection ad
 
 bad100Server :: Bool -- ^ include extra headers?
@@ -59,15 +65,15 @@ bad100Server extraHeaders inner = bracket
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
   where
-    app ad = do
-        _ <- forkIO $ forever $ N.appRead ad
-        forever $ do
+    app ad = Async.race_
+        (silentIOError $ forever $ N.appRead ad)
+        (silentIOError $ forever $ do
             N.appWrite ad $ S.concat
                 [ "HTTP/1.1 100 Continue\r\n"
                 , if extraHeaders then "foo:bar\r\nbaz: bin\r\n" else ""
                 , "\r\nHTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n"
                 ]
-            threadDelay 10000
+            threadDelay 10000)
 
 earlyClose413 :: (Int -> IO a) -> IO a
 earlyClose413 inner = bracket
@@ -77,7 +83,7 @@ earlyClose413 inner = bracket
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
   where
-    app ad = do
+    app ad = silentIOError $ do
         let readHeaders front = do
                 newBS <- N.appRead ad
                 let bs = S.append front newBS
@@ -108,7 +114,7 @@ serveWith resp inner = bracket
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
   where
-    app ad = do
+    app ad = silentIOError $ do
         let readHeaders front = do
                 newBS <- N.appRead ad
                 let bs = S.append front newBS
@@ -203,7 +209,7 @@ spec = describe "Client" $ do
         let req = req' {redirectCount = 1}
         man <- newManager defaultManagerSettings
         withResponseHistory req man (const $ return ())
-        `shouldThrow` \e ->
-            case e of
-            HttpExceptionRequest _ (TooManyRedirects _) -> True
-            _ -> False
+          `shouldThrow` \e ->
+              case e of
+              HttpExceptionRequest _ (TooManyRedirects _) -> True
+              _ -> False
