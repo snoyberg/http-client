@@ -90,7 +90,12 @@ makeConnection r w c = do
     -- already closed connection.
     closedVar <- newIORef False
 
-    _ <- mkWeakIORef istack c
+    let close = do
+          closed <- atomicModifyIORef closedVar (\closed -> (True, closed))
+          unless closed $
+            c
+
+    _ <- mkWeakIORef istack close
     return $! Connection
         { connectionRead = do
             closed <- readIORef closedVar
@@ -113,11 +118,7 @@ makeConnection r w c = do
               throwIO ConnectionClosed
             w x
 
-        , connectionClose = do
-            closed <- readIORef closedVar
-            unless closed $
-              c
-            writeIORef closedVar True
+        , connectionClose = close
         }
 
 socketConnection :: Socket -> Int -> IO Connection
