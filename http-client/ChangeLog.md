@@ -1,3 +1,8 @@
+## 0.5.3.1
+
+* The closeConnection method for tls connections should not be called multiple
+  times [#225](https://github.com/snoyberg/http-client/issues/225)
+
 ## 0.5.3
 
 * Expose `makeConnection` and `socketConnection` as a stable API [#223](https://github.com/snoyberg/http-client/issues/223)
