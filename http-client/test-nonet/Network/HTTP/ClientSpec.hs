@@ -2,14 +2,15 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.ClientSpec where
 
-import           Control.Concurrent        (threadDelay)
+import           Control.Concurrent        (threadDelay, yield)
 import           Control.Concurrent.Async  (withAsync)
 import qualified Control.Concurrent.Async  as Async
-import           Control.Exception         (bracket)
+import           Control.Exception         (bracket, throwIO, ErrorCall(..))
 import qualified Control.Exception         as E
-import           Control.Monad             (forever, replicateM_)
+import           Control.Monad             (forever, replicateM_, when, unless)
 import           Network.HTTP.Client       hiding (port)
 import qualified Network.HTTP.Client       as NC
+import qualified Network.HTTP.Client.Internal as Internal
 import           Network.HTTP.Types        (status413)
 import           Network.Socket            (sClose)
 import           Test.Hspec
@@ -17,6 +18,8 @@ import qualified Data.Streaming.Network    as N
 import qualified Data.ByteString           as S
 import qualified Data.ByteString.Lazy      as SL
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
+import           Data.IORef
+import           System.Mem                (performGC)
 
 main :: IO ()
 main = hspec spec
@@ -213,3 +216,28 @@ spec = describe "Client" $ do
               case e of
               HttpExceptionRequest _ (TooManyRedirects _) -> True
               _ -> False
+
+    it "should not write to closed connection" $ do
+        -- see https://github.com/snoyberg/http-client/issues/225
+        closedRef <- newIORef False
+        okRef <- newIORef True
+        let checkStatus = do
+              closed <- readIORef closedRef
+              when closed $ do
+                writeIORef okRef False
+
+        conn <- makeConnection
+          (return S.empty)
+          (const checkStatus)
+          (checkStatus >> writeIORef closedRef True)
+
+        Internal.connectionClose conn
+
+        -- let GC release the connection and run finalizers
+        performGC
+        yield
+        performGC
+
+        ok <- readIORef okRef
+        unless ok $
+          throwIO (ErrorCall "already closed")
