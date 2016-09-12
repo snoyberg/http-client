@@ -33,6 +33,7 @@ import Data.Maybe (fromMaybe, isJust)
 import Network.HTTP.Types (status401)
 import Crypto.Hash (hash, Digest, MD5)
 import Control.Arrow ((***))
+import Data.ByteArray.Encoding (convertToBase, Base (Base16))
 
 -- | Create a TLS-enabled 'ManagerSettings' with the given 'NC.TLSSettings' and
 -- 'NC.SockSettings'
@@ -181,7 +182,7 @@ applyDigestAuth user pass req man = liftIO $ do
                 -- we always use no qop or qop=auth
                 ha2 = md5 $ S.concat [method req, ":", path req]
 
-                md5 bs = S8.pack $ show (hash bs :: Digest MD5)
+                md5 bs = convertToBase Base16 (hash bs :: Digest MD5)
             key = "Authorization"
             val = S.concat
                 [ "Digest username=\""

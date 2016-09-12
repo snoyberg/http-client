@@ -4,5 +4,3 @@ packages:
 - http-client-tls
 - http-client-openssl
 - http-conduit
-extra-deps:
-- cryptonite-0.19

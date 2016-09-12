@@ -27,6 +27,7 @@ library
                      , transformers
                      , http-types
                      , cryptonite
+                     , memory
   default-language:    Haskell2010
   ghc-options:         -Wall
 
