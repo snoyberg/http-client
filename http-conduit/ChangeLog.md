@@ -1,3 +1,7 @@
+## 2.2.1
+
+* Add `httpSource` to `Network.HTTP.Simple`
+
 ## 2.2.0.1
 
 * Doc fixes

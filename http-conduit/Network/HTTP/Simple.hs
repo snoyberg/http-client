@@ -21,6 +21,7 @@ module Network.HTTP.Simple
     , httpJSON
     , httpJSONEither
     , httpSink
+    , httpSource
       -- * Types
     , H.Request
     , H.Response
@@ -86,6 +87,7 @@ import qualified Data.Conduit.Attoparsec as C
 import qualified Control.Monad.Catch as Catch
 import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
+import Control.Monad.Trans.Resource (MonadResource)
 
 -- | Perform an HTTP request and return the body as a lazy @ByteString@. Note
 -- that the entire value will be read into memory at once (no lazy I\/O will be
@@ -147,6 +149,46 @@ httpSink req sink = do
         (liftIO . H.responseClose)
         (\res -> bodyReaderSource (getResponseBody res)
             C.$$ sink (fmap (const ()) res))
+
+-- | Perform an HTTP request, and get the response body as a Source.
+--
+-- The second argument to this function tells us how to make the
+-- Source from the Response itself. This allows you to perform actions
+-- with the status or headers, for example, in addition to the raw
+-- bytes themselves. If you just care about the response body, you can
+-- use 'getResponseBody' as the second argument here.
+--
+-- @
+-- \{\-# LANGUAGE OverloadedStrings \#\-}
+-- import           Control.Monad.IO.Class       (liftIO)
+-- import           Control.Monad.Trans.Resource (runResourceT)
+-- import           Data.Conduit                 (($$))
+-- import qualified Data.Conduit.Binary          as CB
+-- import qualified Data.Conduit.List            as CL
+-- import           Network.HTTP.Simple
+-- import           System.IO                    (stdout)
+--
+-- main :: IO ()
+-- main =
+--     runResourceT
+--         $ httpSource "http://httpbin.org/robots.txt" getSrc
+--        $$ CB.sinkHandle stdout
+--   where
+--     getSrc res = do
+--         liftIO $ print (getResponseStatus res, getResponseHeaders res)
+--         getResponseBody res
+-- @
+--
+-- @since 2.2.1
+httpSource :: (MonadResource m, MonadIO n)
+           => H.Request
+           -> (H.Response (C.ConduitM i S.ByteString n ())
+                -> C.ConduitM i o m r)
+           -> C.ConduitM i o m r
+httpSource req withRes = do
+    man <- liftIO H.getGlobalManager
+    C.bracketP (H.responseOpen req man) H.responseClose
+        (withRes . fmap bodyReaderSource)
 
 -- | Alternate spelling of 'httpLBS'
 --
