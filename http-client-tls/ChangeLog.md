@@ -1,3 +1,7 @@
+## 0.3.1
+
+* Add `applyDigestAuth`
+
 ## 0.3.0
 
 * Support http-client 0.5

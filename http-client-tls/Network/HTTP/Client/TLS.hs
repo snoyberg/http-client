@@ -1,4 +1,5 @@
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE OverloadedStrings #-}
 -- | Support for making connections via the connection package and, in turn,
 -- the tls package suite.
 --
@@ -7,6 +8,8 @@ module Network.HTTP.Client.TLS
     ( -- * Settings
       tlsManagerSettings
     , mkManagerSettings
+      -- * Digest authentication
+    , applyDigestAuth
       -- * Global manager
     , getGlobalManager
     , setGlobalManager
@@ -20,8 +23,16 @@ import qualified Network.Connection as NC
 import Network.Socket (HostAddress)
 import qualified Network.TLS as TLS
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import System.IO.Unsafe (unsafePerformIO)
+import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad (guard)
+import qualified Data.CaseInsensitive as CI
+import Data.Maybe (fromMaybe, isJust)
+import Network.HTTP.Types (status401)
+import Crypto.Hash (hash, Digest, MD5)
+import Control.Arrow ((***))
 
 -- | Create a TLS-enabled 'ManagerSettings' with the given 'NC.TLSSettings' and
 -- 'NC.SockSettings'
@@ -125,3 +136,116 @@ getGlobalManager = readIORef globalManager
 -- @since 0.2.4
 setGlobalManager :: Manager -> IO ()
 setGlobalManager = writeIORef globalManager
+
+-- | Apply digest authentication to this request.
+--
+-- Note that this function will need to make an HTTP request to the
+-- server in order to get the nonce, thus the need for a @Manager@ and
+-- to live in @IO@. This also means that the request body will be sent
+-- to the server. If the request body in the supplied @Request@ can
+-- only be read once, you should replace it with a dummy value.
+--
+-- In the event of successfully generating a digest, this will return
+-- a @Just@ value. If there is any problem with generating the digest,
+-- it will return @Nothing@.
+--
+-- @since 0.3.1
+applyDigestAuth :: MonadIO m
+                => S.ByteString -- ^ username
+                -> S.ByteString -- ^ password
+                -> Request
+                -> Manager
+                -> m (Maybe Request)
+applyDigestAuth user pass req man = liftIO $ do
+    res <- httpNoBody req man
+    return $ do
+        guard $ responseStatus res == status401
+        h1 <- lookup "WWW-Authenticate" $ responseHeaders res
+        h2 <- stripCI "Digest " h1
+        let pieces = map (strip *** strip) (toPairs h2)
+        realm <- lookup "realm" pieces
+        nonce <- lookup "nonce" pieces
+        let qop = isJust $ lookup "qop" pieces
+            digest
+                | qop = md5 $ S.concat
+                    [ ha1
+                    , ":"
+                    , nonce
+                    , ":00000001:deadbeef:auth:"
+                    , ha2
+                    ]
+                | otherwise = md5 $ S.concat [ha1, ":", nonce, ":", ha2]
+              where
+                ha1 = md5 $ S.concat [user, ":", realm, ":", pass]
+
+                -- we always use no qop or qop=auth
+                ha2 = md5 $ S.concat [method req, ":", path req]
+
+                md5 bs = S8.pack $ show (hash bs :: Digest MD5)
+            key = "Authorization"
+            val = S.concat
+                [ "Digest username=\""
+                , user
+                , "\", realm=\""
+                , realm
+                , "\", nonce=\""
+                , nonce
+                , "\", uri=\""
+                , path req
+                , "\", response=\""
+                , digest
+                , "\""
+                -- FIXME algorithm?
+                , case lookup "opaque" pieces of
+                    Nothing -> ""
+                    Just o -> S.concat [", opaque=\"", o, "\""]
+                , if qop
+                    then ", qop=auth, nc=00000001, cnonce=\"deadbeef\""
+                    else ""
+                ]
+        return req
+            { requestHeaders = (key, val)
+                             : filter
+                                    (\(x, _) -> x /= key)
+                                    (requestHeaders req)
+            , cookieJar = Just $ responseCookieJar res
+            }
+  where
+    stripCI x y
+        | CI.mk x == CI.mk (S.take len y) = Just $ S.drop len y
+        | otherwise = Nothing
+      where
+        len = S.length x
+
+    _comma = 44
+    _equal = 61
+    _dquot = 34
+    _space = 32
+
+    strip = fst . S.spanEnd (== _space) . S.dropWhile (== _space)
+
+    toPairs bs0
+        | S.null bs0 = []
+        | otherwise =
+            let bs1 = S.dropWhile (== _space) bs0
+                (key, bs2) = S.break (\w -> w == _equal || w == _comma) bs1
+             in case () of
+                  ()
+                    | S.null bs2 -> [(key, "")]
+                    | S.head bs2 == _equal ->
+                        let (val, rest) = parseVal $ S.tail bs2
+                         in (key, val) : toPairs rest
+                    | otherwise ->
+                        assert (S.head bs2 == _comma) $
+                        (key, "") : toPairs (S.tail bs2)
+
+    parseVal bs0 = fromMaybe (parseUnquoted bs0) $ do
+        guard $ not $ S.null bs0
+        guard $ S.head bs0 == _dquot
+        let (x, y) = S.break (== _dquot) $ S.tail bs0
+        guard $ not $ S.null y
+        Just (x, S.drop 1 $ S.dropWhile (/= _comma) y)
+
+    parseUnquoted bs =
+        let (x, y) = S.break (== _comma) bs
+         in (x, S.drop 1 y)
