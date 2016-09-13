@@ -8,6 +8,7 @@ module Network.HTTP.Client.TLS
     ( -- * Settings
       tlsManagerSettings
     , mkManagerSettings
+    , mkManagerSettingsContext
       -- * Digest authentication
     , applyDigestAuth
       -- * Global manager
@@ -40,13 +41,28 @@ import Data.ByteArray.Encoding (convertToBase, Base (Base16))
 mkManagerSettings :: NC.TLSSettings
                   -> Maybe NC.SockSettings
                   -> ManagerSettings
-mkManagerSettings tls sock = defaultManagerSettings
-    { managerTlsConnection = getTlsConnection (Just tls) sock
-    , managerTlsProxyConnection = getTlsProxyConnection tls sock
+mkManagerSettings = mkManagerSettingsContext Nothing
+
+-- | Same as 'mkManagerSettings', but also takes an optional
+-- 'NC.ConnectionContext'. Providing this externally can be an
+-- optimization, though that may change in the future. For more
+-- information, see:
+--
+-- <https://github.com/snoyberg/http-client/pull/227>
+--
+-- @since 0.3.2
+mkManagerSettingsContext
+    :: Maybe NC.ConnectionContext
+    -> NC.TLSSettings
+    -> Maybe NC.SockSettings
+    -> ManagerSettings
+mkManagerSettingsContext mcontext tls sock = defaultManagerSettings
+    { managerTlsConnection = getTlsConnection mcontext (Just tls) sock
+    , managerTlsProxyConnection = getTlsProxyConnection mcontext tls sock
     , managerRawConnection =
         case sock of
             Nothing -> managerRawConnection defaultManagerSettings
-            Just _ -> getTlsConnection Nothing sock
+            Just _ -> getTlsConnection mcontext Nothing sock
     , managerRetryableException = \e ->
         case () of
             ()
@@ -70,11 +86,12 @@ mkManagerSettings tls sock = defaultManagerSettings
 tlsManagerSettings :: ManagerSettings
 tlsManagerSettings = mkManagerSettings def Nothing
 
-getTlsConnection :: Maybe NC.TLSSettings
+getTlsConnection :: Maybe NC.ConnectionContext
+                 -> Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings
                  -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsConnection tls sock = do
-    context <- NC.initConnectionContext
+getTlsConnection mcontext tls sock = do
+    context <- maybe NC.initConnectionContext return mcontext
     return $ \_ha host port -> do
         conn <- NC.connectTo context NC.ConnectionParams
             { NC.connectionHostname = host
@@ -85,11 +102,12 @@ getTlsConnection tls sock = do
         convertConnection conn
 
 getTlsProxyConnection
-    :: NC.TLSSettings
+    :: Maybe NC.ConnectionContext
+    -> NC.TLSSettings
     -> Maybe NC.SockSettings
     -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
-getTlsProxyConnection tls sock = do
-    context <- NC.initConnectionContext
+getTlsProxyConnection mcontext tls sock = do
+    context <- maybe NC.initConnectionContext return mcontext
     return $ \connstr checkConn serverName _ha host port -> do
         --error $ show (connstr, host, port)
         conn <- NC.connectTo context NC.ConnectionParams

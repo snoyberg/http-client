@@ -1,3 +1,7 @@
+## 0.3.2
+
+* Add `mkManagerSettingsContext` [#228](https://github.com/snoyberg/http-client/issues/228)
+
 ## 0.3.1.1
 
 * Minor doc updates
