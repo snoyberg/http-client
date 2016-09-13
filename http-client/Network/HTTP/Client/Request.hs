@@ -273,6 +273,10 @@ browserDecompress = (/= "application/x-tar")
 --
 -- >  applyBasicAuth "user" "pass" $ parseRequest_ url
 --
+-- NOTE: The function @applyDigestAuth@ is provided by the @http-client-tls@
+-- package instead of this package due to extra dependencies. Please use that
+-- package if you need to use digest authentication.
+--
 -- Since 0.1.0
 applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
 applyBasicAuth user passwd req =
