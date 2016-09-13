@@ -24,7 +24,6 @@ import qualified Network.Connection as NC
 import Network.Socket (HostAddress)
 import qualified Network.TLS as TLS
 import qualified Data.ByteString as S
-import qualified Data.ByteString.Char8 as S8
 import Data.IORef (IORef, newIORef, readIORef, writeIORef)
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
