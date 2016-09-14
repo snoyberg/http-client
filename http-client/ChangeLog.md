@@ -1,3 +1,7 @@
+## 0.5.3.2
+
+* Minor doc updates
+
 ## 0.5.3.1
 
 * The closeConnection method for tls connections should not be called multiple

@@ -1,3 +1,7 @@
+## 0.2.0.4
+
+* Minor doc updates
+
 ## 0.2.0.3
 
 * Simplified a test case

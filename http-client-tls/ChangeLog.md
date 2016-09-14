@@ -1,3 +1,7 @@
+## 0.3.1.1
+
+* Minor doc updates
+
 ## 0.3.1
 
 * Add `applyDigestAuth`
