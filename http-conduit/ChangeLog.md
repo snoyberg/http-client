@@ -1,3 +1,7 @@
+## 2.2.2
+
+* Add `httpNoBody` to `Network.HTTP.Simple`
+
 ## 2.2.1
 
 * Add `httpSource` to `Network.HTTP.Simple`

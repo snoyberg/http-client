@@ -18,6 +18,7 @@
 module Network.HTTP.Simple
     ( -- * Perform requests
       httpLBS
+    , httpNoBody
     , httpJSON
     , httpJSONEither
     , httpSink
@@ -98,6 +99,14 @@ httpLBS :: MonadIO m => H.Request -> m (H.Response L.ByteString)
 httpLBS req = liftIO $ do
     man <- H.getGlobalManager
     H.httpLbs req man
+
+-- | Perform an HTTP request and ignore the response body.
+--
+-- @since 2.2.2
+httpNoBody :: MonadIO m => H.Request -> m (H.Response ())
+httpNoBody req = liftIO $ do
+    man <- H.getGlobalManager
+    H.httpNoBody req man
 
 -- | Perform an HTTP request and parse the body as JSON. In the event of an
 -- JSON parse errors, a 'JSONException' runtime exception will be thrown.
