@@ -6,8 +6,7 @@ These packages provide a low level HTTP client engine (http-client), different
 backends for providing SSL support (http-client-tls and http-client-openssl),
 and higher-level APIs for user convenience (http-conduit).
 
-If you're just getting started, it is recommended to use http-conduit, which
-[is documented in the Yesod book](http://www.yesodweb.com/book/http-conduit).
+Please check out the [tutorial on haskell-lang](https://haskell-lang.org/library/http-client).
 
 Due to Haddock pulling the documentation directly from http-client, some "Since"
 notations give the version numbers of the http-client package. For reference,

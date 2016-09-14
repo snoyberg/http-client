@@ -2,7 +2,7 @@ http-client
 ===========
 
 Full tutorial docs are available at:
-https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md
+https://haskell-lang.org/library/http-client
 
 An HTTP client engine, intended as a base layer for more user-friendly packages.
 

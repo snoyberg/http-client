@@ -12,7 +12,7 @@
 -- support for things like JSON request and response bodies. For most users,
 -- this will be an easier place to start. You can read the tutorial at:
 --
--- https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md
+-- https://haskell-lang.org/library/http-client
 --
 -- = Lower-level API
 --

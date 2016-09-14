@@ -4,7 +4,7 @@
 {-# LANGUAGE OverloadedStrings  #-}
 -- | Simplified interface for common HTTP client interactions. Tutorial
 -- available at
--- <https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md>.
+-- <https://haskell-lang.org/library/http-client>
 --
 -- Important note: 'H.Request' is an instance of 'Data.String.IsString', and
 -- therefore recommended usage is to turn on @OverloadedStrings@, e.g.

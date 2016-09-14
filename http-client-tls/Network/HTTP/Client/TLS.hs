@@ -3,7 +3,7 @@
 -- | Support for making connections via the connection package and, in turn,
 -- the tls package suite.
 --
--- Recommended reading: <https://github.com/commercialhaskell/jump/blob/master/doc/http-client.md>
+-- Recommended reading: <https://haskell-lang.org/library/http-client>
 module Network.HTTP.Client.TLS
     ( -- * Settings
       tlsManagerSettings
