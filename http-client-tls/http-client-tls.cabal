@@ -1,5 +1,5 @@
 name:                http-client-tls
-version:             0.3.2
+version:             0.3.3
 synopsis:            http-client backend using the connection package and tls library
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <https://www.stackage.org/package/http-client-tls>.
 homepage:            https://github.com/snoyberg/http-client
@@ -28,6 +28,7 @@ library
                      , http-types
                      , cryptonite
                      , memory
+                     , exceptions
   default-language:    Haskell2010
   ghc-options:         -Wall
 
