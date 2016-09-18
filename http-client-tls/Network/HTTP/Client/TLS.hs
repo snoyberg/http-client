@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -14,6 +15,7 @@ module Network.HTTP.Client.TLS
     , applyDigestAuth
     , DigestAuthException (..)
     , DigestAuthExceptionDetails (..)
+    , displayDigestAuthException
       -- * Global manager
     , getGlobalManager
     , setGlobalManager
@@ -167,7 +169,35 @@ setGlobalManager = writeIORef globalManager
 data DigestAuthException
     = DigestAuthException Request (Response ()) DigestAuthExceptionDetails
     deriving (Show, Typeable)
-instance Exception DigestAuthException
+instance Exception DigestAuthException where
+#if MIN_VERSION_base(4, 8, 0)
+    displayException = displayDigestAuthException
+#endif
+
+-- | User friendly display of a 'DigestAuthException'
+--
+-- @since 0.3.3
+displayDigestAuthException :: DigestAuthException -> String
+displayDigestAuthException (DigestAuthException req res det) = concat
+    [ "Unable to submit digest credentials due to: "
+    , details
+    , ".\n\nRequest: "
+    , show req
+    , ".\n\nResponse: "
+    , show res
+    ]
+  where
+    details =
+        case det of
+            UnexpectedStatusCode -> "received unexpected status code"
+            MissingWWWAuthenticateHeader ->
+                "missing WWW-Authenticate response header"
+            WWWAuthenticateIsNotDigest ->
+                "WWW-Authenticate response header does not indicate Digest"
+            MissingRealm ->
+                "WWW-Authenticate response header does include realm"
+            MissingNonce ->
+                "WWW-Authenticate response header does include nonce"
 
 -- | Detailed explanation for failure for 'DigestAuthException'
 --
@@ -178,7 +208,7 @@ data DigestAuthExceptionDetails
     | WWWAuthenticateIsNotDigest
     | MissingRealm
     | MissingNonce
-    deriving (Show, Typeable)
+    deriving (Show, Read, Typeable, Eq, Ord)
 
 -- | Apply digest authentication to this request.
 --

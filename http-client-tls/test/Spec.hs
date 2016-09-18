@@ -3,6 +3,7 @@ import Test.Hspec
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 import Network.HTTP.Types
+import Control.Monad (join)
 
 main :: IO ()
 main = hspec $ do
@@ -13,10 +14,16 @@ main = hspec $ do
 
     it "digest authentication" $ do
         man <- newManager defaultManagerSettings
-        Just req <- applyDigestAuth
+        req <- join $ applyDigestAuth
             "user"
             "passwd"
             "http://httpbin.org/digest-auth/qop/user/passwd"
             man
         response <- httpNoBody req man
         responseStatus response `shouldBe` status200
+
+    it "incorrect digest authentication" $ do
+        man <- newManager defaultManagerSettings
+        join (applyDigestAuth "user" "passwd" "http://httpbin.org/" man)
+            `shouldThrow` \(DigestAuthException _ _ det) ->
+                det == UnexpectedStatusCode
