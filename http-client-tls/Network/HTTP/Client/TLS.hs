@@ -146,7 +146,16 @@ convertConnection conn = makeConnection
 
 -- | Evil global manager, to make life easier for the common use case
 globalManager :: IORef Manager
-globalManager = unsafePerformIO (newManager tlsManagerSettings >>= newIORef)
+globalManager = unsafePerformIO $ do
+    -- We may decide in the future to just have a global
+    -- ConnectionContext and use it directly in tlsManagerSettings, at
+    -- which point this can again be a simple (newManager
+    -- tlsManagerSettings >>= newIORef). See:
+    -- https://github.com/snoyberg/http-client/pull/227.
+    context <- NC.initConnectionContext
+    let settings = mkManagerSettingsContext (Just context) def Nothing
+    manager <- newManager settings
+    newIORef manager
 {-# NOINLINE globalManager #-}
 
 -- | Get the current global 'Manager'

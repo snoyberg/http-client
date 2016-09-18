@@ -1,6 +1,7 @@
 ## 0.3.3
 
 * Add `DigestAuthException` and generalize `applyDigestAuth`
+* Global manager uses a shared TLS context (faster init)
 
 ## 0.3.2
 
