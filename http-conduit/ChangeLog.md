@@ -1,3 +1,8 @@
+## 2.2.2.1
+
+* setRequestBodyJSON works with aeson's toEncoding function (>= 0.11)
+  [#230](https://github.com/snoyberg/http-client/pull/230)
+
 ## 2.2.2
 
 * Add `httpNoBody` to `Network.HTTP.Simple`
