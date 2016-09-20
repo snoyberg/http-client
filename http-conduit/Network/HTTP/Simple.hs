@@ -303,7 +303,7 @@ setRequestBodyJSON x req =
     req { H.requestHeaders
             = (H.hContentType, "application/json; charset=utf-8")
             : filter (\(y, _) -> y /= H.hContentType) (H.requestHeaders req)
-        , H.requestBody = H.RequestBodyLBS $ A.encode $ A.toJSON x
+        , H.requestBody = H.RequestBodyLBS $ A.encode x
         }
 
 -- | Set the request body as a lazy @ByteString@
