@@ -4,7 +4,7 @@ and no support for TLS (HTTPS).
 ## API docs
 
 The API documentation can be found
-[here](https://www.stackage.org/lts-5.17/package/http-client-0.4.28).
+[here](https://www.stackage.org/lts/package/http-client).
 
 ## Basic usage
 
