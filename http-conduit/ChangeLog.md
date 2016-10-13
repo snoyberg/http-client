@@ -1,3 +1,7 @@
+## 2.2.3
+
+* Add `withResponse` to `Network.HTTP.Simple`
+
 ## 2.2.2.1
 
 * setRequestBodyJSON works with aeson's toEncoding function (>= 0.11)

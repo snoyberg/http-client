@@ -23,6 +23,7 @@ module Network.HTTP.Simple
     , httpJSONEither
     , httpSink
     , httpSource
+    , withResponse
       -- * Types
     , H.Request
     , H.Response
@@ -197,6 +198,25 @@ httpSource :: (MonadResource m, MonadIO n)
 httpSource req withRes = do
     man <- liftIO H.getGlobalManager
     C.bracketP (H.responseOpen req man) H.responseClose
+        (withRes . fmap bodyReaderSource)
+
+-- | Perform an action with the given request. This employes the
+-- bracket pattern.
+--
+-- This is similar to 'httpSource', but does not require
+-- 'MonadResource' and allows the result to not contain a 'C.ConduitM'
+-- value.
+--
+-- @since 2.2.3
+withResponse :: (MonadIO m, Catch.MonadMask m, MonadIO n)
+             => H.Request
+             -> (H.Response (C.ConduitM i S.ByteString n ()) -> m a)
+             -> m a
+withResponse req withRes = do
+    man <- liftIO H.getGlobalManager
+    Catch.bracket
+        (liftIO (H.responseOpen req man))
+        (liftIO . H.responseClose)
         (withRes . fmap bodyReaderSource)
 
 -- | Alternate spelling of 'httpLBS'
