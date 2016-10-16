@@ -33,3 +33,10 @@ main = withOpenSSL $ hspec $ do
                 { checkStatus = \_ _ _ -> Nothing
                 } manager (const (pure ()))
         action `shouldThrow` anyException
+
+    it "BadSSL: we do have case-insensitivity though" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        withResponse "https://BADSSL.COM"
+            { checkStatus = \_ _ _ -> Nothing
+            } manager $ \res -> do
+            responseStatus res `shouldBe` status200
