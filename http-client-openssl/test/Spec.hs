@@ -15,28 +15,20 @@ main = withOpenSSL $ hspec $ do
 
     it "BadSSL: expired" $ do
         manager <- newManager $ opensslManagerSettings SSL.context
-        let action = withResponse "https://expired.badssl.com/"
-                { checkStatus = \_ _ _ -> Nothing
-                } manager (const (pure ()))
+        let action = withResponse "https://expired.badssl.com/" manager (const (return ()))
         action `shouldThrow` anyException
 
     it "BadSSL: self-signed" $ do
         manager <- newManager $ opensslManagerSettings SSL.context
-        let action = withResponse "https://self-signed.badssl.com/"
-                { checkStatus = \_ _ _ -> Nothing
-                } manager (const (pure ()))
+        let action = withResponse "https://self-signed.badssl.com/" manager (const (return ()))
         action `shouldThrow` anyException
 
     it "BadSSL: wrong.host" $ do
         manager <- newManager $ opensslManagerSettings SSL.context
-        let action = withResponse "https://wrong.host.badssl.com/"
-                { checkStatus = \_ _ _ -> Nothing
-                } manager (const (pure ()))
+        let action = withResponse "https://wrong.host.badssl.com/" manager (const (return ()))
         action `shouldThrow` anyException
 
     it "BadSSL: we do have case-insensitivity though" $ do
         manager <- newManager $ opensslManagerSettings SSL.context
-        withResponse "https://BADSSL.COM"
-            { checkStatus = \_ _ _ -> Nothing
-            } manager $ \res -> do
+        withResponse "https://BADSSL.COM" manager $ \res ->
             responseStatus res `shouldBe` status200
