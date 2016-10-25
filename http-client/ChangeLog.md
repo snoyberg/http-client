@@ -1,3 +1,7 @@
+## 0.5.3.3
+
+* Add missing colon in Host header [#235](https://github.com/snoyberg/http-client/pull/235)
+
 ## 0.5.3.2
 
 * Minor doc updates
