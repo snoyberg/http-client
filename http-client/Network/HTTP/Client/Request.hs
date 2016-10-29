@@ -108,6 +108,9 @@ parseUrlThrow =
 --
 -- Note that the request method must be provided as all capital letters.
 --
+-- 'Request' created by this function won't cause exceptions on non-2XX
+-- response status codes.
+--
 -- @since 0.4.30
 parseRequest :: MonadThrow m => String -> m Request
 parseRequest s' =
@@ -399,7 +402,6 @@ requestBuilder req Connection {..} = do
                                 ]
                             else bs
                     loop (n + (S.length bs)) stream
-
 
     hh
         | port req == 80 && not (secure req) = host req
