@@ -80,7 +80,7 @@ import Control.Monad.IO.Class (MonadIO, liftIO)
 import Data.Aeson (FromJSON (..), Value)
 import Data.Aeson.Parser (json')
 import qualified Data.Aeson.Types as A
-import qualified Data.Aeson.Encode as A
+import qualified Data.Aeson as A
 import qualified Data.Traversable as T
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)

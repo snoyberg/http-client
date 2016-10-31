@@ -86,8 +86,9 @@ with this language extension enabled.
 
 There are a few important caveats to mention about this library:
 
-* By default, any non-2XX status code response results in a runtime exception.
-  See the examples of `setRequestIgnoreStatus` below for more information
+* By default, any non-2XX status code response won't result in a runtime
+  exception contrary to previous behaviour of the library (before version
+  0.5).
 * By default, http-client will respect the `http_proxy` and `https_proxy`
   environment variables. See the proxy examples below for information on how to
   bypass this.
@@ -311,34 +312,30 @@ main = do
 
 ## Non-2XX responses
 
-By default, every request that generates a non-2XX response will generate a
-runtime exception. If instead you would like to deal with these responses
-directly, you can change that behavior:
+By default, beginning with version 0.5 of the library every request that
+generates a non-2XX response won't throw a runtime exception if you use just
+string literals to construct your request. However, one should understand
+that whether exception is thrown on non-2XX response status codes or not
+depends on a setting in corresponding request, called `checkResponse` in
+version 0.5 and `checkStatus` in older versions. Thus, the way you construct
+request from string literal determines whether the library will throw
+exceptions on non-2XX response status codes.
 
-```haskell
-#!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
-{-# LANGUAGE OverloadedStrings #-}
-import qualified Data.ByteString.Lazy.Char8 as L8
-import           Network.HTTP.Simple
+Let's examine all the parsing functions and specify which of them produces
+“throwing” requests:
 
-main :: IO ()
-main = do
-    let request = setRequestIgnoreStatus "PUT https://httpbin.org/delete"
-    response <- httpLBS request
+* `parseUrl` is deprecated, it's the same as `parseUrlThrow`.
 
-    putStrLn $ "The status code was: " ++
-               show (getResponseStatusCode response)
-    print $ getResponseHeader "Content-Type" response
-    L8.putStrLn $ getResponseBody response
-```
+* `parseUrlThrow` produces requests that have `checkResponse` action that
+  will throw if response has non-2XX status code.
 
-NOTE: The decision to turn non-2XX responses into exceptions is one of the most
-controversial decisions in this library, with strong arguments on each side. At
-this point, the behavior is well established and won't be changing in the
-future.
+* `parseRequest` produces “safe” requests that won't throw on non-2XX
+  response status codes (it doesn't mean that they don't throw at all
+  though, as there may be other problems with making a request).
+
+* `parseRequest_` is the same as `parseRequest`, it just will blow up at
+  runtime if given string is malformed. This is what is used to parse
+  requests from string litreals in `IsString` instance of `Request`.
 
 ## Exceptions
 
@@ -507,7 +504,7 @@ main :: IO ()
 main = do
     manager <- newManager tlsManagerSettings
 
-    request <- parseUrl "http://httpbin.org/get"
+    request <- parseRequest "http://httpbin.org/get"
     response <- httpLbs request manager
 
     putStrLn $ "The status code was: " ++
@@ -515,10 +512,10 @@ main = do
     print $ responseBody response
 ```
 
-We're using `newManager tlsManagerSettings` to get a new `Manager`, `parseUrl`
-to parse a textual URL into a `Request`, and then making the request with
-`httpLbs`. Once we have our `Response`, we can use standard accessors to
-inspect its fields.
+We're using `newManager tlsManagerSettings` to get a new `Manager`,
+`parseRequest` to parse a textual URL into a `Request`, and then making the
+request with `httpLbs`. Once we have our `Response`, we can use standard
+accessors to inspect its fields.
 
 ## Receiving JSON
 
@@ -539,7 +536,7 @@ main :: IO ()
 main = do
     manager <- newManager tlsManagerSettings
 
-    request <- parseUrl "http://httpbin.org/get"
+    request <- parseRequest "http://httpbin.org/get"
 
     withResponse request manager $ \response -> do
         putStrLn $ "The status code was: " ++
@@ -573,7 +570,7 @@ main = do
             [ "name" .= ("Alice" :: String)
             , "age"  .= (35 :: Int)
             ]
-    initialRequest <- parseUrl "http://httpbin.org/post"
+    initialRequest <- parseRequest "http://httpbin.org/post"
     let request = initialRequest
             { method = "POST"
             , requestBody = RequestBodyLBS $ encode requestObject
@@ -605,7 +602,7 @@ main :: IO ()
 main = do
     manager <- newManager tlsManagerSettings
 
-    initialRequest <- parseUrl "http://httpbin.org/put"
+    initialRequest <- parseRequest "http://httpbin.org/put"
     let pairs =
             [ ("name", "Alice")
             , ("age", "35")
@@ -622,9 +619,13 @@ main = do
 
 ## Non-2XX responses
 
-By default, a non-2XX response (such as a 404 not found) will generate a
-runtime exception. You can change this behavior with the `checkStatus` setting.
-The code below will never throw exceptions based on the status code.
+The `checkStatus` record selector in versions older than 0.5 and
+`checkResponse` in 0.5 and later allows to examine request and response and
+throw an exception if something is wrong. In versions older than 0.5 non-2XX
+response status codes were throwing exceptions, but now this has been
+changed and `checkResponse` does nothing by default. For users of older
+versions of the library, here is how to forbid throwing exceptions on
+adverse status codes:
 
 ```haskell
 #!/usr/bin/env stack
