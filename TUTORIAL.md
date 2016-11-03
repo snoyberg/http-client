@@ -1,10 +1,13 @@
-http-client is a minimalistic package with a relatively low-level API
-and no support for TLS (HTTPS).
+http-client is a minimalistic package with a relatively low-level API and no
+support for TLS (HTTPS). This tutorial follows the `Network.HTTP.Simple` module
+from the http-conduit package, which provides a higher-level interface.
 
 ## API docs
 
-The API documentation can be found
-[here](https://www.stackage.org/lts/package/http-client).
+The API documentation can be found at:
+
+* [http-client](https://www.stackage.org/lts/package/http-client)
+* [http-conduit](https://www.stackage.org/lts/package/http-conduit)
 
 ## Basic usage
 
