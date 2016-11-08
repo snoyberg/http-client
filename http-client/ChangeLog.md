@@ -1,3 +1,7 @@
+## 0.5.4
+
+* Derive ‘Eq’ for ‘ResponseTimeout’ [#239](https://github.com/snoyberg/http-client/pull/239)
+
 ## 0.5.3.4
 
 * Doc improvements
