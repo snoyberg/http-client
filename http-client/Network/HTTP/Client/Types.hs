@@ -547,7 +547,7 @@ data ResponseTimeout
     = ResponseTimeoutMicro !Int
     | ResponseTimeoutNone
     | ResponseTimeoutDefault
-    deriving Show
+    deriving (Eq, Show)
 
 instance Show Request where
     show x = unlines
