@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
-import           Control.Exception          (toException)
-import           Data.ByteString.Lazy.Char8 ()
-import           Network                    (withSocketsDo)
-import           Network.HTTP.Client
-import           Network.HTTP.Types         (status200, status405)
-import           Test.Hspec
+import Control.Exception (toException)
+import Network (withSocketsDo)
+import Network.HTTP.Client
+import Network.HTTP.Types (found302, status200, status405)
+import Test.Hspec
+import Data.ByteString.Lazy.Char8 ()
 
 main :: IO ()
 main = hspec spec
@@ -54,5 +54,6 @@ spec = describe "Client" $ do
         let modify req = return req { redirectCount = 0 }
             settings = defaultManagerSettings { managerModifyRequest = modify }
         man <- newManager settings
-        response <- httpLbs "http://httpbin.org/redirect-to?url=foo" man
-        responseStatus response `shouldBe` found302
+        httpLbs "http://httpbin.org/redirect-to?url=foo" man `shouldThrow` ( \ (StatusCodeException s _  _) -> s == found302)
+
+

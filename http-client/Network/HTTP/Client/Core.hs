@@ -7,6 +7,7 @@ module Network.HTTP.Client.Core
     , httpNoBody
     , httpRaw
     , httpRaw'
+    , getModifiedRequestManager
     , responseOpen
     , responseClose
     , applyCheckStatus
@@ -17,13 +18,13 @@ module Network.HTTP.Client.Core
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
 #endif
-import Network.HTTP.Types
-import Network.HTTP.Client.Manager
-import Network.HTTP.Client.Types
 import Network.HTTP.Client.Body
+import Network.HTTP.Client.Cookies
+import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
-import Network.HTTP.Client.Cookies
+import Network.HTTP.Client.Types
+import Network.HTTP.Types
 import Data.Maybe (fromMaybe, isJust)
 import Data.Time
 import Control.Exception
@@ -82,13 +83,13 @@ httpRaw = fmap (fmap snd) . httpRaw'
 
 -- | Get a 'Response' without any redirect following.
 --
--- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
+-- This extended version of 'httpRaw' also returns the potentially modified Request.
 httpRaw'
      :: Request
      -> Manager
      -> IO (Request, Response BodyReader)
 httpRaw' req0 m = do
-    req' <- mModifyRequest m $ mSetProxy m req0
+    let req' = mSetProxy m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
             now <- getCurrentTime
@@ -131,6 +132,19 @@ httpRaw' req0 m = do
         | otherwise = rt
       where
         rt = responseTimeout req
+
+-- | The used Manager can be overridden (by requestManagerOverride) and the used
+-- Request can be modified (through managerModifyRequest). This function allows
+-- to retrieve the possibly overridden Manager and the possibly modified
+-- Request.
+--
+-- (In case the Manager is overridden by requestManagerOverride, the Request is
+-- being modified by managerModifyRequest of the new Manager, not the old one.)
+getModifiedRequestManager :: Manager -> Request -> IO (Manager, Request)
+getModifiedRequestManager manager0 req0 = do
+  let manager = fromMaybe manager0 (requestManagerOverride req0)
+  req <- mModifyRequest manager req0
+  return (manager, req)
 
 -- | The most low-level function for initiating an HTTP request.
 --
@@ -177,8 +191,11 @@ responseOpen req0 manager' = handle addTlsHostPort $ mWrapIOException manager $ 
     go count req' = httpRedirect'
       count
       (\req -> do
-        (req'', res) <- httpRaw' req manager
-        let mreq = getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
+        (manager, modReq) <- getModifiedRequestManager manager req
+        (req'', res) <- httpRaw' modReq manager
+        let mreq = if redirectCount modReq == 0
+              then Nothing
+              else getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
 
