@@ -1,3 +1,7 @@
+## 0.4.31.2
+
+* Use redirectCount set through managerModifyRequest [#244](https://github.com/snoyberg/http-client/pull/244)
+
 ## 0.4.31.1
 
 * The closeConnection method for tls connections should not be called multiple
