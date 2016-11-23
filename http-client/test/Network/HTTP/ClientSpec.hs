@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
-import           Control.Exception         (toException)
-import           Network                   (withSocketsDo)
-import           Network.HTTP.Client
-import           Network.HTTP.Types        (status200, status405)
-import           Test.Hspec
-import           Data.ByteString.Lazy.Char8 () -- orphan instance
+import Control.Exception (toException)
+import Network (withSocketsDo)
+import Network.HTTP.Client
+import Network.HTTP.Types (found302, status200, status405)
+import Test.Hspec
+import Data.ByteString.Lazy.Char8 ()
 
 main :: IO ()
 main = hspec spec
@@ -35,15 +35,25 @@ spec = describe "Client" $ do
             res <- httpLbs req man
             responseStatus res `shouldBe` status405
 
-    it "managerModifyRequest" $ do
+    describe "managerModifyRequest" $ do
+
+      it "can set port to 80" $ do
         let modify req = return req { port = 80 }
             settings = defaultManagerSettings { managerModifyRequest = modify }
         withManager settings $ \man -> do
             res <- httpLbs "http://httpbin.org:1234" man
             responseStatus res `shouldBe` status200
 
-    it "managerModifyRequestCheckStatus" $ do
+      it "can set 'checkStatus' to throw StatusCodeException" $ do
         let modify req = return req { checkStatus = \s hs cj -> Just $ toException $ StatusCodeException s hs cj }
             settings = defaultManagerSettings { managerModifyRequest = modify }
         withManager settings $ \man ->
             httpLbs "http://httpbin.org" man `shouldThrow` anyException
+
+      it "can set redirectCount to 0 to prevent following redirects" $ do
+        let modify req = return req { redirectCount = 0 }
+            settings = defaultManagerSettings { managerModifyRequest = modify }
+        man <- newManager settings
+        httpLbs "http://httpbin.org/redirect-to?url=foo" man `shouldThrow` ( \ (StatusCodeException s _  _) -> s == found302)
+
+
