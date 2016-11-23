@@ -1,12 +1,12 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
-import Control.Exception (toException)
-import Network (withSocketsDo)
-import Network.HTTP.Client
-import Network.HTTP.Types (found302, status200, status405)
-import Test.Hspec
-import Data.ByteString.Lazy.Char8 ()
+import           Control.Exception         (toException)
+import           Network                   (withSocketsDo)
+import           Network.HTTP.Client
+import           Network.HTTP.Types        (found302, status200, status405)
+import           Test.Hspec
+import           Data.ByteString.Lazy.Char8 () -- orphan instance
 
 main :: IO ()
 main = hspec spec

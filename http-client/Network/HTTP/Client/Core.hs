@@ -18,13 +18,13 @@ module Network.HTTP.Client.Core
 #if !MIN_VERSION_base(4,6,0)
 import Prelude hiding (catch)
 #endif
-import Network.HTTP.Client.Body
-import Network.HTTP.Client.Cookies
+import Network.HTTP.Types
 import Network.HTTP.Client.Manager
+import Network.HTTP.Client.Types
+import Network.HTTP.Client.Body
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
-import Network.HTTP.Client.Types
-import Network.HTTP.Types
+import Network.HTTP.Client.Cookies
 import Data.Maybe (fromMaybe, isJust)
 import Data.Time
 import Control.Exception
