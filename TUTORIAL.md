@@ -42,7 +42,10 @@ We can also use aeson to receive a JSON message.
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-conduit
+{- stack --install-ghc --resolver lts-5.13 runghc
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -103,8 +106,9 @@ You can specify the request method at the beginning of your URL:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -128,8 +132,9 @@ more explicit about it with `parseRequest`:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -181,8 +186,9 @@ modified with various request setter functions:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -216,8 +222,9 @@ without any URL parsing:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -246,8 +253,9 @@ different request body formats. These include JSON:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson
 import qualified Data.ByteString.Char8 as S8
@@ -280,8 +288,9 @@ Or data from a file:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson
 import qualified Data.ByteString.Char8 as S8
@@ -371,8 +380,8 @@ at once. For these cases, a streaming data approach is useful.
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit
- -}
+    --package http-conduit
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString        as S
@@ -397,8 +406,9 @@ or `https_proxy` environment variables. This can be overridden:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Simple
@@ -431,8 +441,9 @@ global:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client        (defaultManagerSettings, newManager)
@@ -463,8 +474,9 @@ some settings:
 ```haskell
 #!/usr/bin/env stack
 {- stack --install-ghc --resolver lts-5.13 runghc
-   --package http-conduit --package yaml
- -}
+    --package http-conduit
+    --package yaml
+-}
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
