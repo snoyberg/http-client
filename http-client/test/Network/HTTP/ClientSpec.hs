@@ -4,6 +4,7 @@ module Network.HTTP.ClientSpec where
 import           Network                   (withSocketsDo)
 import qualified Data.ByteString.Char8        as BS
 import           Network.HTTP.Client
+import           Network.HTTP.Client.Internal
 import           Network.HTTP.Types        (status200, found302, status405)
 import           Network.HTTP.Types.Status
 import           Test.Hspec
@@ -61,6 +62,18 @@ spec = describe "Client" $ do
         man <- newManager settings
         res <- httpLbs "http://httpbin.org" man
         (statusCode.responseStatus) res `shouldBe` 201
+
+      it "modifies the response body" $ do
+        let modify :: Response BodyReader -> IO (Response BodyReader)
+            modify res = do
+              reader <- constBodyReader [BS.pack "modified response body"]
+              return res {
+                responseBody = reader
+              }
+            settings = defaultManagerSettings { managerModifyResponse = modify }
+        man <- newManager settings
+        res <- httpLbs "http://httpbin.org" man
+        responseBody res `shouldBe` "modified response body"
 
     context "managerModifyRequest" $ do
         it "port" $ do
