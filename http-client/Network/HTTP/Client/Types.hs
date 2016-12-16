@@ -675,6 +675,12 @@ data ManagerSettings = ManagerSettings
     -- Default: no modification
     --
     -- Since 0.4.4
+    , managerModifyResponse :: Response BodyReader -> IO (Response BodyReader)
+    -- ^ Perform the given modification to a @Response@ after receiving it.
+    --
+    -- Default: no modification
+    --
+    -- Since 0.5.5
     , managerProxyInsecure :: ProxyOverride
     -- ^ How HTTP proxy server settings should be discovered.
     --
@@ -724,6 +730,7 @@ data Manager = Manager
     , mIdleConnectionCount :: Int
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
+    , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
     }
     deriving T.Typeable

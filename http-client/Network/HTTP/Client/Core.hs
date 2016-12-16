@@ -196,7 +196,7 @@ responseOpen inputReq manager' = do
   wrapExc req0 $ mWrapException manager req0 $ do
     (req, res) <- go manager (redirectCount req0) req0
     checkResponse req req res
-    return res
+    mModifyResponse manager res
         { responseBody = wrapExc req0 (responseBody res)
         }
   where

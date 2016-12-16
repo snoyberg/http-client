@@ -108,6 +108,7 @@ module Network.HTTP.Client
     , managerWrapException
     , managerIdleConnectionCount
     , managerModifyRequest
+    , managerModifyResponse
       -- *** Manager proxy settings
     , managerSetProxy
     , managerSetInsecureProxy
