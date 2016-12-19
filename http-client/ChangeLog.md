@@ -1,3 +1,7 @@
+## 0.5.5
+
+* http-client should allow to log requests and responses [#248](https://github.com/snoyberg/http-client/issues/248)
+
 ## 0.5.4
 
 * Derive ‘Eq’ for ‘ResponseTimeout’ [#239](https://github.com/snoyberg/http-client/pull/239)

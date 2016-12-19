@@ -680,7 +680,7 @@ data ManagerSettings = ManagerSettings
     --
     -- Default: no modification
     --
-    -- Since 0.5.5
+    -- @since 0.5.5
     , managerProxyInsecure :: ProxyOverride
     -- ^ How HTTP proxy server settings should be discovered.
     --
