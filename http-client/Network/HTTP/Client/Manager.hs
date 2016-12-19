@@ -110,6 +110,7 @@ defaultManagerSettings = ManagerSettings
          in handle wrapper
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
+    , managerModifyResponse = return
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
     }
@@ -194,6 +195,7 @@ newManager ms = do
             , mWrapException = managerWrapException ms
             , mIdleConnectionCount = managerIdleConnectionCount ms
             , mModifyRequest = managerModifyRequest ms
+            , mModifyResponse = managerModifyResponse ms
             , mSetProxy = \req ->
                 if secure req
                     then httpsProxy req

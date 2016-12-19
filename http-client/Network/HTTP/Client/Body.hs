@@ -7,6 +7,7 @@ module Network.HTTP.Client.Body
     , makeUnlimitedReader
     , brConsume
     , brEmpty
+    , constBodyReader
     , brAddCleanup
     , brReadSome
     , brRead
@@ -51,6 +52,14 @@ brReadSome brRead' =
 
 brEmpty :: BodyReader
 brEmpty = return S.empty
+
+constBodyReader :: [S.ByteString] -> IO BodyReader
+constBodyReader input = do
+  iinput <- newIORef input
+  return $ atomicModifyIORef iinput $ \input' ->
+        case input' of
+            [] -> ([], S.empty)
+            x:xs -> (xs, x)
 
 brAddCleanup :: IO () -> BodyReader -> BodyReader
 brAddCleanup cleanup brRead' = do
