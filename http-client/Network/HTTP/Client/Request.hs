@@ -110,6 +110,8 @@ parseUrlThrow =
 --
 -- 'Request' created by this function won't cause exceptions on non-2XX
 -- response status codes.
+-- 
+-- The URI string will be escaped, and should not be URI escaped.
 --
 -- @since 0.4.30
 parseRequest :: MonadThrow m => String -> m Request
