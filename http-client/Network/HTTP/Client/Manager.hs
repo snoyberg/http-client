@@ -57,6 +57,8 @@ import Control.Concurrent.STM (TVar, readTVar, writeTVar, atomically, swapTVar, 
 import System.Environment (getEnvironment)
 import qualified Network.URI as U
 import Control.Monad (guard)
+import Data.KeyedPool
+import Data.Maybe (isJust)
 
 -- | A value for the @managerRawConnection@ setting, but also allows you to
 -- modify the underlying @Socket@ to set additional settings. For a motivating
@@ -115,55 +117,6 @@ defaultManagerSettings = ManagerSettings
     , managerProxySecure = defaultProxy
     }
 
-takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
-takeSocket man key =
-    atomically $ do
-        (x, y) <- fmap go $ readTVar $ mConns man
-        writeTVar (mConns man) x
-        return y
-  where
-    go ManagerClosed = (ManagerClosed, Nothing)
-    go mcOrig@(ManagerOpen idleCount m) =
-        case Map.lookup key m of
-            Nothing -> (mcOrig, Nothing)
-            Just (One a _) ->
-                let mc = ManagerOpen (idleCount - 1) (Map.delete key m)
-                 in mc `seq` (mc, Just a)
-            Just (Cons a _ _ rest) ->
-                let mc = ManagerOpen (idleCount - 1) (Map.insert key rest m)
-                 in mc `seq` (mc, Just a)
-
-putSocket :: Manager -> ConnKey -> Connection -> IO ()
-putSocket man key ci = do
-    now <- getCurrentTime
-    join $ atomically $ do
-        (conns, action) <- fmap (go now) (readTVar (mConns man))
-        writeTVar (mConns man) conns
-        return action
-  where
-    go _ ManagerClosed = (ManagerClosed , connectionClose ci)
-    go now mc@(ManagerOpen idleCount m)
-        | idleCount >= mIdleConnectionCount man = (mc, connectionClose ci)
-        | otherwise = case Map.lookup key m of
-            Nothing ->
-                let cnt' = idleCount + 1
-                    m' = ManagerOpen cnt' (Map.insert key (One ci now) m)
-                 in m' `seq` (m', return ())
-            Just l ->
-                let (l', mx) = addToList now (mMaxConns man) ci l
-                    cnt' = idleCount + maybe 1 (const 0) mx
-                    m' = ManagerOpen cnt' (Map.insert key l' m)
-                 in m' `seq` (m', maybe (return ()) connectionClose mx)
-
--- | Add a new element to the list, up to the given maximum number. If we're
--- already at the maximum, return the new value as leftover.
-addToList :: UTCTime -> Int -> a -> NonEmptyList a -> (NonEmptyList a, Maybe a)
-addToList _ i x l | i <= 1 = (l, Just x)
-addToList now _ x l@One{} = (Cons x 2 now l, Nothing)
-addToList now maxCount x l@(Cons _ currCount _ _)
-    | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
-    | otherwise = (l, Just x)
-
 -- | Create a 'Manager'. The @Manager@ will be shut down automatically via
 -- garbage collection.
 --
@@ -177,26 +130,23 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
     NS.withSocketsDo $ return ()
-    rawConnection <- managerRawConnection ms
-    tlsConnection <- managerTlsConnection ms
-    tlsProxyConnection <- managerTlsProxyConnection ms
-    mapVar <- newTVarIO $! ManagerOpen 0 Map.empty
-    wmapVar <- mkWeakTVar mapVar $ closeManager' mapVar
 
     httpProxy <- runProxyOverride (managerProxyInsecure ms) False
     httpsProxy <- runProxyOverride (managerProxySecure ms) True
 
-    _ <- forkIO $ reap wmapVar
+    createConnection <- mkCreateConnection ms
+
+    keyedPool <- createKeyedPool
+        createConnection
+        connectionClose
+        (managerConnCount ms)
+        (managerIdleConnectionCount ms)
+
     let manager = Manager
-            { mConns = mapVar
-            , mMaxConns = managerConnCount ms
+            { mConns = keyedPool
             , mResponseTimeout = managerResponseTimeout ms
-            , mRawConnection = rawConnection
-            , mTlsConnection = tlsConnection
-            , mTlsProxyConnection = tlsProxyConnection
             , mRetryableException = managerRetryableException ms
             , mWrapException = managerWrapException ms
-            , mIdleConnectionCount = managerIdleConnectionCount ms
             , mModifyRequest = managerModifyRequest ms
             , mModifyResponse = managerModifyResponse ms
             , mSetProxy = \req ->
@@ -205,50 +155,6 @@ newManager ms = do
                     else httpProxy req
             }
     return manager
-
--- | Collect and destroy any stale connections.
-reap :: Weak (TVar ConnsMap) -> IO ()
-reap wmapVar =
-    mask_ loop
-  where
-    loop = do
-        threadDelay (5 * 1000 * 1000)
-        mmapVar <- deRefWeak wmapVar
-        case mmapVar of
-            Nothing -> return () -- manager is closed
-            Just mapVar -> goMapVar mapVar >> loop
-
-    goMapVar mapVar = do
-        now <- getCurrentTime
-        let isNotStale time = 30 `addUTCTime` time >= now
-        (newMap, toDestroy) <- atomically $ do
-            oldMap <- readTVar mapVar
-            case oldMap of
-                ManagerOpen idleCount m | not $ Map.null m -> do
-                    let (newMap, toDestroy) = findStaleWrap isNotStale idleCount m
-                    writeTVar mapVar newMap
-                    return (newMap, toDestroy)
-                _ -> retry
-        mapM_ safeConnClose toDestroy
-
-    findStaleWrap isNotStale idleCount m =
-        let (x, y) = findStale isNotStale m
-         in (ManagerOpen (idleCount - length y) x, y)
-    findStale isNotStale =
-        findStale' id id . Map.toList
-      where
-        findStale' destroy keep [] = (Map.fromList $ keep [], destroy [])
-        findStale' destroy keep ((connkey, nelist):rest) =
-            findStale' destroy' keep' rest
-          where
-            -- Note: By definition, the timestamps must be in descending order,
-            -- so we don't need to traverse the whole list.
-            (notStale, stale) = span (isNotStale . fst) $ neToList nelist
-            destroy' = destroy . (map snd stale++)
-            keep' =
-                case neFromList notStale of
-                    Nothing -> keep
-                    Just x -> keep . ((connkey, x):)
 
     {- FIXME why isn't this being used anymore?
     flushStaleCerts now =
@@ -284,23 +190,6 @@ reap wmapVar =
         seqDT = seq
     -}
 
-neToList :: NonEmptyList a -> [(UTCTime, a)]
-neToList (One a t) = [(t, a)]
-neToList (Cons a _ t nelist) = (t, a) : neToList nelist
-
-neFromList :: [(UTCTime, a)] -> Maybe (NonEmptyList a)
-neFromList [] = Nothing
-neFromList [(t, a)] = Just (One a t)
-neFromList xs =
-    Just . snd . go $ xs
-  where
-    go [] = error "neFromList.go []"
-    go [(t, a)] = (2, One a t)
-    go ((t, a):rest) =
-        let (i, rest') = go rest
-            i' = i + 1
-         in i' `seq` (i', Cons a i t rest')
-
 -- | Close all connections in a 'Manager'.
 --
 -- Note that this doesn't affect currently in-flight connections,
@@ -334,57 +223,6 @@ nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
 nonEmptyMapM_ f (One x _) = f x
 nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
--- | This function needs to acquire a @ConnInfo@- either from the @Manager@ or
--- via I\/O, and register it with the @ResourceT@ so it is guaranteed to be
--- either released or returned to the manager.
-getManagedConn
-    :: Manager
-    -> ConnKey
-    -> IO Connection
-    -> IO (ConnRelease, Connection, ManagedConn)
--- We want to avoid any holes caused by async exceptions, so let's mask.
-getManagedConn man key open = mask $ \restore -> do
-    -- Try to take the socket out of the manager.
-    mci <- takeSocket man key
-    (ci, isManaged) <-
-        case mci of
-            -- There wasn't a matching connection in the manager, so create a
-            -- new one.
-            Nothing -> do
-                ci <- restore open
-                return (ci, Fresh)
-            -- Return the existing one
-            Just ci -> return (ci, Reused)
-
-    -- When we release this connection, we can either reuse it (put it back in
-    -- the manager) or not reuse it (close the socket). We set up a mutable
-    -- reference to track what we want to do. By default, we say not to reuse
-    -- it, that way if an exception is thrown, the connection won't be reused.
-    toReuseRef <- I.newIORef DontReuse
-    wasReleasedRef <- I.newIORef False
-
-    -- When the connection is explicitly released, we update our toReuseRef to
-    -- indicate what action should be taken, and then call release.
-    let connRelease r = do
-            I.writeIORef toReuseRef r
-            releaseHelper
-
-        releaseHelper = mask $ \restore' -> do
-            wasReleased <- I.atomicModifyIORef wasReleasedRef $ \x -> (True, x)
-            unless wasReleased $ do
-                toReuse <- I.readIORef toReuseRef
-                restore' $ case toReuse of
-                    Reuse -> putSocket man key ci
-                    DontReuse -> connectionClose ci
-
-    return (connRelease, ci, isManaged)
-
-getConnDest :: Request -> (Bool, String, Int)
-getConnDest req =
-    case proxy req of
-        Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
-        Nothing -> (False, S8.unpack $ host req, port req)
-
 -- | Drop the Proxy-Authorization header from the request if we're using a
 -- secure proxy.
 dropProxyAuthSecure :: Request -> Request
@@ -395,52 +233,76 @@ dropProxyAuthSecure req
         }
     | otherwise = req
   where
-    (useProxy', _, _) = getConnDest req
+    useProxy' = isJust (proxy req)
 
 getConn :: Request
         -> Manager
-        -> IO (ConnRelease, Connection, ManagedConn)
+        -> IO (Managed Connection)
 getConn req m
     -- Stop Mac OS X from getting high:
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
     | S8.null h = throwHttp $ InvalidDestinationHost h
-    | otherwise =
-        getManagedConn m (ConnKey connKeyHost connport (host req) (port req) (secure req)) $
-            wrapConnectExc $ go connaddr connhost connport
+    | otherwise = takeKeyedPool (mConns m) connkey
   where
     h = host req
-    (useProxy', connhost, connport) = getConnDest req
-    (connaddr, connKeyHost) =
-        case (hostAddress req, useProxy') of
-            (Just ha, False) -> (Just ha, HostAddress ha)
-            _ -> (Nothing, HostName $ T.pack connhost)
+    connkey = connKey req
 
+connKey :: Request -> ConnKey
+connKey req =
+    case proxy req of
+        Nothing
+            | secure req -> simple CKSecure
+            | otherwise -> simple CKRaw
+        Just p -> CKProxy
+            (proxyHost p)
+            (proxyPort p)
+            (lookup "Proxy-Authorization" (requestHeaders req))
+            (host req)
+            (port req)
+  where
+    simple con = con (hostAddress req) (host req) (port req)
+
+mkCreateConnection :: ManagerSettings -> IO (ConnKey -> IO Connection)
+mkCreateConnection ms = do
+    rawConnection <- managerRawConnection ms
+    tlsConnection <- managerTlsConnection ms
+    tlsProxyConnection <- managerTlsProxyConnection ms
+
+    return $ \ck -> wrapConnectExc $ case ck of
+        CKRaw connaddr connhost connport ->
+            rawConnection connaddr (S8.unpack connhost) connport
+        CKSecure connaddr connhost connport ->
+            tlsConnection connaddr (S8.unpack connhost) connport
+        CKProxy connhost connport mProxyAuthHeader ultHost ultPort ->
+            let proxyAuthorizationHeader = maybe
+                    ""
+                    (\h' -> S8.concat ["Proxy-Authorization: ", h', "\r\n"])
+                    mProxyAuthHeader
+                hostHeader = S8.concat ["Host: ", ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
+                connstr = S8.concat
+                    [ "CONNECT "
+                    , ultHost
+                    , ":"
+                    , S8.pack $ show ultPort
+                    , " HTTP/1.1\r\n"
+                    , proxyAuthorizationHeader
+                    , hostHeader
+                    , "\r\n"
+                    ]
+                parse conn = do
+                    StatusHeaders status _ _ <- parseStatusHeaders conn Nothing Nothing
+                    unless (status == status200) $
+                        throwHttp $ ProxyConnectException ultHost ultPort status
+                in tlsProxyConnection
+                        connstr
+                        parse
+                        (S8.unpack ultHost)
+                        Nothing -- ^ we never have a HostAddress we can use
+                        (S8.unpack connhost)
+                        connport
+  where
     wrapConnectExc = handle $ \e ->
         throwHttp $ ConnectionFailure (toException (e :: IOException))
-    go =
-        case (secure req, useProxy') of
-            (False, _) -> mRawConnection m
-            (True, False) -> mTlsConnection m
-            (True, True) ->
-                let ultHost = host req
-                    ultPort = port req
-                    proxyAuthorizationHeader = maybe "" (\h' -> S8.concat ["Proxy-Authorization: ", h', "\r\n"]) . lookup "Proxy-Authorization" $ requestHeaders req
-                    hostHeader = S8.concat ["Host: ", ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
-                    connstr = S8.concat
-                        [ "CONNECT "
-                        , ultHost
-                        , ":"
-                        , S8.pack $ show ultPort
-                        , " HTTP/1.1\r\n"
-                        , proxyAuthorizationHeader
-                        , hostHeader
-                        , "\r\n"
-                        ]
-                    parse conn = do
-                        StatusHeaders status _ _ <- parseStatusHeaders conn Nothing Nothing
-                        unless (status == status200) $
-                            throwHttp $ ProxyConnectException ultHost ultPort status
-                 in mTlsProxyConnection m connstr parse (S8.unpack ultHost)
 
 -- | Get the proxy settings from the @Request@ itself.
 --

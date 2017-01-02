@@ -22,6 +22,7 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Util
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Headers
+import Data.KeyedPool
 
 -- | If a request is a redirection (status code 3xx) this function will create
 -- a new request from the old request, the server headers returned with the
@@ -77,20 +78,20 @@ lbsResponse res = do
         { responseBody = L.fromChunks bss
         }
 
-getResponse :: ConnRelease
-            -> Maybe Int
+getResponse :: Maybe Int
             -> Request
-            -> Connection
+            -> Managed Connection
             -> Maybe (IO ()) -- ^ Action to run in case of a '100 Continue'.
             -> IO (Response BodyReader)
-getResponse connRelease timeout' req@(Request {..}) conn cont = do
+getResponse timeout' req@(Request {..}) mconn cont = do
+    let conn = managedResource mconn
     StatusHeaders s version hs <- parseStatusHeaders conn timeout' cont
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
         isChunked = ("transfer-encoding", "chunked") `elem` hs
 
         -- should we put this connection back into the connection manager?
         toPut = Just "close" /= lookup "connection" hs && version > W.HttpVersion 1 0
-        cleanup bodyConsumed = connRelease $ if toPut && bodyConsumed then Reuse else DontReuse
+        cleanup bodyConsumed = managedRelease mconn $ if toPut && bodyConsumed then Reuse else DontReuse
 
     body <-
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
