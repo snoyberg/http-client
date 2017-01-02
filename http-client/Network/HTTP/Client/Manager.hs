@@ -53,7 +53,7 @@ import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
 import Network.HTTP.Client.Request (applyBasicProxyAuth, extractBasicAuthInfo)
-import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
+import Control.Concurrent.STM (TVar, readTVar, writeTVar, atomically, swapTVar, mkWeakTVar, newTVarIO, retry)
 import System.Environment (getEnvironment)
 import qualified Network.URI as U
 import Control.Monad (guard)
@@ -117,7 +117,10 @@ defaultManagerSettings = ManagerSettings
 
 takeSocket :: Manager -> ConnKey -> IO (Maybe Connection)
 takeSocket man key =
-    I.atomicModifyIORef (mConns man) go
+    atomically $ do
+        (x, y) <- fmap go $ readTVar $ mConns man
+        writeTVar (mConns man) x
+        return y
   where
     go ManagerClosed = (ManagerClosed, Nothing)
     go mcOrig@(ManagerOpen idleCount m) =
@@ -133,8 +136,10 @@ takeSocket man key =
 putSocket :: Manager -> ConnKey -> Connection -> IO ()
 putSocket man key ci = do
     now <- getCurrentTime
-    join $ I.atomicModifyIORef (mConns man) (go now)
-    void $ tryPutMVar (mConnsBaton man) ()
+    join $ atomically $ do
+        (conns, action) <- fmap (go now) (readTVar (mConns man))
+        writeTVar (mConns man) conns
+        return action
   where
     go _ ManagerClosed = (ManagerClosed , connectionClose ci)
     go now mc@(ManagerOpen idleCount m)
@@ -175,17 +180,15 @@ newManager ms = do
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
-    mapRef <- I.newIORef $! ManagerOpen 0 Map.empty
-    baton <- newEmptyMVar
-    wmapRef <- I.mkWeakIORef mapRef $ closeManager' mapRef
+    mapVar <- newTVarIO $! ManagerOpen 0 Map.empty
+    wmapVar <- mkWeakTVar mapVar $ closeManager' mapVar
 
     httpProxy <- runProxyOverride (managerProxyInsecure ms) False
     httpsProxy <- runProxyOverride (managerProxySecure ms) True
 
-    _ <- forkIO $ reap baton wmapRef
+    _ <- forkIO $ reap wmapVar
     let manager = Manager
-            { mConns = mapRef
-            , mConnsBaton = baton
+            { mConns = mapVar
             , mMaxConns = managerConnCount ms
             , mResponseTimeout = managerResponseTimeout ms
             , mRawConnection = rawConnection
@@ -204,30 +207,31 @@ newManager ms = do
     return manager
 
 -- | Collect and destroy any stale connections.
-reap :: MVar () -> Weak (I.IORef ConnsMap) -> IO ()
-reap baton wmapRef =
+reap :: Weak (TVar ConnsMap) -> IO ()
+reap wmapVar =
     mask_ loop
   where
     loop = do
         threadDelay (5 * 1000 * 1000)
-        mmapRef <- deRefWeak wmapRef
-        case mmapRef of
+        mmapVar <- deRefWeak wmapVar
+        case mmapVar of
             Nothing -> return () -- manager is closed
-            Just mapRef -> goMapRef mapRef
+            Just mapVar -> goMapVar mapVar >> loop
 
-    goMapRef mapRef = do
+    goMapVar mapVar = do
         now <- getCurrentTime
         let isNotStale time = 30 `addUTCTime` time >= now
-        (newMap, toDestroy) <- I.atomicModifyIORef mapRef $ \m ->
-            let (newMap, toDestroy) = findStaleWrap isNotStale m
-             in (newMap, (newMap, toDestroy))
+        (newMap, toDestroy) <- atomically $ do
+            oldMap <- readTVar mapVar
+            case oldMap of
+                ManagerOpen idleCount m | not $ Map.null m -> do
+                    let (newMap, toDestroy) = findStaleWrap isNotStale idleCount m
+                    writeTVar mapVar newMap
+                    return (newMap, toDestroy)
+                _ -> retry
         mapM_ safeConnClose toDestroy
-        case newMap of
-            ManagerOpen _ m | not $ Map.null m -> return ()
-            _ -> takeMVar baton
-        loop
-    findStaleWrap _ ManagerClosed = (ManagerClosed, [])
-    findStaleWrap isNotStale (ManagerOpen idleCount m) =
+
+    findStaleWrap isNotStale idleCount m =
         let (x, y) = findStale isNotStale m
          in (ManagerOpen (idleCount - length y) x, y)
     findStale isNotStale =
@@ -308,10 +312,10 @@ closeManager :: Manager -> IO ()
 closeManager _ = return ()
 {-# DEPRECATED closeManager "Manager will be closed for you automatically when no longer in use" #-}
 
-closeManager' :: I.IORef ConnsMap
+closeManager' :: TVar ConnsMap
               -> IO ()
-closeManager' connsRef = mask_ $ do
-    !m <- I.atomicModifyIORef connsRef $ \x -> (ManagerClosed, x)
+closeManager' connsVar = mask_ $ do
+    !m <- atomically $ swapTVar connsVar ManagerClosed
     case m of
         ManagerClosed -> return ()
         ManagerOpen _ m' -> mapM_ (nonEmptyMapM_ safeConnClose) $ Map.elems m'

@@ -58,7 +58,7 @@ import qualified Data.IORef as I
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
-import Control.Concurrent.MVar (MVar)
+import Control.Concurrent.STM (TVar)
 import Data.CaseInsensitive as CI
 
 -- | An @IO@ action that represents an incoming response body coming from the
@@ -710,14 +710,7 @@ newtype ProxyOverride = ProxyOverride
 --
 -- Since 0.1.0
 data Manager = Manager
-    { mConns :: I.IORef ConnsMap
-    -- ^ @Nothing@ indicates that the manager is closed.
-    , mConnsBaton :: MVar ()
-    -- ^ Used to indicate to the reaper thread that it has some work to do.
-    -- This must be filled every time a connection is returned to the manager.
-    -- While redundant with the @IORef@ above, this allows us to have the
-    -- reaper thread fully blocked instead of running every 5 seconds when
-    -- there are no connections to manage.
+    { mConns :: TVar ConnsMap
     , mMaxConns :: Int
     -- ^ This is a per-@ConnKey@ value.
     , mResponseTimeout :: ResponseTimeout
