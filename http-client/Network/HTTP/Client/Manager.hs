@@ -297,7 +297,7 @@ mkCreateConnection ms = do
                         connstr
                         parse
                         (S8.unpack ultHost)
-                        Nothing -- ^ we never have a HostAddress we can use
+                        Nothing -- we never have a HostAddress we can use
                         (S8.unpack connhost)
                         connport
   where

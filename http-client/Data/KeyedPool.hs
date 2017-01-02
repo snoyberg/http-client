@@ -1,7 +1,30 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Similar to Data.Pool from resource-pool, but resources are
--- identified by some key.
+-- identified by some key. To clarify semantics of this module:
+--
+-- * The pool holds onto and tracks idle resources. Active resources
+-- (those checked out via 'takeKeyedPool') are not tracked at all by
+-- 'KeyedPool' itself.
+--
+-- * The pool limits the number of idle resources per key and the
+-- total number of idle resources.
+--
+-- * There is no limit placed on /active/ resources. As such: there
+-- will be no delay when calling 'takeKeyedPool': it will either use
+-- an idle resource already present, or create a new one
+-- immediately.
+--
+-- * Once the garbage collector cleans up the 'kpAlive' value, the
+-- pool will be shut down, by placing a 'PoolClosed' into the
+-- 'kpVar' and destroying all existing idle connection.
+--
+-- * A reaper thread will destroy unused idle resources regularly. It
+-- will stop running once 'kpVar' contains a 'PoolClosed' value.
+--
+-- * 'takeKeyedPool' is async exception safe, but relies on the
+-- /caller/ to ensure prompt cleanup. See its comment for more
+-- information.
 module Data.KeyedPool
     ( KeyedPool
     , createKeyedPool
@@ -39,8 +62,8 @@ data KeyedPool key resource = KeyedPool
 data PoolMap key resource
     = PoolClosed
     | PoolOpen
+        -- Total number of resources in the pool
         {-# UNPACK #-} !Int
-        -- ^ Total number of resources in the pool
         !(Map key (PoolList resource))
     deriving F.Foldable
 
@@ -50,8 +73,10 @@ data PoolList a
     = One a {-# UNPACK #-} !UTCTime
     | Cons
         a
+
+        -- size of the list from this point and on
         {-# UNPACK #-} !Int
-        -- ^ size of the list from this point and on
+
         {-# UNPACK #-} !UTCTime
         !(PoolList a)
     deriving F.Foldable
@@ -238,6 +263,10 @@ addToList now maxCount x l@(Cons _ currCount _ _)
     | maxCount > currCount = (Cons x (currCount + 1) now l, Nothing)
     | otherwise = (l, Just x)
 
+-- | A managed resource, which can be returned to the 'KeyedPool' when
+-- work with it is complete. Using garbage collection, it will default
+-- to destroying the resource if the caller does not explicitly use
+-- 'managedRelease'.
 data Managed resource = Managed
     { _managedResource :: !resource
     , _managedReused :: !Bool

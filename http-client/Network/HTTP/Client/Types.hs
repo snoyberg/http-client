@@ -741,12 +741,15 @@ data ConnKey
     | CKProxy
         {-# UNPACK #-} !S.ByteString
         !Int
+
+        -- Proxy-Authorization request header
         (Maybe S.ByteString)
-        -- ^ Proxy-Authorization request header
+
+        -- ultimate host
         {-# UNPACK #-} !S.ByteString
-        -- ^ ultimate host
+
+        -- ultimate port
         !Int
-        -- ^ ultimate port
     deriving (Eq, Show, Ord, T.Typeable)
 
 -- | Status of streaming a request body from a file.
