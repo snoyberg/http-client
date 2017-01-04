@@ -35,6 +35,7 @@ module Network.HTTP.Client.Types
     , ProxyOverride (..)
     , StreamFileStatus (..)
     , ResponseTimeout (..)
+    , WrappedConnectException (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -769,3 +770,7 @@ data StreamFileStatus = StreamFileStatus
     , thisChunkSize :: Int
     }
     deriving (Eq, Show, Ord, T.Typeable)
+
+newtype WrappedConnectException = WrappedConnectException { unWrappedConnectException :: SomeException }
+  deriving (Show, T.Typeable)
+instance Exception WrappedConnectException

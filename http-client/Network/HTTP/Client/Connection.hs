@@ -1,6 +1,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 module Network.HTTP.Client.Connection
     ( connectionReadLine
     , connectionReadLineWith
@@ -23,6 +24,7 @@ import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Word (Word8)
 import Data.Function (fix)
+import qualified Data.Typeable as T
 
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
@@ -138,6 +140,14 @@ openSocketConnection :: (Socket -> IO ())
                      -> IO Connection
 openSocketConnection f = openSocketConnectionSize f 8192
 
+data GetAddrInfoException = GetAddrInfoException
+    { gaieHost :: String
+    , gaiePort :: Int
+    , gaieException :: E.IOException
+    }
+  deriving (Show, T.Typeable)
+instance E.Exception GetAddrInfoException
+
 openSocketConnectionSize :: (Socket -> IO ())
                          -> Int -- ^ chunk size
                          -> Maybe HostAddress
@@ -151,7 +161,10 @@ openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
                         }
     addrs <- case hostAddress' of
         Nothing ->
-            NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+            NS.getAddrInfo (Just hints) (Just host') (Just $ show port') `E.catch`
+                (E.throwIO . WrappedConnectException . E.toException . GetAddrInfoException
+                    host'
+                    port')
         Just ha ->
             return
                 [NS.AddrInfo
