@@ -107,8 +107,9 @@ createKeyedPool
     -> (resource -> IO ()) -- ^ destroy a resource
     -> Int -- ^ number of resources per key to allow in the pool
     -> Int -- ^ number of resources to allow in the pool across all keys
+    -> (SomeException -> IO ()) -- ^ what to do if the reaper throws an exception
     -> IO (KeyedPool key resource)
-createKeyedPool create destroy maxPerKey maxTotal = do
+createKeyedPool create destroy maxPerKey maxTotal onReaperException = do
     var <- newTVarIO $ PoolOpen 0 Map.empty
 
     -- We use a different IORef for the weak ref instead of the var
@@ -126,7 +127,7 @@ createKeyedPool create destroy maxPerKey maxTotal = do
     -- cleanup will be triggered.
 
     -- Ensure that we have a normal masking state in the new thread.
-    _ <- forkIOWithUnmask $ \restore -> restore $ reap destroy var
+    _ <- forkIOWithUnmask $ \restore -> keepRunning $ restore $ reap destroy var
     return KeyedPool
         { kpCreate = create
         , kpDestroy = destroy
@@ -135,6 +136,11 @@ createKeyedPool create destroy maxPerKey maxTotal = do
         , kpVar = var
         , kpAlive = alive
         }
+  where
+    keepRunning action =
+        loop
+      where
+        loop = action `catch` \e -> onReaperException e >> loop
 
 -- | Make a 'KeyedPool' inactive and destroy all idle resources.
 destroyKeyedPool' :: (resource -> IO ())

@@ -141,6 +141,7 @@ newManager ms = do
         connectionClose
         (managerConnCount ms)
         (managerIdleConnectionCount ms)
+        (const (return ())) -- could allow something in ManagerSettings to handle exceptions more nicely
 
     let manager = Manager
             { mConns = keyedPool
