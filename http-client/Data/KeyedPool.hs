@@ -37,7 +37,7 @@ module Data.KeyedPool
     , dummyManaged
     ) where
 
-import Control.Concurrent (forkIO, threadDelay)
+import Control.Concurrent (forkIOWithUnmask, threadDelay)
 import Control.Concurrent.STM
 import Control.Exception (mask_, catch, SomeException)
 import Control.Monad (join, unless)
@@ -110,13 +110,23 @@ createKeyedPool
     -> IO (KeyedPool key resource)
 createKeyedPool create destroy maxPerKey maxTotal = do
     var <- newTVarIO $ PoolOpen 0 Map.empty
-    _ <- forkIO $ reap destroy var
 
     -- We use a different IORef for the weak ref instead of the var
     -- above since the reaper thread will always be holding onto a
     -- reference.
     alive <- newIORef ()
     mkWeakIORef alive $ destroyKeyedPool' destroy var
+
+    -- Make sure to fork _after_ we've established the mkWeakIORef. If
+    -- we did it the other way around, it would be possible for an
+    -- async exception to happen before our destroyKeyedPool' handler
+    -- was installed, and then reap would have to rely on detecting an
+    -- STM deadlock before it could ever exit. This way, the reap
+    -- function will only start running when we're guaranteed that
+    -- cleanup will be triggered.
+
+    -- Ensure that we have a normal masking state in the new thread.
+    _ <- forkIOWithUnmask $ \restore -> restore $ reap destroy var
     return KeyedPool
         { kpCreate = create
         , kpDestroy = destroy
