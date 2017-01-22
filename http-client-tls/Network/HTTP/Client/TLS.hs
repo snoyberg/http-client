@@ -114,9 +114,8 @@ getTlsProxyConnection
     -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsProxyConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
-    return $ \connstr checkConn serverName _ha host port -> do
-        --error $ show (connstr, host, port)
-        conn <- NC.connectTo context NC.ConnectionParams
+    return $ \connstr checkConn serverName _ha host port -> bracketOnError
+        (NC.connectTo context NC.ConnectionParams
             { NC.connectionHostname = serverName
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = Nothing
@@ -124,16 +123,17 @@ getTlsProxyConnection mcontext tls sock = do
                 case sock of
                     Just _ -> error "Cannot use SOCKS and TLS proxying together"
                     Nothing -> Just $ NC.OtherProxy host $ fromIntegral port
-            }
+            })
+        NC.connectionClose
+        $ \conn -> do
+            NC.connectionPut conn connstr
+            conn' <- convertConnection conn
 
-        NC.connectionPut conn connstr
-        conn' <- convertConnection conn
+            checkConn conn'
 
-        checkConn conn'
+            NC.connectionSetSecure context conn tls
 
-        NC.connectionSetSecure context conn tls
-
-        return conn'
+            return conn'
 
 convertConnection :: NC.Connection -> IO Connection
 convertConnection conn = makeConnection

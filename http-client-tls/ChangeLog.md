@@ -1,3 +1,7 @@
+## 0.3.3.1
+
+* Better exception safety via `bracketOnError`
+
 ## 0.3.3
 
 * Add `DigestAuthException` and generalize `applyDigestAuth`
