@@ -104,7 +104,10 @@ plistFromList xs =
 createKeyedPool
     :: Ord key
     => (key -> IO resource) -- ^ create a new resource
-    -> (resource -> IO ()) -- ^ destroy a resource
+    -> (resource -> IO ())
+       -- ^ Destroy a resource. Note that exceptions thrown by this will be
+       -- silently discarded. If you want reporting, please install an
+       -- exception handler yourself.
     -> Int -- ^ number of resources per key to allow in the pool
     -> Int -- ^ number of resources to allow in the pool across all keys
     -> (SomeException -> IO ()) -- ^ what to do if the reaper throws an exception
@@ -148,7 +151,7 @@ destroyKeyedPool' :: (resource -> IO ())
                   -> IO ()
 destroyKeyedPool' destroy var = do
     m <- atomically $ swapTVar var PoolClosed
-    F.mapM_ destroy m
+    F.mapM_ (ignoreExceptions . destroy) m
 
 -- | Run a reaper thread, which will destroy old resources. It will
 -- stop running once our pool switches to PoolClosed, which is handled
@@ -173,7 +176,7 @@ reap destroy var =
                         (m', toDestroy) <- findStale idleCount m
                         writeTVar var m'
                         return $ do
-                            mask_ (mapM_ safeDestroy toDestroy)
+                            mask_ (mapM_ (ignoreExceptions . destroy) toDestroy)
                             loop
 
     findStale :: Int
@@ -204,8 +207,6 @@ reap destroy var =
         let idleCount' = idleCount - length toDestroy
         return (PoolOpen idleCount' toKeep, toDestroy)
 
-    safeDestroy x = destroy x `catch` \(_ :: SomeException) -> return ()
-
 -- | Check out a value from the 'KeyedPool' with the given key.
 --
 -- This function will internally call 'mask_' to ensure async safety,
@@ -227,7 +228,7 @@ takeKeyedPool kp key = mask_ $ join $ atomically $ do
                 unless isReleased $
                     case action of
                         Reuse -> putResource kp key resource
-                        DontReuse -> kpDestroy kp resource
+                        DontReuse -> ignoreExceptions $ kpDestroy kp resource
 
         _ <- mkWeakIORef alive $ release DontReuse
         return Managed
@@ -314,3 +315,6 @@ dummyManaged resource = Managed
     , _managedRelease = const (return ())
     , _managedAlive = unsafePerformIO (newIORef ())
     }
+
+ignoreExceptions :: IO () -> IO ()
+ignoreExceptions f = f `catch` \(_ :: SomeException) -> return ()
