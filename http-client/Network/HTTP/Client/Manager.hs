@@ -509,6 +509,8 @@ envHelper name eh = do
             (p, muserpass) <- maybe invalid return $ do
                 uri <- case U.parseURI str of
                     Just u | U.uriScheme u == "http:" -> return u
+                           | U.uriScheme u == "socks5:" -> return u
+                           | U.uriScheme u == "socks5h:" -> return u
                     _ -> U.parseURI $ "http://" ++ str
 
                 guard $ U.uriScheme uri == "http:"
