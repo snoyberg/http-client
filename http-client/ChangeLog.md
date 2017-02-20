@@ -1,3 +1,7 @@
+## 0.5.6
+
+* Added socks5 and socks5h support [#262](https://github.com/snoyberg/http-client/pull/262)
+
 ## 0.5.5
 
 * http-client should allow to log requests and responses [#248](https://github.com/snoyberg/http-client/issues/248)
