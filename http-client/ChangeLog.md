@@ -1,3 +1,7 @@
+## 0.5.6.1
+
+* Fix broken socks5 and socks5h support from previous release
+
 ## 0.5.6
 
 * Added socks5 and socks5h support [#262](https://github.com/snoyberg/http-client/pull/262)

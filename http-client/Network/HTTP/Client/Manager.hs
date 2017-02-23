@@ -507,13 +507,15 @@ envHelper name eh = do
         Just str -> do
             let invalid = throwHttp $ InvalidProxyEnvironmentVariable name (T.pack str)
             (p, muserpass) <- maybe invalid return $ do
+                let allowedScheme x =
+                       x == "http:" ||
+                       x == "socks5:" ||
+                       x == "socks5h:"
                 uri <- case U.parseURI str of
-                    Just u | U.uriScheme u == "http:" -> return u
-                           | U.uriScheme u == "socks5:" -> return u
-                           | U.uriScheme u == "socks5h:" -> return u
+                    Just u | allowedScheme (U.uriScheme u) -> return u
                     _ -> U.parseURI $ "http://" ++ str
 
-                guard $ U.uriScheme uri == "http:"
+                guard $ allowedScheme $ U.uriScheme uri
                 guard $ null (U.uriPath uri) || U.uriPath uri == "/"
                 guard $ null $ U.uriQuery uri
                 guard $ null $ U.uriFragment uri
