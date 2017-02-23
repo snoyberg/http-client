@@ -151,8 +151,6 @@ inner = do
     let values =
           [ "http://squid:3128"
           , "squid:3128"
-          , "socks5://squid:3128"
-          , "socks5h://squid:3128"
           ]
     forM_ values $ \value -> do
       describe' "http_proxy" value $ do

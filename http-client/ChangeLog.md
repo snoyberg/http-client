@@ -1,6 +1,8 @@
 ## 0.5.6.1
 
-* Fix broken socks5 and socks5h support from previous release
+* Revert socks5 and socks5h support from
+  [#262](https://github.com/snoyberg/http-client/pull/262); the support was
+  untested and did not work as intended.
 
 ## 0.5.6
 
