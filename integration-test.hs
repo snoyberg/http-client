@@ -125,6 +125,7 @@ fails https = it ("fails to connect " ++ (if https then "secure" else "insecure"
   httpLBS (parseRequest_ (base https)) `shouldThrow` (\e ->
   case e of
     HttpExceptionRequest _ (ConnectionFailure _)  -> True
+    HttpExceptionRequest _ (InternalException _)  -> True
     _ -> False)
 
 -- | Ensure that connections succeed.

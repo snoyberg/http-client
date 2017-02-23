@@ -1,3 +1,7 @@
+## 0.3.3.2
+
+* Better handling of internal exceptions
+
 ## 0.3.3.1
 
 * Better exception safety via `bracketOnError`

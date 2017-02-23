@@ -75,14 +75,13 @@ mkManagerSettingsContext mcontext tls sock = defaultManagerSettings
                 | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
                 | otherwise -> managerRetryableException defaultManagerSettings e
     , managerWrapException = \req ->
-        let wrapper se =
-                case fromException se of
-                    Just (_ :: IOException) -> se'
-                    Nothing -> case fromException se of
-                      Just TLS.Terminated{} -> se'
-                      Just TLS.HandshakeFailed{} -> se'
-                      Just TLS.ConnectionNotEstablished -> se'
-                      _ -> se
+        let wrapper se
+              | Just (_ :: IOException)          <- fromException se = se'
+              | Just (_ :: TLS.TLSException)     <- fromException se = se'
+              | Just (_ :: NC.LineTooLong)       <- fromException se = se'
+              | Just (_ :: NC.HostNotResolved)   <- fromException se = se'
+              | Just (_ :: NC.HostCannotConnect) <- fromException se = se'
+              | otherwise = se
               where
                 se' = toException $ HttpExceptionRequest req $ InternalException se
          in handle $ throwIO . wrapper
