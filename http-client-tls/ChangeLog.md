@@ -1,7 +1,9 @@
 ## 0.3.4
 
 * Add 'newTlsManager'
-  [#263](https://github.com/snoyberg/http-client/issues/263)
+  [#263](https://github.com/snoyberg/http-client/issues/263), which adds
+  support for respecting `socks5://` and `socks5h://` `http_proxy` and
+  `https_proxy` environment variables.
 
 ## 0.3.3.2
 
