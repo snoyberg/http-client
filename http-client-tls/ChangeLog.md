@@ -1,3 +1,8 @@
+## 0.3.4
+
+* Add 'newTlsManager'
+  [#263](https://github.com/snoyberg/http-client/issues/263)
+
 ## 0.3.3.2
 
 * Better handling of internal exceptions

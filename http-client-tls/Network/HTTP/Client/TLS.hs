@@ -11,6 +11,7 @@ module Network.HTTP.Client.TLS
       tlsManagerSettings
     , mkManagerSettings
     , mkManagerSettingsContext
+    , newTlsManager
       -- * Digest authentication
     , applyDigestAuth
     , DigestAuthException (..)
@@ -21,6 +22,9 @@ module Network.HTTP.Client.TLS
     , setGlobalManager
     ) where
 
+import Control.Applicative ((<|>))
+import Control.Arrow (first)
+import System.Environment (getEnvironment)
 import Data.Default.Class
 import Network.HTTP.Client hiding (host, port)
 import Network.HTTP.Client.Internal hiding (host, port)
@@ -41,6 +45,10 @@ import Control.Arrow ((***))
 import Data.ByteArray.Encoding (convertToBase, Base (Base16))
 import Data.Typeable (Typeable)
 import Control.Monad.Catch (MonadThrow, throwM)
+import qualified Data.Map as Map
+import qualified Data.Text as T
+import Data.Text.Read (decimal)
+import qualified Network.URI as U
 
 -- | Create a TLS-enabled 'ManagerSettings' with the given 'NC.TLSSettings' and
 -- 'NC.SockSettings'
@@ -62,13 +70,22 @@ mkManagerSettingsContext
     -> NC.TLSSettings
     -> Maybe NC.SockSettings
     -> ManagerSettings
-mkManagerSettingsContext mcontext tls sock = defaultManagerSettings
-    { managerTlsConnection = getTlsConnection mcontext (Just tls) sock
-    , managerTlsProxyConnection = getTlsProxyConnection mcontext tls sock
+mkManagerSettingsContext mcontext tls sock = mkManagerSettingsContext' mcontext tls sock sock
+
+-- | Internal, allow different SockSettings for HTTP and HTTPS
+mkManagerSettingsContext'
+    :: Maybe NC.ConnectionContext
+    -> NC.TLSSettings
+    -> Maybe NC.SockSettings -- ^ insecure
+    -> Maybe NC.SockSettings -- ^ secure
+    -> ManagerSettings
+mkManagerSettingsContext' mcontext tls sockHTTP sockHTTPS = defaultManagerSettings
+    { managerTlsConnection = getTlsConnection mcontext (Just tls) sockHTTPS
+    , managerTlsProxyConnection = getTlsProxyConnection mcontext tls sockHTTPS
     , managerRawConnection =
-        case sock of
+        case sockHTTP of
             Nothing -> managerRawConnection defaultManagerSettings
-            Just _ -> getTlsConnection mcontext Nothing sock
+            Just _ -> getTlsConnection mcontext Nothing sockHTTP
     , managerRetryableException = \e ->
         case () of
             ()
@@ -145,18 +162,60 @@ convertConnection conn = makeConnection
     -- already closed, and we get a @ResourceVanished@.
     (NC.connectionClose conn `Control.Exception.catch` \(_ :: IOException) -> return ())
 
+-- We may decide in the future to just have a global
+-- ConnectionContext and use it directly in tlsManagerSettings, at
+-- which point this can again be a simple (newManager
+-- tlsManagerSettings >>= newIORef). See:
+-- https://github.com/snoyberg/http-client/pull/227.
+globalConnectionContext :: NC.ConnectionContext
+globalConnectionContext = unsafePerformIO NC.initConnectionContext
+{-# NOINLINE globalConnectionContext #-}
+
+-- | Load up a new TLS manager with default settings, respecting proxy
+-- environment variables.
+--
+-- @since 0.3.4
+newTlsManager :: MonadIO m => m Manager
+newTlsManager = liftIO $ do
+    env <- getEnvironment
+    let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
+        msocksHTTP = parseSocksSettings env lenv "http_proxy"
+        msocksHTTPS = parseSocksSettings env lenv "https_proxy"
+        settings = mkManagerSettingsContext' (Just globalConnectionContext) def msocksHTTP msocksHTTPS
+        settings' = maybe id (const $ managerSetInsecureProxy proxyFromRequest) msocksHTTP
+                  $ maybe id (const $ managerSetSecureProxy proxyFromRequest) msocksHTTPS
+                    settings
+    newManager settings'
+
+parseSocksSettings :: [(String, String)] -- ^ original environment
+                   -> Map.Map T.Text String -- ^ lower-cased keys
+                   -> T.Text -- ^ env name
+                   -> Maybe NC.SockSettings
+parseSocksSettings env lenv n = do
+  str <- lookup (T.unpack n) env <|> Map.lookup n lenv
+  let allowedScheme x = x == "socks5:" || x == "socks5h:"
+  uri <- U.parseURI str
+
+  guard $ allowedScheme $ U.uriScheme uri
+  guard $ null (U.uriPath uri) || U.uriPath uri == "/"
+  guard $ null $ U.uriQuery uri
+  guard $ null $ U.uriFragment uri
+
+  auth <- U.uriAuthority uri
+  port' <-
+      case U.uriPort auth of
+          "" -> Nothing -- should we use some default?
+          ':':rest ->
+              case decimal $ T.pack rest of
+                  Right (p, "") -> Just p
+                  _ -> Nothing
+          _ -> Nothing
+
+  Just $ NC.SockSettingsSimple (U.uriRegName auth) port'
+
 -- | Evil global manager, to make life easier for the common use case
 globalManager :: IORef Manager
-globalManager = unsafePerformIO $ do
-    -- We may decide in the future to just have a global
-    -- ConnectionContext and use it directly in tlsManagerSettings, at
-    -- which point this can again be a simple (newManager
-    -- tlsManagerSettings >>= newIORef). See:
-    -- https://github.com/snoyberg/http-client/pull/227.
-    context <- NC.initConnectionContext
-    let settings = mkManagerSettingsContext (Just context) def Nothing
-    manager <- newManager settings
-    newIORef manager
+globalManager = unsafePerformIO $ newTlsManager >>= newIORef
 {-# NOINLINE globalManager #-}
 
 -- | Get the current global 'Manager'
