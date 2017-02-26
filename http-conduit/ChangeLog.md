@@ -1,3 +1,7 @@
+## 2.2.3.1
+
+* Minor README improvement
+
 ## 2.2.3
 
 * Add `withResponse` to `Network.HTTP.Simple`
