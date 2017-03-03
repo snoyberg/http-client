@@ -33,7 +33,7 @@ import qualified Network.Connection as NC
 import Network.Socket (HostAddress)
 import qualified Network.TLS as TLS
 import qualified Data.ByteString as S
-import Data.IORef (IORef, newIORef, readIORef, writeIORef)
+import Data.IORef (IORef, newIORef, readIORef, writeIORef, atomicModifyIORef)
 import System.IO.Unsafe (unsafePerformIO)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Control.Monad (guard, unless)
@@ -110,6 +110,21 @@ mkManagerSettingsContext' mcontext tls sockHTTP sockHTTPS = defaultManagerSettin
 tlsManagerSettings :: ManagerSettings
 tlsManagerSettings = mkManagerSettings def Nothing
 
+verboseInfo :: IORef (Int, Int)
+verboseInfo = unsafePerformIO $ newIORef (0, 0)
+{-# NOINLINE verboseInfo #-}
+
+verbose f = do
+  (open, closed) <- atomicModifyIORef verboseInfo $ \x -> let y = f x in (y, y)
+  putStrLn $ "opened: " ++ show open ++ ", closed: " ++ show closed
+
+verboseConnectTo ctx params = mask $ \restore -> do
+  conn <- restore $ NC.connectTo ctx params
+  verbose $ \(x, y) -> (x + 1, y)
+  return conn
+
+verboseClose conn = NC.connectionClose conn `finally` verbose (\(x, y) -> (x, y + 1))
+
 getTlsConnection :: Maybe NC.ConnectionContext
                  -> Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings
@@ -117,13 +132,13 @@ getTlsConnection :: Maybe NC.ConnectionContext
 getTlsConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \_ha host port -> bracketOnError
-        (NC.connectTo context NC.ConnectionParams
+        (verboseConnectTo context NC.ConnectionParams
             { NC.connectionHostname = host
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = tls
             , NC.connectionUseSocks = sock
             })
-        NC.connectionClose
+        verboseClose
         convertConnection
 
 getTlsProxyConnection
@@ -134,7 +149,7 @@ getTlsProxyConnection
 getTlsProxyConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \connstr checkConn serverName _ha host port -> bracketOnError
-        (NC.connectTo context NC.ConnectionParams
+        (verboseConnectTo context NC.ConnectionParams
             { NC.connectionHostname = serverName
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = Nothing
@@ -143,7 +158,7 @@ getTlsProxyConnection mcontext tls sock = do
                     Just _ -> error "Cannot use SOCKS and TLS proxying together"
                     Nothing -> Just $ NC.OtherProxy host $ fromIntegral port
             })
-        NC.connectionClose
+        verboseClose
         $ \conn -> do
             NC.connectionPut conn connstr
             conn' <- convertConnection conn
@@ -161,7 +176,7 @@ convertConnection conn = makeConnection
     -- Closing an SSL connection gracefully involves writing/reading
     -- on the socket.  But when this is called the socket might be
     -- already closed, and we get a @ResourceVanished@.
-    (NC.connectionClose conn `Control.Exception.catch` \(_ :: IOException) -> return ())
+    (verboseClose conn `Control.Exception.catch` \(_ :: IOException) -> return ())
 
 -- We may decide in the future to just have a global
 -- ConnectionContext and use it directly in tlsManagerSettings, at
