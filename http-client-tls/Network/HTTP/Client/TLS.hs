@@ -116,14 +116,15 @@ getTlsConnection :: Maybe NC.ConnectionContext
                  -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
-    return $ \_ha host port -> do
-        conn <- NC.connectTo context NC.ConnectionParams
+    return $ \_ha host port -> bracketOnError
+        (NC.connectTo context NC.ConnectionParams
             { NC.connectionHostname = host
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = tls
             , NC.connectionUseSocks = sock
-            }
-        convertConnection conn
+            })
+        NC.connectionClose
+        convertConnection
 
 getTlsProxyConnection
     :: Maybe NC.ConnectionContext
