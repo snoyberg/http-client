@@ -1,3 +1,7 @@
+## 0.3.4.1
+
+* Better exception cleanup behavior
+
 ## 0.3.4
 
 * Add 'newTlsManager'
