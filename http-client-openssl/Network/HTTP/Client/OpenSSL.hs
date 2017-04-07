@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL

@@ -1,3 +1,7 @@
+## 0.2.0.5
+
+* Use different domain name so tests pass
+
 ## 0.2.0.4
 
 * Minor doc updates
