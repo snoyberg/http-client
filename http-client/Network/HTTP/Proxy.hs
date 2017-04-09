@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Proxy( systemProxy, ProxyProtocol(..), EnvHelper(..), envHelper, envName, httpProtocol ) where
+module Network.HTTP.Proxy(  systemProxy,
+                            ProxyProtocol(..), EnvHelper(..),
+                            envHelper, envName,
+                            httpProtocol,
+                            ProxySettings ) where
 
 import           Control.Applicative         ((<$>), (<|>))
 import           Control.Arrow               (first)
@@ -20,6 +24,9 @@ import           System.Environment          (getEnvironment)
 -- There are other proxy protocols like SOCKS, FTP, etc.
 data ProxyProtocol = HTTPProxy | HTTPSProxy deriving Show
 
+data ProxySettings = ProxySettings { proxyHost :: Proxy,
+                                     proxyAuth :: Maybe (S8.ByteString, S8.ByteString) }
+
 httpProtocol :: Bool -> ProxyProtocol
 httpProtocol True  = HTTPSProxy
 httpProtocol False = HTTPProxy
@@ -35,8 +42,6 @@ envName :: Bool -- ^ secure?
 envName False = "http_proxy"
 envName True  = "https_proxy"
 
--- envProxy =
-
 data EnvHelper = EHFromRequest
                | EHNoProxy
                | EHUseProxy Proxy
@@ -46,8 +51,8 @@ envHelper name eh = do
     f <- envHelper' name
 
     let result req = toRequest . f . host $ req where
-            toRequest Nothing               = noEnvProxy req
-            toRequest (Just (p, muserpass)) = maybe id (uncurry applyBasicProxyAuth) muserpass
+            toRequest Nothing                            = noEnvProxy req
+            toRequest (Just (ProxySettings p muserpass)) = maybe id (uncurry applyBasicProxyAuth) muserpass
                                         req { proxy = Just p }
         noEnvProxy = case eh of
             EHFromRequest -> id
@@ -56,7 +61,8 @@ envHelper name eh = do
 
     pure result
 
-envHelper' :: T.Text -> IO (S8.ByteString -> Maybe (Proxy, Maybe (S8.ByteString, S8.ByteString)))
+-- Extract proxy settings from environment variables (default for Linux)
+envHelper' :: T.Text -> IO (S8.ByteString -> Maybe ProxySettings)
 envHelper' name = do
   env <- getEnvironment
   let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
@@ -93,7 +99,7 @@ envHelper' name = do
           return $ \hostRequest ->
               if hostRequest `hasDomainSuffixIn` noProxyDomains
               then Nothing
-              else Just (p, muserpass)
+              else Just $ ProxySettings p muserpass
   where prefixed s | S8.head s == '.' = s
                    | otherwise = S8.cons '.' s
         domainSuffixes Nothing = []
