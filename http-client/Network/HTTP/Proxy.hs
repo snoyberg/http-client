@@ -37,18 +37,17 @@ systemProxy = undefined
 systemProxyHelper :: ProxyProtocol -> IO (Request -> Request)
 systemProxyHelper = undefined
 
-envName :: Bool -- ^ secure?
-        -> T.Text
-envName False = "http_proxy"
-envName True  = "https_proxy"
+envName :: ProxyProtocol -> T.Text
+envName HTTPProxy  = "http_proxy"
+envName HTTPSProxy = "https_proxy"
 
 data EnvHelper = EHFromRequest
                | EHNoProxy
                | EHUseProxy Proxy
 
-envHelper :: T.Text -> EnvHelper -> IO (Request -> Request)
-envHelper name eh = do
-    f <- envHelper' name
+envHelper :: ProxyProtocol -> EnvHelper -> IO (Request -> Request)
+envHelper prot eh = do
+    f <- envHelper' . envName $ prot
 
     let result req = toRequest . f . host $ req where
             toRequest Nothing                            = noEnvProxy req

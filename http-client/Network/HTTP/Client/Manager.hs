@@ -469,7 +469,7 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
                  -> ProxyOverride
 proxyEnvironment mp = ProxyOverride $ \secure' ->
-    envHelper (envName secure') $ maybe EHNoProxy EHUseProxy mp
+    envHelper (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | Same as 'proxyEnvironment', but instead of default environment variable
 -- names, allows you to set your own name.
@@ -488,4 +488,4 @@ proxyEnvironmentNamed name =
 -- Since 0.4.7
 defaultProxy :: ProxyOverride
 defaultProxy = ProxyOverride $ \secure' ->
-    envHelper (envName secure') EHFromRequest
+    envHelper (httpProtocol secure') EHFromRequest
