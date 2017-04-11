@@ -1,7 +1,7 @@
+{-# LANGUAGE CPP               #-}
 {-# LANGUAGE OverloadedStrings #-}
-module Network.HTTP.Proxy(  systemProxy,
-                            ProxyProtocol(..), EnvHelper(..),
-                            envHelper, envName,
+module Network.HTTP.Proxy(  ProxyProtocol(..), EnvHelper(..),
+                            systemProxyHelper,
                             httpProtocol,
                             ProxySettings ) where
 
@@ -21,48 +21,70 @@ import           Network.HTTP.Client.Types   (HttpExceptionContent (..),
 import qualified Network.URI                 as U
 import           System.Environment          (getEnvironment)
 
+type EnvName     = T.Text
+type HostAddress = S8.ByteString
+type UserName    = S8.ByteString
+type Password    = S8.ByteString
+
 -- There are other proxy protocols like SOCKS, FTP, etc.
 data ProxyProtocol = HTTPProxy | HTTPSProxy deriving Show
 
 data ProxySettings = ProxySettings { proxyHost :: Proxy,
-                                     proxyAuth :: Maybe (S8.ByteString, S8.ByteString) }
+                                     proxyAuth :: Maybe (UserName, Password) }
 
 httpProtocol :: Bool -> ProxyProtocol
 httpProtocol True  = HTTPSProxy
 httpProtocol False = HTTPProxy
 
-systemProxy :: ProxyProtocol -> IO (Maybe Proxy)
-systemProxy = undefined
-
-systemProxyHelper :: ProxyProtocol -> IO (Request -> Request)
-systemProxyHelper = undefined
-
-envName :: ProxyProtocol -> T.Text
-envName HTTPProxy  = "http_proxy"
-envName HTTPSProxy = "https_proxy"
-
 data EnvHelper = EHFromRequest
                | EHNoProxy
                | EHUseProxy Proxy
 
-envHelper :: ProxyProtocol -> EnvHelper -> IO (Request -> Request)
-envHelper prot eh = do
-    f <- envHelper' . envName $ prot
+headJust :: [Maybe a] -> Maybe a
+headJust []               = Nothing
+headJust (Nothing:xs)     = headJust xs
+headJust ((y@(Just x)):_) = y
 
-    let result req = toRequest . f . host $ req where
-            toRequest Nothing                            = noEnvProxy req
-            toRequest (Just (ProxySettings p muserpass)) = maybe id (uncurry applyBasicProxyAuth) muserpass
-                                        req { proxy = Just p }
+systemProxyHelper :: ProxyProtocol -> EnvHelper -> IO (Request -> Request)
+systemProxyHelper prot eh = do
+    modifier <- envHelper . envName $ prot
+
+-- Under Windows try first env. variables override then Windows proxy settings
+#if defined(WIN32)
+    modifier' <- systemProxy prot
+    let modifiers = [modifier, modifier']
+#else
+    let modifiers = [modifier]
+#endif
+
+    let chooseMod :: Request -> Maybe ProxySettings
+        chooseMod req = headJust . map (\m -> m . host $ req) $ modifiers
+
         noEnvProxy = case eh of
             EHFromRequest -> id
             EHNoProxy     -> \req -> req { proxy = Nothing }
             EHUseProxy p  -> \req -> req { proxy = Just p  }
 
+    let result req = toRequest . chooseMod $ req where
+            toRequest Nothing                            = noEnvProxy req
+            toRequest (Just (ProxySettings p muserpass)) = maybe id (uncurry applyBasicProxyAuth) muserpass
+                                        req { proxy = Just p }
     pure result
 
--- Extract proxy settings from environment variables (default for Linux)
-envHelper' :: T.Text -> IO (S8.ByteString -> Maybe ProxySettings)
-envHelper' name = do
+
+#if defined(WIN32)
+-- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
+systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
+systemProxy = undefined
+#endif
+
+envName :: ProxyProtocol -> EnvName
+envName HTTPProxy  = "http_proxy"
+envName HTTPSProxy = "https_proxy"
+
+-- Extract proxy settings from environment variables. This is a standard way in Linux.
+envHelper :: EnvName -> IO (HostAddress -> Maybe ProxySettings)
+envHelper name = do
   env <- getEnvironment
   let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
       lookupEnvVar n = lookup (T.unpack n) env <|> Map.lookup n lenv
