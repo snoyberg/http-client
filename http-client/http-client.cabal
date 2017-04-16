@@ -60,6 +60,10 @@ library
     build-depends: network >= 2.6, network-uri >= 2.6
   else
     build-depends: network < 2.6
+
+  if os(mingw32)
+    build-depends: Win32
+
   default-language:    Haskell2010
 
 test-suite spec
