@@ -19,6 +19,7 @@ flag network-uri
 library
   hs-source-dirs:      ., publicsuffixlist
   exposed-modules:     Network.HTTP.Client
+                       Network.HTTP.Client.Types
                        Network.HTTP.Client.MultipartFormData
                        Network.HTTP.Client.Internal
   other-modules:       Network.HTTP.Client.Body
@@ -29,7 +30,6 @@ library
                        Network.HTTP.Client.Manager
                        Network.HTTP.Client.Request
                        Network.HTTP.Client.Response
-                       Network.HTTP.Client.Types
                        Network.HTTP.Client.Util
                        Network.PublicSuffixList.Lookup
                        Network.PublicSuffixList.Types
