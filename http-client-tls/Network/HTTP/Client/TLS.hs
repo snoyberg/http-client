@@ -95,6 +95,7 @@ mkManagerSettingsContext' mcontext tls sockHTTP sockHTTPS = defaultManagerSettin
         let wrapper se
               | Just (_ :: IOException)          <- fromException se = se'
               | Just (_ :: TLS.TLSException)     <- fromException se = se'
+              | Just (_ :: TLS.TLSError)         <- fromException se = se'
               | Just (_ :: NC.LineTooLong)       <- fromException se = se'
 #if MIN_VERSION_connection(0,2,7)
               | Just (_ :: NC.HostNotResolved)   <- fromException se = se'
