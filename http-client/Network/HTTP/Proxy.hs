@@ -137,14 +137,11 @@ systemProxyHelper prot eh = do
                                         req { proxy = Just p }
     pure result
 
-windowsProxyString :: IO (Maybe String)
-#if !defined(mingw32_HOST_OS)
-windowsProxyString = return Nothing
-#else
-windowsProxyString = liftM (>>= parseWindowsProxy) registryProxyString
-#endif
 
 #if defined(mingw32_HOST_OS)
+windowsProxyString :: IO (Maybe String)
+windowsProxyString = liftM (>>= parseWindowsProxy) registryProxyString
+
 registryProxyLoc :: (HKEY,String)
 registryProxyLoc = (hive, path)
   where
@@ -196,17 +193,20 @@ parseWindowsProxy s =
       (ys, [])   -> [ys]
       (ys, _:zs) -> ys:split a zs
 
-proxyString = undefined
+-- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
+systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
+systemProxy _ = do
+    proxy <- fetchProxy False
+    return $ const proxy
 
 -- | @fetchProxy flg@ gets the local proxy settings and parse the string
 -- into a @Proxy@ value. If you want to be informed of ill-formed proxy
 -- configuration strings, supply @True@ for @flg@.
--- Proxy settings are sourced from the @HTTP_PROXY@ environment variable,
--- and in the case of Windows platforms, by consulting IE/WinInet's proxy
+-- Proxy settings are sourced from IE/WinInet's proxy
 -- setting in the Registry.
 fetchProxy :: Bool -> IO (Maybe ProxySettings)
 fetchProxy warnIfIllformed = do
-    mstr <- proxyString
+    mstr <- windowsProxyString
     case mstr of
       Nothing     -> return Nothing
       Just str    -> case parseProxy str of
@@ -295,9 +295,6 @@ regQueryValueDWORD hkey name = alloca $ \ptr -> do
   _ <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
   peek ptr
 
--- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
-systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
-systemProxy _ = undefined
 #endif
 
 envName :: ProxyProtocol -> EnvName
