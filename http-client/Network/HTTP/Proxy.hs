@@ -72,10 +72,15 @@ import           Network.HTTP.Client.Types   (HttpExceptionContent (..),
 import qualified Network.URI                 as U
 import           System.Environment          (getEnvironment)
 
-#if defined(WIN32)
-import           Control.Exception           (bracket)
+#if defined(mingw32_HOST_OS)
+import           Control.Exception           (IOException, bracket, catch)
+import           Control.Monad               (join, liftM, mplus, when)
+import           Data.List                   (isPrefixOf)
 import           Foreign                     (Storable (peek, sizeOf), alloca,
                                               castPtr, toBool)
+import           Network.URI                 (parseAbsoluteURI)
+import           Safe                        (readDef)
+import           System.IO
 import           System.Win32.Registry       (hKEY_CURRENT_USER, regCloseKey,
                                               regOpenKey, regQueryValue,
                                               regQueryValueEx)
@@ -111,7 +116,7 @@ systemProxyHelper prot eh = do
     modifier <- envHelper . envName $ prot
 
 -- Under Windows try first env. variables override then Windows proxy settings
-#if defined(WIN32)
+#if defined(mingw32_HOST_OS)
     modifier' <- systemProxy prot
     let modifiers = [modifier, modifier']
 #else
@@ -133,13 +138,13 @@ systemProxyHelper prot eh = do
     pure result
 
 windowsProxyString :: IO (Maybe String)
-#if !defined(WIN32)
+#if !defined(mingw32_HOST_OS)
 windowsProxyString = return Nothing
 #else
 windowsProxyString = liftM (>>= parseWindowsProxy) registryProxyString
 #endif
 
-#if defined(WIN32)
+#if defined(mingw32_HOST_OS)
 registryProxyLoc :: (HKEY,String)
 registryProxyLoc = (hive, path)
   where
@@ -154,13 +159,15 @@ registryProxyLoc = (hive, path)
 -- read proxy settings from the windows registry; this is just a best
 -- effort and may not work on all setups.
 registryProxyString :: IO (Maybe String)
-registryProxyString = catchIO
+registryProxyString = catch
   (bracket (uncurry regOpenKey registryProxyLoc) regCloseKey $ \hkey -> do
     enable <- fmap toBool $ regQueryValueDWORD hkey "ProxyEnable"
     if enable
         then fmap Just $ regQueryValue hkey (Just "ProxyServer")
         else return Nothing)
-  (\_ -> return Nothing)
+  hideError where
+      hideError :: IOException -> IO (Maybe String)
+      hideError _ = return Nothing
 
 -- the proxy string is in the format "http=x.x.x.x:yyyy;https=...;ftp=...;socks=..."
 -- even though the following article indicates otherwise
@@ -189,39 +196,41 @@ parseWindowsProxy s =
       (ys, [])   -> [ys]
       (ys, _:zs) -> ys:split a zs
 
+proxyString = undefined
+
 -- | @fetchProxy flg@ gets the local proxy settings and parse the string
 -- into a @Proxy@ value. If you want to be informed of ill-formed proxy
 -- configuration strings, supply @True@ for @flg@.
 -- Proxy settings are sourced from the @HTTP_PROXY@ environment variable,
 -- and in the case of Windows platforms, by consulting IE/WinInet's proxy
 -- setting in the Registry.
-fetchProxy :: Bool -> IO Proxy
+fetchProxy :: Bool -> IO (Maybe ProxySettings)
 fetchProxy warnIfIllformed = do
     mstr <- proxyString
     case mstr of
-      Nothing     -> return NoProxy
+      Nothing     -> return Nothing
       Just str    -> case parseProxy str of
-          Just p  -> return p
-          Nothing -> do
+          it@(Just p) -> return it
+          Nothing     -> do
               when warnIfIllformed $ System.IO.hPutStrLn System.IO.stderr $ unlines
                       [ "invalid http proxy uri: " ++ show str
                       , "proxy uri must be http with a hostname"
                       , "ignoring http proxy, trying a direct connection"
                       ]
-              return NoProxy
+              return Nothing
 
 -- | @parseProxy str@ translates a proxy server string into a @Proxy@ value;
 -- returns @Nothing@ if not well-formed.
-parseProxy :: String -> Maybe Proxy
+parseProxy :: String -> Maybe ProxySettings
 parseProxy str = join
                  . fmap uri2proxy
                  $ parseHttpURI str
-           `mplus` parseHttpURI ("http://" ++ str)
+                 `mplus` parseHttpURI ("http://" ++ str)
     where
      parseHttpURI str' =
       case parseAbsoluteURI str' of
-        Just uri@URI{uriAuthority = Just{}} -> Just (fixUserInfo uri)
-        _                                   -> Nothing
+        Just uri@U.URI{U.uriAuthority = Just{}} -> Just (fixUserInfo uri)
+        _                                       -> Nothing
 
        -- Note: we need to be able to parse non-URIs like @\"wwwcache.example.com:80\"@
        -- which lack the @\"http://\"@ URI scheme. The problem is that
@@ -232,31 +241,63 @@ parseProxy str = join
        -- 'uriAuthority' then we try parsing again with a @\"http://\"@ prefix.
        --
 
--- | tidy up user portion, don't want the trailing "\@".
-fixUserInfo :: URI -> URI
-fixUserInfo uri = uri{ uriAuthority = f `fmap` uriAuthority uri }
-    where
-     f a@URIAuth{uriUserInfo=s} = a{uriUserInfo=dropWhileTail (=='@') s}
+-- | @dropWhileTail p ls@ chops off trailing elements from @ls@
+-- until @p@ returns @False@.
+dropWhileTail :: (a -> Bool) -> [a] -> [a]
+dropWhileTail f ls =
+    case foldr chop Nothing ls of { Just xs -> xs; Nothing -> [] }
+     where
+       chop x (Just xs) = Just (x:xs)
+       chop x _
+        | f x       = Nothing
+        | otherwise = Just [x]
 
---
-uri2proxy :: URI -> Maybe Proxy
-uri2proxy uri@URI{ uriScheme    = "http:"
-               , uriAuthority = Just (URIAuth auth' hst prt)
-               } =
-    Just (Proxy (hst ++ prt) auth)
+-- | @chopAtDelim elt ls@ breaks up @ls@ into two at first occurrence
+-- of @elt@; @elt@ is elided too. If @elt@ does not occur, the second
+-- list is empty and the first is equal to @ls@.
+chopAtDelim :: Eq a => a -> [a] -> ([a],[a])
+chopAtDelim elt xs =
+    case break (==elt) xs of
+    (_,[])    -> (xs,[])
+    (as,_:bs) -> (as,bs)
+
+-- | tidy up user portion, don't want the trailing "\@".
+fixUserInfo :: U.URI -> U.URI
+fixUserInfo uri = uri{ U.uriAuthority = f `fmap` U.uriAuthority uri }
     where
+     f a@U.URIAuth{U.uriUserInfo=s} = a{U.uriUserInfo=dropWhileTail (=='@') s}
+
+defaultHTTPport = 80 :: Int
+
+uri2proxy :: U.URI -> Maybe ProxySettings
+uri2proxy uri@U.URI{
+              U.uriScheme    = "http:"
+            , U.uriAuthority = Just (U.URIAuth auth' hst prt)
+          } =
+    Just (ProxySettings (Proxy (S8.pack hst) (port prt)) auth)
+    where
+     port (':':xs) = readDef defaultHTTPport xs
+     port _        = defaultHTTPport
+
      auth =
        case auth' of
          [] -> Nothing
-         as -> Just (AuthBasic "" (unEscapeString usr) (unEscapeString pwd) uri)
+         as -> Just ((S8.pack . U.unEscapeString $ usr), (S8.pack . U.unEscapeString $ pwd))
           where
            (usr,pwd) = chopAtDelim ':' as
 
 uri2proxy _ = Nothing
 
+regQueryValueDWORD :: HKEY -> String -> IO DWORD
+regQueryValueDWORD hkey name = alloca $ \ptr -> do
+  -- TODO: this throws away the key type returned by regQueryValueEx
+  -- we should check it's what we expect instead
+  _ <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
+  peek ptr
+
 -- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
 systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
-systemProxy = undefined
+systemProxy _ = undefined
 #endif
 
 envName :: ProxyProtocol -> EnvName

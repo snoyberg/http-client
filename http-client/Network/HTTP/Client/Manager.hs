@@ -479,9 +479,9 @@ proxyEnvironmentNamed
     :: Text -- ^ environment variable name
     -> Maybe Proxy -- ^ fallback if no environment set
     -> ProxyOverride
-proxyEnvironmentNamed name =
-    ProxyOverride . const . envHelper name
-                  . maybe EHNoProxy EHUseProxy
+proxyEnvironmentNamed name = undefined
+--    ProxyOverride . const . envHelper name
+--                  . maybe EHNoProxy EHUseProxy
 
 -- | The default proxy settings for a manager. In particular: if the @http_proxy@ (or @https_proxy@) environment variable is set, use it. Otherwise, use the values in the @Request@.
 --
