@@ -299,7 +299,7 @@ applyDigestAuth :: (MonadIO m, MonadThrow n)
                 -> Request
                 -> Manager
                 -> m (n Request)
-applyDigestAuth user pass req man = liftIO $ do
+applyDigestAuth user pass req0 man = liftIO $ do
     res <- httpNoBody req man
     let throw' = throwM . DigestAuthException req res
     return $ do
@@ -360,6 +360,10 @@ applyDigestAuth user pass req man = liftIO $ do
             , cookieJar = Just $ responseCookieJar res
             }
   where
+    -- Since we're expecting a non-200 response, ensure we do not
+    -- throw exceptions for such responses.
+    req = req0 { checkResponse = \_ _ -> return () }
+
     stripCI x y
         | CI.mk x == CI.mk (S.take len y) = Just $ S.drop len y
         | otherwise = Nothing

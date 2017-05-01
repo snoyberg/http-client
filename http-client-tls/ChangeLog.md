@@ -1,3 +1,7 @@
+## 0.3.4.2
+
+* Never throw exceptions on 401 status in `applyDigestAuth`
+
 ## 0.3.4.1
 
 * Better exception cleanup behavior
