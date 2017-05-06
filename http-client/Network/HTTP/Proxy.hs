@@ -203,6 +203,7 @@ parseWindowsProxy proto s =
 -- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
 systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
 systemProxy proto = do
+    -- TODO Support for proxy skipping for specific addresses, kept in "ProxyOverride" registry key
     proxy <- fetchProxy proto
     return $ const proxy
 
