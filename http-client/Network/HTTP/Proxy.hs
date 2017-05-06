@@ -81,9 +81,9 @@ import           Foreign                     (Storable (peek, sizeOf), alloca,
 import           Network.URI                 (parseAbsoluteURI)
 import           Safe                        (readDef)
 import           System.IO
-import           System.Win32.Registry       (hKEY_CURRENT_USER, regCloseKey,
-                                              regOpenKey, regQueryValue,
-                                              regQueryValueEx)
+import           System.Win32.Registry       (hKEY_CURRENT_USER, rEG_DWORD,
+                                              regCloseKey, regOpenKey,
+                                              regQueryValue, regQueryValueEx)
 import           System.Win32.Types          (DWORD, HKEY)
 #endif
 
@@ -93,10 +93,15 @@ type UserName    = S8.ByteString
 type Password    = S8.ByteString
 
 -- There are other proxy protocols like SOCKS, FTP, etc.
-data ProxyProtocol = HTTPProxy | HTTPSProxy deriving Show
+data ProxyProtocol = HTTPProxy | HTTPSProxy
+
+instance Show ProxyProtocol where
+    show HTTPProxy  = "http"
+    show HTTPSProxy = "https"
 
 data ProxySettings = ProxySettings { proxyHost :: Proxy,
                                      proxyAuth :: Maybe (UserName, Password) }
+                                     deriving Show
 
 httpProtocol :: Bool -> ProxyProtocol
 httpProtocol True  = HTTPSProxy
@@ -139,8 +144,8 @@ systemProxyHelper prot eh = do
 
 
 #if defined(mingw32_HOST_OS)
-windowsProxyString :: IO (Maybe String)
-windowsProxyString = liftM (>>= parseWindowsProxy) registryProxyString
+windowsProxyString :: ProxyProtocol -> IO (Maybe String)
+windowsProxyString proto = liftM (>>= parseWindowsProxy proto) registryProxyString
 
 registryProxyLoc :: (HKEY,String)
 registryProxyLoc = (hive, path)
@@ -172,10 +177,8 @@ registryProxyString = catch
 --
 -- to be sure, parse strings where each entry in the ';'-separated list above is
 -- either in the format "protocol=..." or "protocol://..."
---
--- only return the first "http" of them, if it exists
-parseWindowsProxy :: String -> Maybe String
-parseWindowsProxy s =
+parseWindowsProxy :: ProxyProtocol -> String -> Maybe String
+parseWindowsProxy proto s =
   case proxies of
     x:_ -> Just x
     _   -> Nothing
@@ -185,7 +188,8 @@ parseWindowsProxy s =
       (p, []) -> p  -- might be in format http://
       (p, u)  -> p ++ "://" ++ drop 1 u
 
-    proxies = filter (isPrefixOf "http://") . map pr $ parts
+    protoPrefix = (show proto) ++ "://"
+    proxies = filter (isPrefixOf protoPrefix) . map pr $ parts
 
     split :: Eq a => a -> [a] -> [[a]]
     split _ [] = []
@@ -195,8 +199,8 @@ parseWindowsProxy s =
 
 -- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
 systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
-systemProxy _ = do
-    proxy <- fetchProxy False
+systemProxy proto = do
+    proxy <- fetchProxy False proto
     return $ const proxy
 
 -- | @fetchProxy flg@ gets the local proxy settings and parse the string
@@ -204,12 +208,12 @@ systemProxy _ = do
 -- configuration strings, supply @True@ for @flg@.
 -- Proxy settings are sourced from IE/WinInet's proxy
 -- setting in the Registry.
-fetchProxy :: Bool -> IO (Maybe ProxySettings)
-fetchProxy warnIfIllformed = do
-    mstr <- windowsProxyString
+fetchProxy :: Bool -> ProxyProtocol -> IO (Maybe ProxySettings)
+fetchProxy warnIfIllformed proto = do
+    mstr <- windowsProxyString proto
     case mstr of
       Nothing     -> return Nothing
-      Just str    -> case parseProxy str of
+      Just str    -> case parseProxy proto str of
           it@(Just p) -> return it
           Nothing     -> do
               when warnIfIllformed $ System.IO.hPutStrLn System.IO.stderr $ unlines
@@ -219,14 +223,15 @@ fetchProxy warnIfIllformed = do
                       ]
               return Nothing
 
--- | @parseProxy str@ translates a proxy server string into a @Proxy@ value;
+-- | @parseProxy str@ translates a proxy server string into a @ProxySettings@ value;
 -- returns @Nothing@ if not well-formed.
-parseProxy :: String -> Maybe ProxySettings
-parseProxy str = join
-                 . fmap uri2proxy
+parseProxy :: ProxyProtocol -> String -> Maybe ProxySettings
+parseProxy proto str = join
+                 . fmap (uri2proxy proto)
                  $ parseHttpURI str
-                 `mplus` parseHttpURI ("http://" ++ str)
+                 `mplus` parseHttpURI (protoPrefix ++ str)
     where
+     protoPrefix = (show proto) ++ "://"
      parseHttpURI str' =
       case parseAbsoluteURI str' of
         Just uri@U.URI{U.uriAuthority = Just{}} -> Just (fixUserInfo uri)
@@ -267,17 +272,17 @@ fixUserInfo uri = uri{ U.uriAuthority = f `fmap` U.uriAuthority uri }
     where
      f a@U.URIAuth{U.uriUserInfo=s} = a{U.uriUserInfo=dropWhileTail (=='@') s}
 
-defaultHTTPport = 80 :: Int
+defaultHTTPport :: ProxyProtocol -> Int
+defaultHTTPport HTTPProxy  = 80
+defaultHTTPport HTTPSProxy = 443
 
-uri2proxy :: U.URI -> Maybe ProxySettings
-uri2proxy uri@U.URI{
-              U.uriScheme    = "http:"
-            , U.uriAuthority = Just (U.URIAuth auth' hst prt)
-          } =
-    Just (ProxySettings (Proxy (S8.pack hst) (port prt)) auth)
+uri2proxy :: ProxyProtocol -> U.URI -> Maybe ProxySettings
+uri2proxy proto uri@U.URI{ U.uriAuthority = Just (U.URIAuth auth' hst prt) } =
+    if (show proto ++ ":") == U.uriScheme uri then
+        Just (ProxySettings (Proxy (S8.pack hst) (port prt)) auth) else Nothing
     where
-     port (':':xs) = readDef defaultHTTPport xs
-     port _        = defaultHTTPport
+     port (':':xs) = readDef (defaultHTTPport proto) xs
+     port _        = (defaultHTTPport proto)
 
      auth =
        case auth' of
@@ -286,20 +291,20 @@ uri2proxy uri@U.URI{
           where
            (usr,pwd) = chopAtDelim ':' as
 
-uri2proxy _ = Nothing
+uri2proxy _ _ = Nothing
 
 regQueryValueDWORD :: HKEY -> String -> IO DWORD
 regQueryValueDWORD hkey name = alloca $ \ptr -> do
-  -- TODO: this throws away the key type returned by regQueryValueEx
-  -- we should check it's what we expect instead
-  _ <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
-  peek ptr
+  key <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
+  if key == rEG_DWORD then
+      peek ptr
+  else fail ("ERROR: Registry key " ++ name ++ " has type different than DWORD!")
 
+-- defined(mingw32_HOST_OS)
 #endif
 
 envName :: ProxyProtocol -> EnvName
-envName HTTPProxy  = "http_proxy"
-envName HTTPSProxy = "https_proxy"
+envName proto = T.pack $ show proto ++ "_proxy"
 
 -- Extract proxy settings from environment variables. This is a standard way in Linux.
 envHelper :: EnvName -> IO (HostAddress -> Maybe ProxySettings)
