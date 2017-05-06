@@ -203,28 +203,26 @@ parseWindowsProxy proto s =
 -- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
 systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
 systemProxy proto = do
-    proxy <- fetchProxy False proto
+    proxy <- fetchProxy proto
     return $ const proxy
 
 -- | @fetchProxy flg@ gets the local proxy settings and parse the string
--- into a @Proxy@ value. If you want to be informed of ill-formed proxy
--- configuration strings, supply @True@ for @flg@.
+-- into a @Proxy@ value.
 -- Proxy settings are sourced from IE/WinInet's proxy
 -- setting in the Registry.
-fetchProxy :: Bool -> ProxyProtocol -> IO (Maybe ProxySettings)
-fetchProxy warnIfIllformed proto = do
+fetchProxy :: ProxyProtocol -> IO (Maybe ProxySettings)
+fetchProxy proto = do
     mstr <- windowsProxyString proto
     case mstr of
       Nothing     -> return Nothing
       Just str    -> case parseProxy proto str of
           it@(Just p) -> return it
-          Nothing     -> do
-              when warnIfIllformed $ System.IO.hPutStrLn System.IO.stderr $ unlines
-                      [ "invalid http proxy uri: " ++ show str
+          Nothing     ->
+              throwHttp . InvalidProxySettings . T.pack . unlines $
+                      [ "Invalid http proxy uri: " ++ show str
                       , "proxy uri must be http with a hostname"
                       , "ignoring http proxy, trying a direct connection"
                       ]
-              return Nothing
 
 -- | @parseProxy str@ translates a proxy server string into a @ProxySettings@ value;
 -- returns @Nothing@ if not well-formed.
