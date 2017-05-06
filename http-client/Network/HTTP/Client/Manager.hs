@@ -469,7 +469,7 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
                  -> ProxyOverride
 proxyEnvironment mp = ProxyOverride $ \secure' ->
-    systemProxyHelper (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
+    systemProxyHelper Nothing (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | Same as 'proxyEnvironment', but instead of default environment variable
 -- names, allows you to set your own name.
@@ -479,13 +479,12 @@ proxyEnvironmentNamed
     :: Text -- ^ environment variable name
     -> Maybe Proxy -- ^ fallback if no environment set
     -> ProxyOverride
-proxyEnvironmentNamed name = undefined
---    ProxyOverride . const . envHelper name
---                  . maybe EHNoProxy EHUseProxy
+proxyEnvironmentNamed name mp = ProxyOverride $ \secure' ->
+    systemProxyHelper (Just name) (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | The default proxy settings for a manager. In particular: if the @http_proxy@ (or @https_proxy@) environment variable is set, use it. Otherwise, use the values in the @Request@.
 --
 -- Since 0.4.7
 defaultProxy :: ProxyOverride
 defaultProxy = ProxyOverride $ \secure' ->
-    systemProxyHelper (httpProtocol secure') EHFromRequest
+    systemProxyHelper Nothing (httpProtocol secure') EHFromRequest

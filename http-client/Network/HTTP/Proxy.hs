@@ -116,9 +116,12 @@ headJust []               = Nothing
 headJust (Nothing:xs)     = headJust xs
 headJust ((y@(Just x)):_) = y
 
-systemProxyHelper :: ProxyProtocol -> EnvHelper -> IO (Request -> Request)
-systemProxyHelper prot eh = do
-    modifier <- envHelper . envName $ prot
+systemProxyHelper :: Maybe T.Text -> ProxyProtocol -> EnvHelper -> IO (Request -> Request)
+systemProxyHelper envOveride prot eh = do
+    let envName' Nothing     = envName prot
+        envName' (Just name) = name
+
+    modifier <- envHelper (envName' envOveride)
 
 -- Under Windows try first env. variables override then Windows proxy settings
 #if defined(mingw32_HOST_OS)
@@ -163,7 +166,7 @@ registryProxyLoc = (hive, path)
 registryProxyString :: IO (Maybe String)
 registryProxyString = catch
   (bracket (uncurry regOpenKey registryProxyLoc) regCloseKey $ \hkey -> do
-    enable <- fmap toBool $ regQueryValueDWORD hkey "ProxyEnable"
+    enable <- toBool . maybe 0 id <$> regQueryValueDWORD hkey "ProxyEnable"
     if enable
         then fmap Just $ regQueryValue hkey (Just "ProxyServer")
         else return Nothing)
@@ -293,12 +296,12 @@ uri2proxy proto uri@U.URI{ U.uriAuthority = Just (U.URIAuth auth' hst prt) } =
 
 uri2proxy _ _ = Nothing
 
-regQueryValueDWORD :: HKEY -> String -> IO DWORD
+regQueryValueDWORD :: HKEY -> String -> IO (Maybe DWORD)
 regQueryValueDWORD hkey name = alloca $ \ptr -> do
   key <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
   if key == rEG_DWORD then
-      peek ptr
-  else fail ("ERROR: Registry key " ++ name ++ " has type different than DWORD!")
+      Just <$> peek ptr
+  else return Nothing
 
 -- defined(mingw32_HOST_OS)
 #endif
