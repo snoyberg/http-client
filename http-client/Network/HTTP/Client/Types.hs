@@ -767,8 +767,8 @@ data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
 --
 -- Since 0.4.9
 data StreamFileStatus = StreamFileStatus
-    { fileSize      :: Int64
-    , readSoFar     :: Int64
+    { fileSize :: Int64
+    , readSoFar :: Int64
     , thisChunkSize :: Int
     }
     deriving (Eq, Show, Ord, T.Typeable)
