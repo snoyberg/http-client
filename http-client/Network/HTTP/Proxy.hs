@@ -143,7 +143,7 @@ systemProxyHelper envOveride prot eh = do
             toRequest Nothing                            = noEnvProxy req
             toRequest (Just (ProxySettings p muserpass)) = maybe id (uncurry applyBasicProxyAuth) muserpass
                                         req { proxy = Just p }
-    pure result
+    return result
 
 
 #if defined(mingw32_HOST_OS)
