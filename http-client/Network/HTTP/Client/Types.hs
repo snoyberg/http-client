@@ -1,8 +1,8 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveFoldable     #-}
-{-# LANGUAGE DeriveFunctor      #-}
-{-# LANGUAGE DeriveTraversable  #-}
-{-# LANGUAGE RankNTypes         #-}
+{-# LANGUAGE DeriveFoldable #-}
+{-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveTraversable #-}
+{-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Types
     ( BodyReader
     , Connection (..)
@@ -37,30 +37,29 @@ module Network.HTTP.Client.Types
     , ResponseTimeout (..)
     ) where
 
-import           Blaze.ByteString.Builder (Builder, fromByteString,
-                                           fromLazyByteString, toLazyByteString)
-import           Control.Concurrent.MVar  (MVar)
-import           Control.Exception        (Exception, SomeException, throwIO)
-import qualified Data.ByteString          as S
-import qualified Data.ByteString.Lazy     as L
-import           Data.CaseInsensitive     as CI
-import           Data.Foldable            (Foldable)
-import           Data.Int                 (Int64)
-import           Data.IORef
-import qualified Data.IORef               as I
-import qualified Data.List                as DL
-import qualified Data.Map                 as Map
-import           Data.Monoid
-import           Data.Streaming.Zlib      (ZlibException)
-import           Data.String              (IsString, fromString)
-import           Data.Text                (Text)
-import           Data.Time                (UTCTime)
-import           Data.Traversable         (Traversable)
-import qualified Data.Typeable            as T (Typeable)
-import           Data.Word                (Word64)
-import           Network.HTTP.Types
-import           Network.Socket           (HostAddress)
-import qualified Network.Socket           as NS
+import qualified Data.Typeable as T (Typeable)
+import Network.HTTP.Types
+import Control.Exception (Exception, SomeException, throwIO)
+import Data.Word (Word64)
+import qualified Data.ByteString as S
+import qualified Data.ByteString.Lazy as L
+import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
+import Data.Int (Int64)
+import Data.Foldable (Foldable)
+import Data.Monoid
+import Data.String (IsString, fromString)
+import Data.Time (UTCTime)
+import Data.Traversable (Traversable)
+import qualified Data.List as DL
+import Network.Socket (HostAddress)
+import Data.IORef
+import qualified Network.Socket as NS
+import qualified Data.IORef as I
+import qualified Data.Map as Map
+import Data.Text (Text)
+import Data.Streaming.Zlib (ZlibException)
+import Control.Concurrent.MVar (MVar)
+import Data.CaseInsensitive as CI
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -73,13 +72,13 @@ import qualified Network.Socket           as NS
 type BodyReader = IO S.ByteString
 
 data Connection = Connection
-    { connectionRead   :: IO S.ByteString
+    { connectionRead :: IO S.ByteString
       -- ^ If no more data, return empty.
     , connectionUnread :: S.ByteString -> IO ()
       -- ^ Return data to be read next time.
-    , connectionWrite  :: S.ByteString -> IO ()
+    , connectionWrite :: S.ByteString -> IO ()
       -- ^ Send data to server
-    , connectionClose  :: IO ()
+    , connectionClose :: IO ()
       -- ^ Close connection. Any successive operation on the connection
       -- (exept closing) should fail with `ConnectionClosed` exception.
       -- It is allowed to close connection multiple times.
@@ -246,17 +245,17 @@ data HttpExceptionContent
 
 -- This corresponds to the description of a cookie detailed in Section 5.3 \"Storage Model\"
 data Cookie = Cookie
-  { cookie_name             :: S.ByteString
-  , cookie_value            :: S.ByteString
-  , cookie_expiry_time      :: UTCTime
-  , cookie_domain           :: S.ByteString
-  , cookie_path             :: S.ByteString
-  , cookie_creation_time    :: UTCTime
+  { cookie_name :: S.ByteString
+  , cookie_value :: S.ByteString
+  , cookie_expiry_time :: UTCTime
+  , cookie_domain :: S.ByteString
+  , cookie_path :: S.ByteString
+  , cookie_creation_time :: UTCTime
   , cookie_last_access_time :: UTCTime
-  , cookie_persistent       :: Bool
-  , cookie_host_only        :: Bool
-  , cookie_secure_only      :: Bool
-  , cookie_http_only        :: Bool
+  , cookie_persistent :: Bool
+  , cookie_host_only :: Bool
+  , cookie_secure_only :: Bool
+  , cookie_http_only :: Bool
   }
   deriving (Read, Show, T.Typeable)
 
@@ -419,32 +418,32 @@ type GivesPopper a = NeedsPopper a -> IO a
 --
 -- Since 0.1.0
 data Request = Request
-    { method                 :: Method
+    { method :: Method
     -- ^ HTTP request method, eg GET, POST.
     --
     -- Since 0.1.0
-    , secure                 :: Bool
+    , secure :: Bool
     -- ^ Whether to use HTTPS (ie, SSL).
     --
     -- Since 0.1.0
-    , host                   :: S.ByteString
+    , host :: S.ByteString
     -- ^ Requested host name, used for both the IP address to connect to and
     -- the @host@ request header.
     --
     -- Since 0.1.0
-    , port                   :: Int
+    , port :: Int
     -- ^ The port to connect to. Also used for generating the @host@ request header.
     --
     -- Since 0.1.0
-    , path                   :: S.ByteString
+    , path :: S.ByteString
     -- ^ Everything from the host to the query string.
     --
     -- Since 0.1.0
-    , queryString            :: S.ByteString
+    , queryString :: S.ByteString
     -- ^ Query string appended to the path.
     --
     -- Since 0.1.0
-    , requestHeaders         :: RequestHeaders
+    , requestHeaders :: RequestHeaders
     -- ^ Custom HTTP request headers
     --
     -- The Content-Length and Transfer-Encoding headers are set automatically
@@ -469,36 +468,36 @@ data Request = Request
     -- are honoured.
     --
     -- Since 0.1.0
-    , requestBody            :: RequestBody
+    , requestBody :: RequestBody
     -- ^ Request body to be sent to the server.
     --
     -- Since 0.1.0
-    , proxy                  :: Maybe Proxy
+    , proxy :: Maybe Proxy
     -- ^ Optional HTTP proxy.
     --
     -- Since 0.1.0
-    , hostAddress            :: Maybe HostAddress
+    , hostAddress :: Maybe HostAddress
     -- ^ Optional resolved host address. May not be used by all backends.
     --
     -- Since 0.1.0
-    , rawBody                :: Bool
+    , rawBody :: Bool
     -- ^ If @True@, a chunked and\/or gzipped body will not be
     -- decoded. Use with caution.
     --
     -- Since 0.1.0
-    , decompress             :: S.ByteString -> Bool
+    , decompress :: S.ByteString -> Bool
     -- ^ Predicate to specify whether gzipped data should be
     -- decompressed on the fly (see 'alwaysDecompress' and
     -- 'browserDecompress'). Argument is the mime type.
     -- Default: browserDecompress.
     --
     -- Since 0.1.0
-    , redirectCount          :: Int
+    , redirectCount :: Int
     -- ^ How many redirects to follow when getting a resource. 0 means follow
     -- no redirects. Default value: 10.
     --
     -- Since 0.1.0
-    , checkResponse          :: Request -> Response BodyReader -> IO ()
+    , checkResponse :: Request -> Response BodyReader -> IO ()
     -- ^ Check the response immediately after receiving the status and headers.
     -- This can be useful for throwing exceptions on non-success status codes.
     --
@@ -507,13 +506,13 @@ data Request = Request
     -- behavior (doing nothing).
     --
     -- @since 0.5.0
-    , responseTimeout        :: ResponseTimeout
+    , responseTimeout :: ResponseTimeout
     -- ^ Number of microseconds to wait for a response. If
     -- @Nothing@, will wait indefinitely. Default: use
     -- 'managerResponseTimeout' (which by default is 30 seconds).
     --
     -- Since 0.1.0
-    , cookieJar              :: Maybe CookieJar
+    , cookieJar :: Maybe CookieJar
     -- ^ A user-defined cookie jar.
     -- If 'Nothing', no cookie handling will take place, \"Cookie\" headers
     -- in 'requestHeaders' will be sent raw, and 'responseCookieJar' will be
@@ -521,7 +520,7 @@ data Request = Request
     --
     -- Since 0.1.0
 
-    , requestVersion         :: HttpVersion
+    , requestVersion :: HttpVersion
     -- ^ HTTP version to send to server.
     --
     -- Default: HTTP 1.1
@@ -583,19 +582,19 @@ data ManagedConn = Fresh | Reused
 --
 -- Since 0.1.0
 data Response body = Response
-    { responseStatus    :: Status
+    { responseStatus :: Status
     -- ^ Status code of the response.
     --
     -- Since 0.1.0
-    , responseVersion   :: HttpVersion
+    , responseVersion :: HttpVersion
     -- ^ HTTP version used by the server.
     --
     -- Since 0.1.0
-    , responseHeaders   :: ResponseHeaders
+    , responseHeaders :: ResponseHeaders
     -- ^ Response headers sent by the server.
     --
     -- Since 0.1.0
-    , responseBody      :: body
+    , responseBody :: body
     -- ^ Response body sent by the server.
     --
     -- Since 0.1.0
@@ -605,7 +604,7 @@ data Response body = Response
     -- this will always be empty.
     --
     -- Since 0.1.0
-    , responseClose'    :: ResponseClose
+    , responseClose' :: ResponseClose
     -- ^ Releases any resource held by this response. If the response body
     -- has not been fully read yet, doing so after this call will likely
     -- be impossible.
