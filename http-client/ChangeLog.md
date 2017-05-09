@@ -1,3 +1,8 @@
+## 0.5.7.0
+
+* Support for Windows system proxy settings
+  [#274](https://github.com/snoyberg/http-client/pull/274)
+
 ## 0.5.6.1
 
 * Revert socks5 and socks5h support from
