@@ -53,6 +53,7 @@ import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
 import Network.HTTP.Client.Request (applyBasicProxyAuth, extractBasicAuthInfo)
+import Network.HTTP.Proxy
 import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
 import System.Environment (getEnvironment)
 import qualified Network.URI as U
@@ -465,12 +466,7 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 proxyEnvironment :: Maybe Proxy -- ^ fallback if no environment set
                  -> ProxyOverride
 proxyEnvironment mp = ProxyOverride $ \secure' ->
-    envHelper (envName secure') $ maybe EHNoProxy EHUseProxy mp
-
-envName :: Bool -- ^ secure?
-        -> Text
-envName False = "http_proxy"
-envName True = "https_proxy"
+    systemProxyHelper Nothing (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | Same as 'proxyEnvironment', but instead of default environment variable
 -- names, allows you to set your own name.
@@ -480,66 +476,12 @@ proxyEnvironmentNamed
     :: Text -- ^ environment variable name
     -> Maybe Proxy -- ^ fallback if no environment set
     -> ProxyOverride
-proxyEnvironmentNamed name =
-    ProxyOverride . const . envHelper name
-                  . maybe EHNoProxy EHUseProxy
+proxyEnvironmentNamed name mp = ProxyOverride $ \secure' ->
+    systemProxyHelper (Just name) (httpProtocol secure') $ maybe EHNoProxy EHUseProxy mp
 
 -- | The default proxy settings for a manager. In particular: if the @http_proxy@ (or @https_proxy@) environment variable is set, use it. Otherwise, use the values in the @Request@.
 --
 -- Since 0.4.7
 defaultProxy :: ProxyOverride
 defaultProxy = ProxyOverride $ \secure' ->
-    envHelper (envName secure') EHFromRequest
-
-data EnvHelper = EHFromRequest
-               | EHNoProxy
-               | EHUseProxy Proxy
-
-envHelper :: Text -> EnvHelper -> IO (Request -> Request)
-envHelper name eh = do
-    env <- getEnvironment
-    let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
-        lookupEnvVar n = lookup (T.unpack n) env <|> Map.lookup n lenv
-        noProxyDomains = domainSuffixes (lookupEnvVar "no_proxy")
-    case lookupEnvVar name of
-        Nothing  -> return noEnvProxy
-        Just ""  -> return noEnvProxy
-        Just str -> do
-            let invalid = throwHttp $ InvalidProxyEnvironmentVariable name (T.pack str)
-            (p, muserpass) <- maybe invalid return $ do
-                let allowedScheme x = x == "http:"
-                uri <- case U.parseURI str of
-                    Just u | allowedScheme (U.uriScheme u) -> return u
-                    _ -> U.parseURI $ "http://" ++ str
-
-                guard $ allowedScheme $ U.uriScheme uri
-                guard $ null (U.uriPath uri) || U.uriPath uri == "/"
-                guard $ null $ U.uriQuery uri
-                guard $ null $ U.uriFragment uri
-
-                auth <- U.uriAuthority uri
-                port' <-
-                    case U.uriPort auth of
-                        "" -> Just 80
-                        ':':rest ->
-                            case decimal $ T.pack rest of
-                                Right (p, "") -> Just p
-                                _ -> Nothing
-                        _ -> Nothing
-
-                Just $ (Proxy (S8.pack $ U.uriRegName auth) port', extractBasicAuthInfo uri)
-            return $ \req ->
-                if host req `hasDomainSuffixIn` noProxyDomains
-                then noEnvProxy req
-                else maybe id (uncurry applyBasicProxyAuth) muserpass
-                     req { proxy = Just p }
-    where noEnvProxy = case eh of
-            EHFromRequest -> id
-            EHNoProxy     -> \req -> req { proxy = Nothing }
-            EHUseProxy p  -> \req -> req { proxy = Just p  }
-          prefixed s | S8.head s == '.' = s
-                     | otherwise = S8.cons '.' s
-          domainSuffixes Nothing = []
-          domainSuffixes (Just "") = []
-          domainSuffixes (Just no_proxy) = [prefixed $ S8.dropWhile (== ' ') suffix | suffix <- S8.split ',' (S8.pack (map toLower no_proxy)), not (S8.null suffix)]
-          hasDomainSuffixIn host' = any (`S8.isSuffixOf` prefixed (S8.map toLower host'))
+    systemProxyHelper Nothing (httpProtocol secure') EHFromRequest

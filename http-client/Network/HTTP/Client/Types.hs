@@ -232,6 +232,9 @@ data HttpExceptionContent
                    -- ^ Attempted to use a 'Connection' which was already closed
                    --
                    -- @since 0.5.0
+                   | InvalidProxySettings Text
+                   -- ^ Proxy settings are not valid (Windows specific currently)
+                   -- @since 0.5.7
     deriving (Show, T.Typeable)
 
 -- Purposely not providing this instance, since we don't want users to
