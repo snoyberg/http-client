@@ -56,14 +56,13 @@ library
                      , filepath
                      , mime-types
                      , ghc-prim
-                     , safe
   if flag(network-uri)
     build-depends: network >= 2.6, network-uri >= 2.6
   else
     build-depends: network < 2.6
 
   if os(mingw32)
-    build-depends: Win32
+    build-depends: Win32, safe
 
   default-language:    Haskell2010
 
