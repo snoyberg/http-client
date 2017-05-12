@@ -73,9 +73,9 @@ import qualified Network.URI                 as U
 import           System.Environment          (getEnvironment)
 
 #if defined(mingw32_HOST_OS)
-import           Control.Exception           (IOException, bracket, catch)
+import           Control.Exception           (IOException, bracket, catch, try)
 import           Control.Monad               (join, liftM, mplus, when)
-import           Data.List                   (isPrefixOf)
+import           Data.List                   (isInfixOf, isPrefixOf)
 import           Foreign                     (Storable (peek, sizeOf), alloca,
                                               castPtr, toBool)
 import           Network.URI                 (parseAbsoluteURI)
@@ -147,8 +147,13 @@ systemProxyHelper envOveride prot eh = do
 
 
 #if defined(mingw32_HOST_OS)
-windowsProxyString :: ProxyProtocol -> IO (Maybe String)
-windowsProxyString proto = liftM (>>= parseWindowsProxy proto) registryProxyString
+windowsProxyString :: ProxyProtocol -> IO (Maybe (String, String))
+windowsProxyString proto = do
+    mProxy <- registryProxyString
+    return $ do
+        (proxies, exceptions) <- mProxy
+        protoProxy <- parseWindowsProxy proto proxies
+        return (protoProxy, exceptions)
 
 registryProxyLoc :: (HKEY,String)
 registryProxyLoc = (hive, path)
@@ -163,15 +168,18 @@ registryProxyLoc = (hive, path)
 
 -- read proxy settings from the windows registry; this is just a best
 -- effort and may not work on all setups.
-registryProxyString :: IO (Maybe String)
+registryProxyString :: IO (Maybe (String, String))
 registryProxyString = catch
   (bracket (uncurry regOpenKey registryProxyLoc) regCloseKey $ \hkey -> do
     enable <- toBool . maybe 0 id <$> regQueryValueDWORD hkey "ProxyEnable"
     if enable
-        then fmap Just $ regQueryValue hkey (Just "ProxyServer")
+        then do
+            server <- regQueryValue hkey (Just "ProxyServer")
+            exceptions <- try $ regQueryValue hkey (Just "ProxyOverride") :: IO (Either IOException String)
+            return $ Just (server, either (const "") id exceptions)
         else return Nothing)
   hideError where
-      hideError :: IOException -> IO (Maybe String)
+      hideError :: IOException -> IO (Maybe (String, String))
       hideError _ = return Nothing
 
 -- the proxy string is in the format "http=x.x.x.x:yyyy;https=...;ftp=...;socks=..."
@@ -203,24 +211,35 @@ parseWindowsProxy proto s =
 -- Extract proxy settings from Windows registry. This is a standard way in Windows OS.
 systemProxy :: ProxyProtocol -> IO (HostAddress -> Maybe ProxySettings)
 systemProxy proto = do
-    -- TODO Support for proxy skipping for specific addresses, kept in "ProxyOverride" registry key
-    proxy <- fetchProxy proto
-    return $ const proxy
+    let isURLlocal "127.0.0.1" = True
+        isURLlocal "localhost" = True
+        isURLlocal _           = False
+
+        hasLocal exceptions = "<local>" `isInfixOf` exceptions
+
+    settings <- fetchProxy proto
+    return $ \url -> do
+        (proxy, exceptions) <- settings
+
+        -- Skip proxy for local hosts if it's enabled in IE settings
+        -- TODO Implement skipping for address patterns, like (*.google.com)
+        if (isURLlocal url && hasLocal exceptions) || (url `S8.isInfixOf` (S8.pack exceptions)) then Nothing
+        else Just proxy
 
 -- | @fetchProxy flg@ gets the local proxy settings and parse the string
 -- into a @Proxy@ value.
 -- Proxy settings are sourced from IE/WinInet's proxy
 -- setting in the Registry.
-fetchProxy :: ProxyProtocol -> IO (Maybe ProxySettings)
+fetchProxy :: ProxyProtocol -> IO (Maybe (ProxySettings, String))
 fetchProxy proto = do
     mstr <- windowsProxyString proto
     case mstr of
-      Nothing     -> return Nothing
-      Just str    -> case parseProxy proto str of
-          it@(Just p) -> return it
-          Nothing     ->
+      Nothing               -> return Nothing
+      Just (proxy, except)  -> case parseProxy proto proxy of
+          Just p  -> return $ Just (p, except)
+          Nothing ->
               throwHttp . InvalidProxySettings . T.pack . unlines $
-                      [ "Invalid http proxy uri: " ++ show str
+                      [ "Invalid http proxy uri: " ++ show proxy
                       , "proxy uri must be http with a hostname"
                       , "ignoring http proxy, trying a direct connection"
                       ]
