@@ -183,6 +183,8 @@ newTlsManager = newTlsManagerWith defaultManagerSettings
 
 -- | Load up a new TLS manager based upon specified settings,
 -- respecting proxy environment variables.
+--
+-- @since 0.3.5
 newTlsManagerWith :: MonadIO m => ManagerSettings -> m Manager
 newTlsManagerWith set = liftIO $ do
     env <- getEnvironment

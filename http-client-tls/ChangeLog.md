@@ -1,3 +1,10 @@
+## 0.3.5
+
+* Add `newTlsManagerWith`
+  [#278](https://github.com/snoyberg/http-client/issues/278), which
+  provides a variant of `newTlsManager` that takes a `ManagerSettings`
+  to base its settings off of.
+
 ## 0.3.4.2
 
 * Never throw exceptions on 401 status in `applyDigestAuth`
