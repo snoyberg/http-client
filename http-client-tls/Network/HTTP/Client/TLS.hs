@@ -12,6 +12,7 @@ module Network.HTTP.Client.TLS
     , mkManagerSettings
     , mkManagerSettingsContext
     , newTlsManager
+    , newTlsManagerWith
       -- * Digest authentication
     , applyDigestAuth
     , DigestAuthException (..)
@@ -70,16 +71,17 @@ mkManagerSettingsContext
     -> NC.TLSSettings
     -> Maybe NC.SockSettings
     -> ManagerSettings
-mkManagerSettingsContext mcontext tls sock = mkManagerSettingsContext' mcontext tls sock sock
+mkManagerSettingsContext mcontext tls sock = mkManagerSettingsContext' defaultManagerSettings mcontext tls sock sock
 
 -- | Internal, allow different SockSettings for HTTP and HTTPS
 mkManagerSettingsContext'
-    :: Maybe NC.ConnectionContext
+    :: ManagerSettings
+    -> Maybe NC.ConnectionContext
     -> NC.TLSSettings
     -> Maybe NC.SockSettings -- ^ insecure
     -> Maybe NC.SockSettings -- ^ secure
     -> ManagerSettings
-mkManagerSettingsContext' mcontext tls sockHTTP sockHTTPS = defaultManagerSettings
+mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
     { managerTlsConnection = getTlsConnection mcontext (Just tls) sockHTTPS
     , managerTlsProxyConnection = getTlsProxyConnection mcontext tls sockHTTPS
     , managerRawConnection =
@@ -177,12 +179,19 @@ globalConnectionContext = unsafePerformIO NC.initConnectionContext
 --
 -- @since 0.3.4
 newTlsManager :: MonadIO m => m Manager
-newTlsManager = liftIO $ do
+newTlsManager = newTlsManagerWith defaultManagerSettings
+
+-- | Load up a new TLS manager based upon specified settings,
+-- respecting proxy environment variables.
+--
+-- @since 0.3.5
+newTlsManagerWith :: MonadIO m => ManagerSettings -> m Manager
+newTlsManagerWith set = liftIO $ do
     env <- getEnvironment
     let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
         msocksHTTP = parseSocksSettings env lenv "http_proxy"
         msocksHTTPS = parseSocksSettings env lenv "https_proxy"
-        settings = mkManagerSettingsContext' (Just globalConnectionContext) def msocksHTTP msocksHTTPS
+        settings = mkManagerSettingsContext' set (Just globalConnectionContext) def msocksHTTP msocksHTTPS
         settings' = maybe id (const $ managerSetInsecureProxy proxyFromRequest) msocksHTTP
                   $ maybe id (const $ managerSetSecureProxy proxyFromRequest) msocksHTTPS
                     settings
