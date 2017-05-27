@@ -168,7 +168,7 @@ module Network.HTTP.Client
     , observedStreamFile
     , StreamFileStatus (..)
       -- * Response
-    , Response
+    , Response(..)
     , responseStatus
     , responseVersion
     , responseHeaders
