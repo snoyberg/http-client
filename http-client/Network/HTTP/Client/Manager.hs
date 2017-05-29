@@ -1,9 +1,9 @@
-{-# LANGUAGE FlexibleContexts #-}
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns        #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE FlexibleContexts    #-}
+{-# LANGUAGE OverloadedStrings   #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE BangPatterns #-}
-{-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Manager
     ( ManagerSettings (..)
     , newManager
@@ -26,38 +26,43 @@ module Network.HTTP.Client.Manager
 #define MIN_VERSION_base(x,y,z) 1
 #endif
 #if !MIN_VERSION_base(4,6,0)
-import Prelude hiding (catch)
+import           Prelude                        hiding (catch)
 #endif
-import Control.Applicative ((<|>))
-import Control.Arrow (first)
-import qualified Data.IORef as I
-import qualified Data.Map as Map
+import           Control.Applicative            ((<$>), (<|>))
+import           Control.Arrow                  (first)
+import qualified Data.IORef                     as I
+import qualified Data.Map                       as Map
 
-import qualified Data.ByteString.Char8 as S8
+import qualified Data.ByteString.Char8          as S8
 
-import Data.Char (toLower)
-import Data.Text (Text)
-import qualified Data.Text as T
-import Data.Text.Read (decimal)
+import           Data.Char                      (toLower)
+import           Data.Foldable                  (forM_)
+import           Data.Text                      (Text)
+import qualified Data.Text                      as T
+import           Data.Text.Read                 (decimal)
 
-import Control.Monad (unless, join, void)
-import Control.Exception (mask_, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
-import Control.Concurrent (forkIO, threadDelay)
-import Data.Time (UTCTime (..), getCurrentTime, addUTCTime)
+import           Control.Concurrent             (forkIO, threadDelay)
+import           Control.Exception              (Exception (..), IOException,
+                                                 catch, fromException, handle,
+                                                 mask, mask_, throwIO)
+import           Control.Monad                  (guard, join, unless, void)
+import           Data.Time                      (UTCTime (..), addUTCTime,
+                                                 getCurrentTime)
 
-import qualified Network.Socket as NS
+import qualified Network.Socket                 as NS
 
-import System.Mem.Weak (Weak, deRefWeak)
-import Network.HTTP.Types (status200)
-import Network.HTTP.Client.Types
-import Network.HTTP.Client.Connection
-import Network.HTTP.Client.Headers (parseStatusHeaders)
-import Network.HTTP.Client.Request (applyBasicProxyAuth, extractBasicAuthInfo)
-import Network.HTTP.Proxy
-import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
-import System.Environment (getEnvironment)
-import qualified Network.URI as U
-import Control.Monad (guard)
+import           Control.Concurrent.MVar        (MVar, newEmptyMVar, takeMVar,
+                                                 tryPutMVar)
+import           Network.HTTP.Client.Connection
+import           Network.HTTP.Client.Headers    (parseStatusHeaders)
+import           Network.HTTP.Client.Request    (applyBasicProxyAuth,
+                                                 extractBasicAuthInfo)
+import           Network.HTTP.Client.Types
+import           Network.HTTP.Proxy
+import           Network.HTTP.Types             (status200)
+import qualified Network.URI                    as U
+import           System.Environment             (getEnvironment)
+import           System.Mem.Weak                (Weak, deRefWeak)
 
 -- | A value for the @managerRawConnection@ setting, but also allows you to
 -- modify the underlying @Socket@ to set additional settings. For a motivating
@@ -94,15 +99,15 @@ defaultManagerSettings = ManagerSettings
         case fromException e of
             Just (_ :: IOException) -> True
             _ ->
-                case fmap unHttpExceptionContentWrapper $ fromException e of
+                case unHttpExceptionContentWrapper <$> fromException e of
                     -- Note: Some servers will timeout connections by accepting
                     -- the incoming packets for the new request, but closing
                     -- the connection as soon as we try to read. To make sure
                     -- we open a new connection under these circumstances, we
                     -- check for the NoResponseDataReceived exception.
                     Just NoResponseDataReceived -> True
-                    Just IncompleteHeaders -> True
-                    _ -> False
+                    Just IncompleteHeaders      -> True
+                    _                           -> False
     , managerWrapException = \_req ->
         let wrapper se =
                 case fromException se of
@@ -212,9 +217,7 @@ reap baton wmapRef =
     loop = do
         threadDelay (5 * 1000 * 1000)
         mmapRef <- deRefWeak wmapRef
-        case mmapRef of
-            Nothing -> return () -- manager is closed
-            Just mapRef -> goMapRef mapRef
+        forM_ mmapRef goMapRef
 
     goMapRef mapRef = do
         now <- getCurrentTime
@@ -225,7 +228,7 @@ reap baton wmapRef =
         mapM_ safeConnClose toDestroy
         case newMap of
             ManagerOpen _ m | not $ Map.null m -> return ()
-            _ -> takeMVar baton
+            _               -> takeMVar baton
         loop
     findStaleWrap _ ManagerClosed = (ManagerClosed, [])
     findStaleWrap isNotStale (ManagerOpen idleCount m) =
@@ -245,7 +248,7 @@ reap baton wmapRef =
             keep' =
                 case neFromList notStale of
                     Nothing -> keep
-                    Just x -> keep . ((connkey, x):)
+                    Just x  -> keep . ((connkey, x):)
 
     {- FIXME why isn't this being used anymore?
     flushStaleCerts now =
@@ -282,7 +285,7 @@ reap baton wmapRef =
     -}
 
 neToList :: NonEmptyList a -> [(UTCTime, a)]
-neToList (One a t) = [(t, a)]
+neToList (One a t)           = [(t, a)]
 neToList (Cons a _ t nelist) = (t, a) : neToList nelist
 
 neFromList :: [(UTCTime, a)] -> Maybe (NonEmptyList a)
@@ -328,7 +331,7 @@ safeConnClose :: Connection -> IO ()
 safeConnClose ci = connectionClose ci `catch` \(_ :: IOException) -> return ()
 
 nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
-nonEmptyMapM_ f (One x _) = f x
+nonEmptyMapM_ f (One x _)      = f x
 nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
 -- | This function needs to acquire a @ConnInfo@- either from the @Manager@ or
@@ -371,7 +374,7 @@ getManagedConn man key open = mask $ \restore -> do
             unless wasReleased $ do
                 toReuse <- I.readIORef toReuseRef
                 restore' $ case toReuse of
-                    Reuse -> putSocket man key ci
+                    Reuse     -> putSocket man key ci
                     DontReuse -> connectionClose ci
 
     return (connRelease, ci, isManaged)
@@ -379,7 +382,7 @@ getManagedConn man key open = mask $ \restore -> do
 getConnDest :: Request -> (Bool, String, Int)
 getConnDest req =
     case proxy req of
-        Just p -> (True, S8.unpack (proxyHost p), proxyPort p)
+        Just p  -> (True, S8.unpack (proxyHost p), proxyPort p)
         Nothing -> (False, S8.unpack $ host req, port req)
 
 -- | Drop the Proxy-Authorization header from the request if we're using a
@@ -410,7 +413,7 @@ getConn req m
     (connaddr, connKeyHost) =
         case (hostAddress req, useProxy') of
             (Just ha, False) -> (Just ha, HostAddress ha)
-            _ -> (Nothing, HostName $ T.pack connhost)
+            _                -> (Nothing, HostName $ T.pack connhost)
 
     wrapConnectExc = handle $ \e ->
         throwHttp $ ConnectionFailure (toException (e :: IOException))
@@ -422,7 +425,7 @@ getConn req m
                 let ultHost = host req
                     ultPort = port req
                     proxyAuthorizationHeader = maybe "" (\h' -> S8.concat ["Proxy-Authorization: ", h', "\r\n"]) . lookup "Proxy-Authorization" $ requestHeaders req
-                    hostHeader = S8.concat ["Host: ", ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
+                    hostHeader = S8.concat ["Host: ", ultHost, ":", S8.pack $ show ultPort, "\r\n"]
                     connstr = S8.concat
                         [ "CONNECT "
                         , ultHost
