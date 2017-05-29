@@ -21,6 +21,7 @@ library
   exposed-modules:     Network.HTTP.Client
                        Network.HTTP.Client.MultipartFormData
                        Network.HTTP.Client.Internal
+                       Network.HTTP.Client.Lens
   other-modules:       Network.HTTP.Client.Body
                        Network.HTTP.Client.Connection
                        Network.HTTP.Client.Cookies
