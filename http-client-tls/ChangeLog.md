@@ -1,3 +1,7 @@
+## 0.3.5.1
+
+* Also catch TLSError exceptions [#273](https://github.com/snoyberg/http-client/pull/273)
+
 ## 0.3.5
 
 * Add `newTlsManagerWith`
