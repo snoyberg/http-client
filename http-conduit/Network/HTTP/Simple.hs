@@ -15,6 +15,8 @@
 -- >
 -- > main :: IO ()
 -- > main = httpLBS "http://example.com" >>= L8.putStrLn
+--
+-- The `Data.String.IsString` instance uses `H.parseRequest` behind the scenes and inherits its behavior.
 module Network.HTTP.Simple
     ( -- * Perform requests
       httpLBS
