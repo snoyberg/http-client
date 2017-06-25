@@ -109,7 +109,9 @@ parseUrlThrow =
 -- Note that the request method must be provided as all capital letters.
 --
 -- 'Request' created by this function won't cause exceptions on non-2XX
--- response status codes.
+-- response status codes. 
+--
+-- To create a request which throws on non-2XX status codes, see 'parseUrlThrow'
 --
 -- @since 0.4.30
 parseRequest :: MonadThrow m => String -> m Request
