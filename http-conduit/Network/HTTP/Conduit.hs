@@ -87,7 +87,7 @@
 -- >                 , cookie_http_only = False
 -- >                 }
 -- >
--- > main = withSocketsDo $ do
+-- > main = do
 -- >      request' <- parseRequest "http://example.com/secret-page"
 -- >      manager <- newManager tlsManagerSettings
 -- >      let request = request' { cookieJar = Just $ createCookieJar [cookie] }
@@ -98,19 +98,6 @@
 -- >                        then (putStrLn "login failed" >> return Nothing)
 -- >                        else return Nothing
 -- >                  _ -> E.throw ex)
---
--- Any network code on Windows requires some initialization, and the network
--- library provides withSocketsDo to perform it. Therefore, proper usage of
--- this library will always involve calling that function at some point.  The
--- best approach is to simply call them at the beginning of your main function,
--- such as:
---
--- > import Network.HTTP.Conduit
--- > import qualified Data.ByteString.Lazy as L
--- > import Network (withSocketsDo)
--- >
--- > main = withSocketsDo
--- >      $ simpleHttp "http://www.haskell.org/" >>= L.putStr
 --
 -- Cookies are implemented according to RFC 6265.
 --
@@ -124,7 +111,7 @@
 -- > import Network
 -- >
 -- > main :: IO ()
--- > main = withSocketsDo $ do
+-- > main = do
 -- >      request' <- parseRequest "http://www.yesodweb.com/does-not-exist"
 -- >      let request = request' { checkStatus = \_ _ _ -> Nothing }
 -- >      manager <- newManager tlsManagerSettings
