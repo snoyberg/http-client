@@ -20,7 +20,6 @@ import Network.HTTP.Types
 import Control.Exception.Lifted (try, SomeException, bracket, onException, IOException)
 import qualified Data.IORef as I
 import qualified Control.Exception as E (catch)
-import Network (withSocketsDo)
 import Network.Socket (sClose)
 import qualified Network.BSD
 import CookieTest (cookieTest)
@@ -172,7 +171,7 @@ withAppTls' app' f = do
         sendResponse res
 
 main :: IO ()
-main = withSocketsDo $ do
+main = do
   mapM_ (`hSetBuffering` LineBuffering) [stdout, stderr]
   hspec $ do
     cookieTest

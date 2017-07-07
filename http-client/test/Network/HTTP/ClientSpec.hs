@@ -1,7 +1,6 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
-import           Network                   (withSocketsDo)
 import qualified Data.ByteString.Char8        as BS
 import           Network.HTTP.Client
 import           Network.HTTP.Client.Internal
@@ -16,20 +15,20 @@ main = hspec spec
 
 spec :: Spec
 spec = describe "Client" $ do
-    it "works" $ withSocketsDo $ do
+    it "works" $ do
         req <- parseUrlThrow "http://httpbin.org/"
         man <- newManager defaultManagerSettings
         res <- httpLbs req man
         responseStatus res `shouldBe` status200
 
     describe "method in URL" $ do
-        it "success" $ withSocketsDo $ do
+        it "success" $ do
             req <- parseUrlThrow "POST http://httpbin.org/post"
             man <- newManager defaultManagerSettings
             res <- httpLbs req man
             responseStatus res `shouldBe` status200
 
-        it "failure" $ withSocketsDo $ do
+        it "failure" $ do
             req <- parseRequest "PUT http://httpbin.org/post"
             man <- newManager defaultManagerSettings
             res <- httpLbs req man
