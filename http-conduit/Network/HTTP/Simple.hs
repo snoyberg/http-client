@@ -125,17 +125,17 @@ httpJSON req = liftIO $ httpJSONEither req >>= T.mapM (either throwIO return)
 httpJSONEither :: (MonadIO m, FromJSON a)
                => H.Request
                -> m (H.Response (Either JSONException a))
-httpJSONEither req =
-    liftIO $ httpSink req sink
+httpJSONEither req = liftIO $ httpSink req' sink
   where
+    req' = addRequestHeader H.hAccept "application/json" req
     sink orig = fmap (\x -> fmap (const x) orig) $ do
         eres1 <- C.sinkParserEither json'
         case eres1 of
-            Left e -> return $ Left $ JSONParseException req orig e
+            Left e -> return $ Left $ JSONParseException req' orig e
             Right value ->
                 case A.fromJSON value of
                     A.Error e -> return $ Left $ JSONConversionException
-                        req (fmap (const value) orig) e
+                        req' (fmap (const value) orig) e
                     A.Success x -> return $ Right x
 
 -- | An exception that can occur when parsing JSON
