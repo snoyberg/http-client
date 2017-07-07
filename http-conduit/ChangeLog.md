@@ -1,3 +1,7 @@
+## 2.2.3.2
+
+* Add proper headers for `httpJSON` and `httpJSONEither` [#284](https://github.com/snoyberg/http-client/issues/284)
+
 ## 2.2.3.1
 
 * Minor README improvement
