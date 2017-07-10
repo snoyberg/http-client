@@ -13,7 +13,7 @@ The API documentation can be found at:
 
 ``` haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-conduit
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Simple
@@ -42,10 +42,7 @@ We can also use aeson to receive a JSON message.
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -105,10 +102,7 @@ You can specify the request method at the beginning of your URL:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -131,10 +125,7 @@ more explicit about it with `parseRequest`:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -162,7 +153,7 @@ a runtime exception when forcing the pure `Request` value, e.g.:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-conduit
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Network.HTTP.Simple
 
@@ -185,10 +176,7 @@ modified with various request setter functions:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -221,10 +209,7 @@ without any URL parsing:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -252,10 +237,7 @@ different request body formats. These include JSON:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson
 import qualified Data.ByteString.Char8 as S8
@@ -287,10 +269,7 @@ Or data from a file:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson
 import qualified Data.ByteString.Char8 as S8
@@ -357,7 +336,7 @@ as due to failed connections. To catch these, you should catch the
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-conduit
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Exception          (try)
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -379,9 +358,7 @@ at once. For these cases, a streaming data approach is useful.
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString        as S
@@ -405,10 +382,7 @@ or `https_proxy` environment variables. This can be overridden:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Simple
@@ -440,10 +414,7 @@ global:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client        (defaultManagerSettings, newManager)
@@ -473,10 +444,7 @@ some settings:
 
 ```haskell
 #!/usr/bin/env stack
-{- stack --install-ghc --resolver lts-5.13 runghc
-    --package http-conduit
-    --package yaml
--}
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -510,7 +478,7 @@ lower-level API.
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls
+-- stack script --resolver lts-8.22
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS   (tlsManagerSettings)
 import Network.HTTP.Types.Status (statusCode)
@@ -538,7 +506,7 @@ It's also straightforward to compose this streaming with aeson to parse JSON:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-conduit --package aeson
+-- stack script --resolver lts-8.22
 import           Data.Aeson.Parser           (json)
 import           Data.Conduit                (($$))
 import           Data.Conduit.Attoparsec     (sinkParser)
@@ -568,7 +536,7 @@ Sending JSON can be done with modifying the request method and body:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls --package aeson
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson                 (encode, object, (.=))
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -606,7 +574,7 @@ sets the request method to `POST`, which we can override if desired:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -644,7 +612,7 @@ adverse status codes:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls
+-- stack script --resolver lts-5.13
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -674,7 +642,7 @@ environment variables. You can modify this when creating your `Manager`:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -696,7 +664,7 @@ You can also modify the proxy settings per-request:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -730,7 +698,7 @@ connections to a single server at once.
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls --package async
+-- stack script --resolver lts-8.22
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Concurrent.Async  (Concurrently (..))
 import qualified Data.ByteString.Char8     as S8
@@ -775,7 +743,7 @@ lower-level streaming API:
 
 ```haskell
 #!/usr/bin/env stack
--- stack --install-ghc --resolver lts-5.13 runghc --package http-client-tls
+-- stack script --resolver lts-8.22
 import qualified Data.ByteString           as S
 import           Network.HTTP.Client
 import           Network.HTTP.Client.TLS   (tlsManagerSettings)
@@ -786,7 +754,7 @@ main :: IO ()
 main = do
     manager <- newManager tlsManagerSettings
 
-    request <- parseUrl "http://httpbin.org/get"
+    request <- parseRequest "http://httpbin.org/get"
 
     withResponse request manager $ \response -> do
         putStrLn $ "The status code was: " ++
