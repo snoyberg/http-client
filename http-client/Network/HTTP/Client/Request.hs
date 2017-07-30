@@ -103,7 +103,7 @@ parseUrlThrow =
 -- space, e.g.:
 --
 -- @@@
--- parseRequeset "POST http://httpbin.org/post"
+-- parseRequest "POST http://httpbin.org/post"
 -- @@@
 --
 -- Note that the request method must be provided as all capital letters.
