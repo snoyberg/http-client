@@ -90,6 +90,8 @@ test-suite spec
                      , zlib
                      , async
                      , streaming-commons >= 0.1.1
+                     , aeson
+                     , unordered-containers
 
 
 test-suite spec-nonet

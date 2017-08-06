@@ -1,7 +1,10 @@
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
 import qualified Data.ByteString.Char8        as BS
+import qualified Data.HashMap.Lazy as HashMap
+import qualified Data.Text as T
 import           Network.HTTP.Client
 import           Network.HTTP.Client.Internal
 import           Network.HTTP.Types        (status200, found302, status405)
@@ -9,9 +12,18 @@ import           Network.HTTP.Types.Status
 import           Test.Hspec
 import           Control.Applicative       ((<$>))
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
+import           Data.CaseInsensitive      (mk)
+import           Data.Aeson                (FromJSON, Object, eitherDecode)
+import           GHC.Generics              (Generic)
 
 main :: IO ()
 main = hspec spec
+
+newtype HeadersResponse = HeadersResponse {
+  headers :: Object
+} deriving (Show, Generic)
+
+instance FromJSON HeadersResponse
 
 spec :: Spec
 spec = describe "Client" $ do
@@ -94,3 +106,24 @@ spec = describe "Client" $ do
             man <- newManager settings
             response <- httpLbs "http://httpbin.org/redirect-to?url=foo" man
             responseStatus response `shouldBe` found302
+
+        it "isn't applied n+1 times" $ do
+            let
+              modify req = do
+                let headerKey = mk . BS.pack $ "X-Test-" ++ show (redirectCount req)
+                return req {
+                  requestHeaders = (headerKey, "test") : requestHeaders req,
+                  redirectCount = redirectCount req + 1
+                }
+              settings = defaultManagerSettings { managerModifyRequest = modify }
+            man <- newManager settings
+            response <- httpLbs "http://httpbin.org/headers" man
+            case eitherDecode (responseBody response) :: Either String HeadersResponse of
+              Left _ -> fail $ "Decoding failed. Response: " ++ show response
+              Right (HeadersResponse headers) -> do
+                let
+                  headerKey :: Int -> T.Text
+                  headerKey = T.pack . (++) "X-Test-" . show
+                  defRedirectCount = redirectCount defaultRequest
+                HashMap.lookup (headerKey defRedirectCount) headers `shouldBe` Just "test"
+                HashMap.lookup (headerKey (defRedirectCount + 1)) headers `shouldBe` Nothing
