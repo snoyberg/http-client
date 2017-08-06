@@ -194,7 +194,7 @@ responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen inputReq manager' = do
   (manager, req0) <- getModifiedRequestManager manager' inputReq
   wrapExc req0 $ mWrapException manager req0 $ do
-    (req, res) <- go manager (redirectCount req0) req0
+    (req, res) <- go manager (redirectCount req0) inputReq
     checkResponse req req res
     mModifyResponse manager res
         { responseBody = wrapExc req0 (responseBody res)
