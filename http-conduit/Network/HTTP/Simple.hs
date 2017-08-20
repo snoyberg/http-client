@@ -317,7 +317,7 @@ setRequestBody x req = req { H.requestBody = x }
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- This also sets the @content-type@ to @application/json; chatset=utf8@
+-- This also sets the @Content-Type@ to @application/json; charset=utf-8@
 --
 -- @since 2.1.10
 setRequestBodyJSON :: A.ToJSON a => a -> H.Request -> H.Request
