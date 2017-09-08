@@ -1,3 +1,7 @@
+## 0.2.1.0
+
+* Add support for http-proxy
+
 ## 0.2.0.5
 
 * Use different domain name so tests pass
