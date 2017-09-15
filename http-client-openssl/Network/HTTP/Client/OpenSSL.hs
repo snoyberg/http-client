@@ -11,6 +11,7 @@ import Network.HTTP.Client
 import Network.HTTP.Client.Internal
 import Control.Exception
 import Network.Socket (HostAddress)
+import Network.Socket.ByteString (sendAll, recv)
 import OpenSSL
 import qualified Network.Socket as N
 import qualified OpenSSL.Session       as SSL
@@ -68,7 +69,10 @@ opensslManagerSettings mkContext = defaultManagerSettings
             bracketOnError (N.socket family socketType protocol) (N.close)
                 $ \sock -> do
                     N.connect sock address
-                    conn <- socketConnection sock 32752
+                    conn <- makeConnection
+                            (recv sock 32752)
+                            (sendAll sock)
+                            (return ())
                     connectionWrite conn connstr
                     checkConn conn
                     ssl <- SSL.connection ctx sock

@@ -22,4 +22,12 @@ main = withOpenSSL $ hspec $ do
         withResponse req manager $ \res -> do
             responseStatus res `shouldBe` status200
             lookup "content-type" (responseHeaders res) `shouldBe` Just "application/x-gzip"
+    it "compare responses without and with proxy" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let req = parseRequest_ "GET https://raw.githubusercontent.com/snoyberg/http-client/master/README.md"
+        v_org <- withResponse req manager $ \res -> do
+          lbsResponse res
+        v <- withResponse (addProxy "localhost" 8080 req) manager $ \res -> do
+          lbsResponse res
+        (responseBody v) `shouldBe` (responseBody v_org)
 #endif
