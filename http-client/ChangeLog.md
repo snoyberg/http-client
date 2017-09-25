@@ -1,6 +1,8 @@
-## Unreleased
+## 0.5.7.1
 
 * Code cleanup/delete dead code
+* Make the chunked transfer-encoding detection case insensitive
+  [#303](https://github.com/snoyberg/http-client/pull/303)
 
 ## 0.5.7.0
 
