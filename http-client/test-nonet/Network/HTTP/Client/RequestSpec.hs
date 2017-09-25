@@ -7,8 +7,9 @@ import Control.Monad (join, forM_, (<=<))
 import Data.IORef
 import Data.Maybe (isJust, fromMaybe, fromJust)
 import Network.HTTP.Client.Internal
-import Network.URI (URI(..), URIAuth(..), parseURI) 
+import Network.URI (URI(..), URIAuth(..), parseURI)
 import Test.Hspec
+import Data.Monoid ((<>))
 
 spec :: Spec
 spec = do

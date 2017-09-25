@@ -12,7 +12,7 @@ import           Network.HTTP.Client       hiding (port)
 import qualified Network.HTTP.Client       as NC
 import qualified Network.HTTP.Client.Internal as Internal
 import           Network.HTTP.Types        (status413)
-import           Network.Socket            (sClose)
+import qualified Network.Socket            as NS
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
 import qualified Data.ByteString           as S
@@ -32,7 +32,7 @@ silentIOError a = a `E.catch` \e -> do
 redirectServer :: (Int -> IO a) -> IO a
 redirectServer inner = bracket
     (N.bindRandomPortTCP "*4")
-    (sClose . snd)
+    (NS.close . snd)
     $ \(port, lsocket) -> withAsync
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
@@ -48,7 +48,7 @@ redirectServer inner = bracket
 redirectCloseServer :: (Int -> IO a) -> IO a
 redirectCloseServer inner = bracket
     (N.bindRandomPortTCP "*4")
-    (sClose . snd)
+    (NS.close . snd)
     $ \(port, lsocket) -> withAsync
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
@@ -63,7 +63,7 @@ bad100Server :: Bool -- ^ include extra headers?
              -> (Int -> IO a) -> IO a
 bad100Server extraHeaders inner = bracket
     (N.bindRandomPortTCP "*4")
-    (sClose . snd)
+    (NS.close . snd)
     $ \(port, lsocket) -> withAsync
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
@@ -81,7 +81,7 @@ bad100Server extraHeaders inner = bracket
 earlyClose413 :: (Int -> IO a) -> IO a
 earlyClose413 inner = bracket
     (N.bindRandomPortTCP "*4")
-    (sClose . snd)
+    (NS.close . snd)
     $ \(port, lsocket) -> withAsync
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
@@ -112,7 +112,7 @@ lengthZeroAndChunkZero = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntran
 serveWith :: S.ByteString -> (Int -> IO a) -> IO a
 serveWith resp inner = bracket
     (N.bindRandomPortTCP "*4")
-    (sClose . snd)
+    (NS.close . snd)
     $ \(port, lsocket) -> withAsync
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
@@ -165,7 +165,7 @@ spec = describe "Client" $ do
                     _ -> False
     it "connecting to missing server gives nice error message" $ do
         (port, socket) <- N.bindRandomPortTCP "*4"
-        sClose socket
+        NS.close socket
         req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         man <- newManager defaultManagerSettings
         httpLbs req man `shouldThrow` \e ->

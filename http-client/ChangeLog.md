@@ -1,3 +1,7 @@
+## Unreleased
+
+* Code cleanup/delete dead code
+
 ## 0.5.7.0
 
 * Support for Windows system proxy settings

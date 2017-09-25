@@ -14,9 +14,6 @@ module Network.HTTP.Client.Core
     , httpRedirect'
     ) where
 
-#if !MIN_VERSION_base(4,6,0)
-import Prelude hiding (catch)
-#endif
 import Network.HTTP.Types
 import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Types
@@ -250,7 +247,7 @@ httpRedirect' count0 http' req0 = go count0 req0 []
                 -- The connection may already be closed, e.g.
                 -- when using withResponseHistory. See
                 -- https://github.com/snoyberg/http-client/issues/169
-                `catch` \se ->
+                `Control.Exception.catch` \se ->
                     case () of
                       ()
                         | Just ConnectionClosed <-

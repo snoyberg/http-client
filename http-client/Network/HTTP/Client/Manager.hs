@@ -22,23 +22,13 @@ module Network.HTTP.Client.Manager
     , dropProxyAuthSecure
     ) where
 
-#ifndef MIN_VERSION_base
-#define MIN_VERSION_base(x,y,z) 1
-#endif
-#if !MIN_VERSION_base(4,6,0)
-import Prelude hiding (catch)
-#endif
-import Control.Applicative ((<|>))
-import Control.Arrow (first)
 import qualified Data.IORef as I
 import qualified Data.Map as Map
 
 import qualified Data.ByteString.Char8 as S8
 
-import Data.Char (toLower)
 import Data.Text (Text)
 import qualified Data.Text as T
-import Data.Text.Read (decimal)
 
 import Control.Monad (unless, join, void)
 import Control.Exception (mask_, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
@@ -52,12 +42,8 @@ import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
-import Network.HTTP.Client.Request (applyBasicProxyAuth, extractBasicAuthInfo)
 import Network.HTTP.Proxy
 import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
-import System.Environment (getEnvironment)
-import qualified Network.URI as U
-import Control.Monad (guard)
 
 -- | A value for the @managerRawConnection@ setting, but also allows you to
 -- modify the underlying @Socket@ to set additional settings. For a motivating
@@ -325,7 +311,7 @@ withManager settings f = newManager settings >>= f
 {-# DEPRECATED withManager "Use newManager instead" #-}
 
 safeConnClose :: Connection -> IO ()
-safeConnClose ci = connectionClose ci `catch` \(_ :: IOException) -> return ()
+safeConnClose ci = connectionClose ci `Control.Exception.catch` \(_ :: IOException) -> return ()
 
 nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
 nonEmptyMapM_ f (One x _) = f x

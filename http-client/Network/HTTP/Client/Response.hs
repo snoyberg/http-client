@@ -8,6 +8,7 @@ module Network.HTTP.Client.Response
     , lbsResponse
     ) where
 
+import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 
@@ -119,3 +120,12 @@ getResponse connRelease timeout' req@(Request {..}) conn cont = do
         , responseCookieJar = Data.Monoid.mempty
         , responseClose' = ResponseClose (cleanup False)
         }
+
+-- | Does this response have no body?
+hasNoBody :: ByteString -- ^ request method
+          -> Int -- ^ status code
+          -> Bool
+hasNoBody "HEAD" _ = True
+hasNoBody _ 204 = True
+hasNoBody _ 304 = True
+hasNoBody _ i = 100 <= i && i < 200

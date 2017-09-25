@@ -42,7 +42,7 @@ library
                      , http-types        >= 0.8
                      , blaze-builder     >= 0.3
                      , time              >= 1.2
-                     , network           >= 2.3
+                     , network           >= 2.4
                      , streaming-commons >= 0.1.0.2 && < 0.2
                      , containers
                      , transformers

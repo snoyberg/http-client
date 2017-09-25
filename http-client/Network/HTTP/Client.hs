@@ -236,8 +236,8 @@ data HistoriedResponse body = HistoriedResponse
 --
 -- Since 0.4.1
 responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory req0 man0 = handle (throwIO . toHttpException req0) $ do
-    reqRef <- newIORef req0
+responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
+    reqRef <- newIORef reqOrig
     historyRef <- newIORef id
     let go req0 = do
             (man, req) <- getModifiedRequestManager man0 req0
@@ -257,7 +257,7 @@ responseOpenHistory req0 man0 = handle (throwIO . toHttpException req0) $ do
                     body <- brReadSome (responseBody res) 1024
                     modifyIORef historyRef (. ((req, res { responseBody = body }):))
                     return (res, req'', True)
-    (_, res) <- httpRedirect' (redirectCount req0) go req0
+    (_, res) <- httpRedirect' (redirectCount reqOrig) go reqOrig
     reqFinal <- readIORef reqRef
     history <- readIORef historyRef
     return HistoriedResponse

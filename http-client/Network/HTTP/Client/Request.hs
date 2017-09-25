@@ -32,7 +32,7 @@ module Network.HTTP.Client.Request
 
 import Data.Int (Int64)
 import Data.Maybe (fromMaybe, isJust, isNothing)
-import Data.Monoid (mempty, mappend)
+import Data.Monoid (mempty, mappend, (<>))
 import Data.String (IsString(..))
 import Data.Char (toLower)
 import Control.Applicative as A ((<$>))
@@ -140,17 +140,7 @@ parseRequest_ = either throw id . parseRequest
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
 setUriRelative :: MonadThrow m => Request -> URI -> m Request
-setUriRelative req uri =
-#ifndef MIN_VERSION_network
-#define MIN_VERSION_network(x,y,z) 1
-#endif
-#if MIN_VERSION_network(2,4,0)
-    setUri req $ uri `relativeTo` getUri req
-#else
-    case uri `relativeTo` getUri req of
-        Just uri' -> setUri req uri'
-        Nothing   -> throwM $ InvalidUrlException (show uri) "Invalid URL"
-#endif
+setUriRelative req uri = setUri req $ uri `relativeTo` getUri req
 
 -- | Extract a 'URI' from the request.
 --

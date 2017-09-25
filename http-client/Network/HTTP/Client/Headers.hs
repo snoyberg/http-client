@@ -12,7 +12,7 @@ import qualified Data.ByteString.Char8          as S8
 import qualified Data.CaseInsensitive           as CI
 import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
-import           Network.HTTP.Client.Util       (timeout)
+import           System.Timeout                 (timeout)
 import           Network.HTTP.Types
 import Data.Word (Word8)
 

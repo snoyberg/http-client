@@ -56,7 +56,7 @@ module Network.HTTP.Proxy(  ProxyProtocol(..), EnvHelper(..),
                             httpProtocol,
                             ProxySettings ) where
 
-import           Control.Applicative         ((<$>), (<|>))
+import qualified Control.Applicative         as A
 import           Control.Arrow               (first)
 import           Control.Monad               (guard)
 import qualified Data.ByteString.Char8       as S8
@@ -99,8 +99,8 @@ instance Show ProxyProtocol where
     show HTTPProxy  = "http"
     show HTTPSProxy = "https"
 
-data ProxySettings = ProxySettings { proxyHost :: Proxy,
-                                     proxyAuth :: Maybe (UserName, Password) }
+data ProxySettings = ProxySettings { _proxyHost :: Proxy,
+                                     _proxyAuth :: Maybe (UserName, Password) }
                                      deriving Show
 
 httpProtocol :: Bool -> ProxyProtocol
@@ -114,7 +114,7 @@ data EnvHelper = EHFromRequest
 headJust :: [Maybe a] -> Maybe a
 headJust []               = Nothing
 headJust (Nothing:xs)     = headJust xs
-headJust ((y@(Just x)):_) = y
+headJust ((y@(Just _)):_) = y
 
 systemProxyHelper :: Maybe T.Text -> ProxyProtocol -> EnvHelper -> IO (Request -> Request)
 systemProxyHelper envOveride prot eh = do
@@ -171,7 +171,7 @@ registryProxyLoc = (hive, path)
 registryProxyString :: IO (Maybe (String, String))
 registryProxyString = catch
   (bracket (uncurry regOpenKey registryProxyLoc) regCloseKey $ \hkey -> do
-    enable <- toBool . maybe 0 id <$> regQueryValueDWORD hkey "ProxyEnable"
+    enable <- toBool . maybe 0 id A.<$> regQueryValueDWORD hkey "ProxyEnable"
     if enable
         then do
             server <- regQueryValue hkey (Just "ProxyServer")
@@ -318,7 +318,7 @@ regQueryValueDWORD :: HKEY -> String -> IO (Maybe DWORD)
 regQueryValueDWORD hkey name = alloca $ \ptr -> do
   key <- regQueryValueEx hkey name (castPtr ptr) (sizeOf (undefined :: DWORD))
   if key == rEG_DWORD then
-      Just <$> peek ptr
+      Just A.<$> peek ptr
   else return Nothing
 
 -- defined(mingw32_HOST_OS)
@@ -332,7 +332,7 @@ envHelper :: EnvName -> IO (HostAddress -> Maybe ProxySettings)
 envHelper name = do
   env <- getEnvironment
   let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
-      lookupEnvVar n = lookup (T.unpack n) env <|> Map.lookup n lenv
+      lookupEnvVar n = lookup (T.unpack n) env A.<|> Map.lookup n lenv
       noProxyDomains = domainSuffixes (lookupEnvVar "no_proxy")
 
   case lookupEnvVar name of
