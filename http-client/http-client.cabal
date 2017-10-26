@@ -29,6 +29,7 @@ library
                        Network.HTTP.Client.Manager
                        Network.HTTP.Client.Request
                        Network.HTTP.Client.Response
+                       Network.HTTP.Client.Socket
                        Network.HTTP.Client.Types
                        Network.HTTP.Client.Util
                        Network.HTTP.Proxy

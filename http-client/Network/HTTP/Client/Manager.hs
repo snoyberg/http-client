@@ -35,7 +35,7 @@ import Control.Exception (mask_, catch, throwIO, fromException, mask, IOExceptio
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), getCurrentTime, addUTCTime)
 
-import qualified Network.Socket as NS
+import qualified Network.HTTP.Client.Socket as NS
 
 import System.Mem.Weak (Weak, deRefWeak)
 import Network.HTTP.Types (status200)

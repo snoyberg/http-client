@@ -16,9 +16,7 @@ import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
 import Network.HTTP.Client.Types
-import Network.Socket (Socket, HostAddress)
-import qualified Network.Socket as NS
-import Network.Socket.ByteString (sendAll, recv)
+import qualified Network.HTTP.Client.Socket as NS
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
 import Data.Word (Word8)
@@ -123,24 +121,24 @@ makeConnection r w c = do
 -- | Create a new 'Connection' from a 'Socket'.
 --
 -- @since 0.5.3
-socketConnection :: Socket
+socketConnection :: NS.Socket
                  -> Int -- ^ chunk size
                  -> IO Connection
 socketConnection socket chunksize = makeConnection
-    (recv socket chunksize)
-    (sendAll socket)
+    (NS.recv socket chunksize)
+    (NS.sendAll socket)
     (NS.close socket)
 
-openSocketConnection :: (Socket -> IO ())
-                     -> Maybe HostAddress
+openSocketConnection :: (NS.Socket -> IO ())
+                     -> Maybe NS.HostAddress
                      -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
 openSocketConnection f = openSocketConnectionSize f 8192
 
-openSocketConnectionSize :: (Socket -> IO ())
+openSocketConnectionSize :: (NS.Socket -> IO ())
                          -> Int -- ^ chunk size
-                         -> Maybe HostAddress
+                         -> Maybe NS.HostAddress
                          -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
