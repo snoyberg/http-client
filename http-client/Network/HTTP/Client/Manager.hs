@@ -398,7 +398,7 @@ getConn req m
             _ -> (Nothing, HostName $ T.pack connhost)
 
     wrapConnectExc = handle $ \e ->
-        throwHttp $ ConnectionFailure (toException (e :: IOException))
+        throwHttp $ ConnectionFailure (toException (e :: NS.SocketException))
     go =
         case (secure req, useProxy') of
             (False, _) -> mRawConnection m
