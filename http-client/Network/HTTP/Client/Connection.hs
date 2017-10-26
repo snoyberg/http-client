@@ -19,6 +19,7 @@ import Network.HTTP.Client.Types
 import qualified Network.HTTP.Client.Socket as NS
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
+import qualified Data.ByteString.Char8 as S8
 import Data.Word (Word8)
 import Data.Function (fix)
 
@@ -121,55 +122,48 @@ makeConnection r w c = do
 -- | Create a new 'Connection' from a 'Socket'.
 --
 -- @since 0.5.3
-socketConnection :: NS.Socket
+socketConnection :: NS.Socket'
                  -> Int -- ^ chunk size
                  -> IO Connection
 socketConnection socket chunksize = makeConnection
-    (NS.recv socket chunksize)
-    (NS.sendAll socket)
+    (NS.receive socket chunksize mempty)
+    (\chunk -> void (NS.sendAll socket chunk mempty))
     (NS.close socket)
 
-openSocketConnection :: (NS.Socket -> IO ())
+openSocketConnection :: (NS.Socket' -> IO ())
                      -> Maybe NS.HostAddress
                      -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
 openSocketConnection f = openSocketConnectionSize f 8192
 
-openSocketConnectionSize :: (NS.Socket -> IO ())
+openSocketConnectionSize :: (NS.Socket' -> IO ())
                          -> Int -- ^ chunk size
                          -> Maybe NS.HostAddress
                          -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
 openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
-    let hints = NS.defaultHints {
-                          NS.addrFlags = [NS.AI_ADDRCONFIG]
-                        , NS.addrSocketType = NS.Stream
-                        }
+    let hints = mconcat [NS.aiAddressConfig]
     addrs <- case hostAddress' of
         Nothing ->
-            NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+            NS.getAddressInfo (Just (S8.pack host')) (Just (S8.pack (show port'))) hints
         Just ha ->
             return
-                [NS.AddrInfo
-                 { NS.addrFlags = []
-                 , NS.addrFamily = NS.AF_INET
-                 , NS.addrSocketType = NS.Stream
-                 , NS.addrProtocol = 6 -- tcp
-                 , NS.addrAddress = NS.SockAddrInet (toEnum port') ha
-                 , NS.addrCanonName = Nothing
-                 }]
+              [NS.AddressInfo
+                { NS.addressInfoFlags = mempty
+                , NS.socketAddress = NS.SocketAddressInet (NS.inetAddressFromTuple ha) (fromIntegral port')
+                , NS.canonicalName = Nothing
+                }]
 
     firstSuccessful addrs $ \addr ->
         E.bracketOnError
-            (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
-                       (NS.addrProtocol addr))
+            NS.socket
             NS.close
             (\sock -> do
-                NS.setSocketOption sock NS.NoDelay 1
+                NS.setSocketOption sock (NS.NoDelay True)
                 tweakSocket sock
-                NS.connect sock (NS.addrAddress addr)
+                NS.connect sock (NS.socketAddress addr)
                 socketConnection sock chunksize)
 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
