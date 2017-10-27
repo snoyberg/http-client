@@ -11,3 +11,5 @@ cabal.sandbox.config
 .stack-work/
 tarballs/
 *~
+*.hp
+*.prof

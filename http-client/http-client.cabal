@@ -125,3 +125,19 @@ test-suite spec-nonet
                      , async
                      , streaming-commons >= 0.1.1
                      , directory
+
+benchmark gh-306
+  build-depends:
+    async,
+    base,
+    http-client,
+    http-types,
+    text,
+    time,
+    wai,
+    warp
+  default-language: Haskell2010
+  ghc-options: -O2 -rtsopts -threaded -Wall -with-rtsopts=-N
+  hs-source-dirs: bench
+  main-is: gh-306.hs
+  type: exitcode-stdio-1.0
