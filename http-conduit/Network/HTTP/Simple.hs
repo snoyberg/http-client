@@ -14,7 +14,7 @@
 -- > import qualified Data.ByteString.Lazy.Char8 as L8
 -- >
 -- > main :: IO ()
--- > main = httpLBS "http://example.com" >>= L8.putStrLn
+-- > main = httpLBS "http://example.com" >>= L8.putStrLn . getResponseBody
 --
 -- The `Data.String.IsString` instance uses `H.parseRequest` behind the scenes and inherits its behavior.
 module Network.HTTP.Simple
