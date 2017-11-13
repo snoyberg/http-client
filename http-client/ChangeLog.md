@@ -1,6 +1,7 @@
-## Unreleased
+## 0.5.7.1
 
 * Code cleanup/delete dead code
+* Compat with Win32 2.6 [#309](https://github.com/snoyberg/http-client/issues/309)
 
 ## 0.5.7.0
 
