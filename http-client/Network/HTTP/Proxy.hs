@@ -176,10 +176,11 @@ registryProxyString = catch
         then do
 #if MIN_VERSION_Win32(2, 6, 0)
             server <- regQueryValue hkey "ProxyServer"
+            exceptions <- try $ regQueryValue hkey "ProxyOverride" :: IO (Either IOException String)
 #else
             server <- regQueryValue hkey (Just "ProxyServer")
-#endif
             exceptions <- try $ regQueryValue hkey (Just "ProxyOverride") :: IO (Either IOException String)
+#endif
             return $ Just (server, either (const "") id exceptions)
         else return Nothing)
   hideError where
