@@ -11,15 +11,16 @@
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- > import Network.HTTP.Simple
--- > import qualified Data.ByteString.Lazy.Char8 as L8
+-- > import qualified Data.ByteString.Char8 as B8
 -- >
 -- > main :: IO ()
--- > main = httpLBS "http://example.com" >>= L8.putStrLn . getResponseBody
+-- > main = httpBS "http://example.com" >>= B8.putStrLn . getResponseBody
 --
 -- The `Data.String.IsString` instance uses `H.parseRequest` behind the scenes and inherits its behavior.
 module Network.HTTP.Simple
     ( -- * Perform requests
-      httpLBS
+      httpBS
+    , httpLBS
     , httpNoBody
     , httpJSON
     , httpJSONEither
@@ -93,9 +94,19 @@ import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
 import Control.Monad.Trans.Resource (MonadResource)
 
--- | Perform an HTTP request and return the body as a lazy @ByteString@. Note
--- that the entire value will be read into memory at once (no lazy I\/O will be
--- performed).
+-- | Perform an HTTP request and return the body as a @ByteString@.
+--
+-- @since 2.2.4
+httpBS :: MonadIO m => H.Request -> m (H.Response S.ByteString)
+httpBS req = liftIO $ do
+    man <- H.getGlobalManager
+    fmap L.toStrict `fmap` H.httpLbs req man
+
+-- | Perform an HTTP request and return the body as a lazy
+-- @ByteString@. Note that the entire value will be read into memory
+-- at once (no lazy I\/O will be performed). The advantage of a lazy
+-- @ByteString@ here (versus using 'httpBS') is--if needed--a better
+-- in-memory representation.
 --
 -- @since 2.1.10
 httpLBS :: MonadIO m => H.Request -> m (H.Response L.ByteString)
