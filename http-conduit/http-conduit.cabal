@@ -71,7 +71,7 @@ test-suite test
                  , cookie
                  , http-client
                  , http-conduit
-                 , conduit-extra
+                 , conduit-extra >= 1.2.1
                  , streaming-commons
                  , aeson
                  , temporary

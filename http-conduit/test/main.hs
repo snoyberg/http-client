@@ -490,6 +490,21 @@ main = do
                 , replicate 500 "foo\003\n\r"
                 ]
 
+    it "stress test with typed-process" $ do
+        bss <- withProcess (setStdin createSink $ setStdout createSource "base64") $ \p ->
+            runConcurrently $
+                Concurrently
+                    ( httpSink "https://raw.githubusercontent.com/fpco/typed-process/master/README.md" $ \_res ->
+                    CB.conduitHandle h .| getStdin p) *>
+                Concurrently
+                    ( runConduit
+                    $ getStdout p
+                   .| CL.consume)
+        hClose h
+        let encoded = S.filter (/= 10) $ S.concat bss
+        raw <- S.readFile fp
+        encoded `shouldBe` B64.encode raw
+
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do
     port <- getPort
