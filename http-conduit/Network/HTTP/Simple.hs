@@ -371,10 +371,8 @@ setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 
 -- | Set the request body as URL encoded data
 --
--- /Note/: This will not modify the request method. For that, please use
--- 'requestMethod'. You likely don't want the default of @GET@.
---
--- This also sets the @content-type@ to @application/x-www-form-urlencoded@
+-- /Note/: This will change the request method to @POST@ and set the @content-type@
+-- to @application/x-www-form-urlencoded@
 --
 -- @since 2.1.10
 setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Request
