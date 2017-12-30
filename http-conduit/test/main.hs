@@ -17,7 +17,7 @@ import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Client.MultipartFormData
 import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar, threadDelay)
 import Network.HTTP.Types
-import Control.Exception.Lifted (try, SomeException, bracket, onException, IOException)
+import UnliftIO.Exception (try, SomeException, bracket, onException, IOException)
 import qualified Data.IORef as I
 import qualified Control.Exception as E (catch)
 import Network.Socket (sClose)

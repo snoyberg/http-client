@@ -231,7 +231,7 @@ import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
 import           Data.Int                     (Int64)
 import           Control.Applicative          as A ((<$>))
-import           Control.Monad.IO.Class       (MonadIO (liftIO))
+import           Control.Monad.IO.Unlift      (MonadIO (liftIO), MonadUnliftIO)
 import           Control.Monad.Trans.Resource
 
 import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen, responseClose)
@@ -305,13 +305,13 @@ conduitManagerSettings :: ManagerSettings
 conduitManagerSettings = tlsManagerSettings
 {-# DEPRECATED conduitManagerSettings "Use tlsManagerSettings" #-}
 
-withManager :: (MonadIO m, MonadBaseControl IO m)
+withManager :: MonadUnliftIO m
             => (Manager -> ResourceT m a)
             -> m a
 withManager = withManagerSettings tlsManagerSettings
 {-# DEPRECATED withManager "Please use newManager tlsManagerSettings" #-}
 
-withManagerSettings :: (MonadIO m, MonadBaseControl IO m)
+withManagerSettings :: MonadUnliftIO m
                     => ManagerSettings
                     -> (Manager -> ResourceT m a)
                     -> m a
@@ -336,15 +336,9 @@ http :: MonadResource m
      -> m (Response (ResumableSource m S.ByteString))
 http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
-#if MIN_VERSION_conduit(1, 2, 0)
     let rsrc = CI.ResumableSource
-            (flip CI.unConduitM CI.Done $ addCleanup (const $ release key) $ HCC.bodyReaderSource $ responseBody res)
+            (flip CI.unConduitT CI.Done $ addCleanup (const $ release key) $ HCC.bodyReaderSource $ responseBody res)
             (release key)
-#else
-    let rsrc = CI.ResumableSource
-            (addCleanup (const $ release key) $ HCC.bodyReaderSource $ responseBody res)
-            (release key)
-#endif
     return res { responseBody = rsrc }
 
 requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody

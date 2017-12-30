@@ -33,9 +33,8 @@ module Network.HTTP.Client.Conduit
     ) where
 
 import           Control.Monad                (unless)
-import           Control.Monad.IO.Class       (MonadIO, liftIO)
+import           Control.Monad.IO.Unlift      (MonadIO, liftIO, MonadUnliftIO)
 import           Control.Monad.Reader         (MonadReader (..), ReaderT (..))
-import           Control.Monad.Trans.Control  (MonadBaseControl)
 import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
@@ -56,12 +55,12 @@ import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 --
 -- * Response body is represented as a @Producer@.
 --
--- * Generalized to any instance of @MonadBaseControl@, not just @IO@.
+-- * Generalized to any instance of @MonadUnliftIO@, not just @IO@.
 --
 -- * The @Manager@ is contained by a @MonadReader@ context.
 --
 -- Since 2.1.0
-withResponse :: (MonadBaseControl IO m, MonadIO n, MonadReader env m, HasHttpManager env)
+withResponse :: (MonadUnliftIO m, MonadIO n, MonadReader env m, HasHttpManager env)
              => Request
              -> (Response (ConduitM i ByteString n ()) -> m a)
              -> m a

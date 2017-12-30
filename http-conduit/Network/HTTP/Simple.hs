@@ -79,7 +79,7 @@ import qualified Network.HTTP.Client.Internal as HI
 import qualified Network.HTTP.Client.TLS as H
 import Network.HTTP.Client.Conduit (bodyReaderSource)
 import qualified Network.HTTP.Client.Conduit as HC
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Unlift (MonadIO, liftIO, MonadUnliftIO, withRunInIO)
 import Data.Aeson (FromJSON (..), Value)
 import Data.Aeson.Parser (json')
 import qualified Data.Aeson.Types as A
@@ -88,11 +88,12 @@ import qualified Data.Traversable as T
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
+import Data.Conduit (runConduit, (.|))
 import qualified Data.Conduit.Attoparsec as C
-import qualified Control.Monad.Catch as Catch
 import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
 import Control.Monad.Trans.Resource (MonadResource)
+import qualified Control.Exception as E (bracket)
 
 -- | Perform an HTTP request and return the body as a @ByteString@.
 --
@@ -161,17 +162,19 @@ instance Exception JSONException
 -- | Perform an HTTP request and consume the body with the given 'C.Sink'
 --
 -- @since 2.1.10
-httpSink :: (MonadIO m, Catch.MonadMask m)
+httpSink :: MonadUnliftIO m
          => H.Request
          -> (H.Response () -> C.Sink S.ByteString m a)
          -> m a
-httpSink req sink = do
-    man <- liftIO H.getGlobalManager
-    Catch.bracket
-        (liftIO $ H.responseOpen req man)
-        (liftIO . H.responseClose)
-        (\res -> bodyReaderSource (getResponseBody res)
-            C.$$ sink (fmap (const ()) res))
+httpSink req sink = withRunInIO $ \run -> do
+    man <- H.getGlobalManager
+    E.bracket
+        (H.responseOpen req man)
+        H.responseClose
+        $ \res -> run
+            $ runConduit
+            $ bodyReaderSource (getResponseBody res)
+           .| sink (fmap (const ()) res)
 
 -- | Perform an HTTP request, and get the response body as a Source.
 --
@@ -221,16 +224,16 @@ httpSource req withRes = do
 -- value.
 --
 -- @since 2.2.3
-withResponse :: (MonadIO m, Catch.MonadMask m, MonadIO n)
+withResponse :: (MonadUnliftIO m, MonadIO n)
              => H.Request
              -> (H.Response (C.ConduitM i S.ByteString n ()) -> m a)
              -> m a
-withResponse req withRes = do
-    man <- liftIO H.getGlobalManager
-    Catch.bracket
-        (liftIO (H.responseOpen req man))
-        (liftIO . H.responseClose)
-        (withRes . fmap bodyReaderSource)
+withResponse req withRes = withRunInIO $ \run -> do
+    man <- H.getGlobalManager
+    E.bracket
+        (H.responseOpen req man)
+        H.responseClose
+        (run . withRes . fmap bodyReaderSource)
 
 -- | Alternate spelling of 'httpLBS'
 --

@@ -1,3 +1,8 @@
+## 2.3.0
+
+* conduit 1.3
+* Drop monad-control for unliftio
+
 ## 2.2.4
 
 * Add `httpBS` to `Network.HTTP.Simple`
