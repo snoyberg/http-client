@@ -1,3 +1,8 @@
+## 0.5.8
+
+* Switch to the new STM-based manager
+  [#254](https://github.com/snoyberg/http-client/pull/254)
+
 ## 0.5.7.1
 
 * Code cleanup/delete dead code
