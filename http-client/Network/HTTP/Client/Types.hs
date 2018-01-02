@@ -20,9 +20,6 @@ module Network.HTTP.Client.Types
     , NeedsPopper
     , GivesPopper
     , Request (..)
-    , ConnReuse (..)
-    , ConnRelease
-    , ManagedConn (..)
     , Response (..)
     , ResponseClose (..)
     , Manager (..)
@@ -58,8 +55,9 @@ import qualified Data.IORef as I
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
-import Control.Concurrent.MVar (MVar)
+import Control.Concurrent.STM (TVar)
 import Data.CaseInsensitive as CI
+import Data.KeyedPool (KeyedPool)
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -571,13 +569,6 @@ instance Show Request where
         , "}"
         ]
 
-data ConnReuse = Reuse | DontReuse
-    deriving T.Typeable
-
-type ConnRelease = ConnReuse -> IO ()
-
-data ManagedConn = Fresh | Reused
-
 -- | A simple representation of the HTTP response.
 --
 -- Since 0.1.0
@@ -713,24 +704,11 @@ newtype ProxyOverride = ProxyOverride
 --
 -- Since 0.1.0
 data Manager = Manager
-    { mConns :: I.IORef ConnsMap
-    -- ^ @Nothing@ indicates that the manager is closed.
-    , mConnsBaton :: MVar ()
-    -- ^ Used to indicate to the reaper thread that it has some work to do.
-    -- This must be filled every time a connection is returned to the manager.
-    -- While redundant with the @IORef@ above, this allows us to have the
-    -- reaper thread fully blocked instead of running every 5 seconds when
-    -- there are no connections to manage.
-    , mMaxConns :: Int
-    -- ^ This is a per-@ConnKey@ value.
+    { mConns :: KeyedPool ConnKey Connection
     , mResponseTimeout :: ResponseTimeout
     -- ^ Copied from 'managerResponseTimeout'
-    , mRawConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
-    , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
-    , mTlsProxyConnection :: S.ByteString -> (Connection -> IO ()) -> String -> Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mRetryableException :: SomeException -> Bool
     , mWrapException :: forall a. Request -> IO a -> IO a
-    , mIdleConnectionCount :: Int
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
     , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
@@ -760,7 +738,21 @@ data ConnHost =
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
-data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
+data ConnKey
+    = CKRaw (Maybe HostAddress) {-# UNPACK #-} !S.ByteString !Int
+    | CKSecure (Maybe HostAddress) {-# UNPACK #-} !S.ByteString !Int
+    | CKProxy
+        {-# UNPACK #-} !S.ByteString
+        !Int
+
+        -- Proxy-Authorization request header
+        (Maybe S.ByteString)
+
+        -- ultimate host
+        {-# UNPACK #-} !S.ByteString
+
+        -- ultimate port
+        !Int
     deriving (Eq, Show, Ord, T.Typeable)
 
 -- | Status of streaming a request body from a file.
