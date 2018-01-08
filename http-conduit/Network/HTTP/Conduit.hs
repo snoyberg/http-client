@@ -225,7 +225,7 @@ module Network.HTTP.Conduit
 
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ResumableSource, ($$+-), await, ($$++), ($$+), Source, addCleanup)
+import           Data.Conduit                 (ResumableSource, ($$+-), await, ($$++), ($$+), Source)
 import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
@@ -337,8 +337,7 @@ http :: MonadResource m
 http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
     let rsrc = CI.ResumableSource
-            (flip CI.unConduitT CI.Done $ addCleanup (const $ release key) $ HCC.bodyReaderSource $ responseBody res)
-            (release key)
+            (flip CI.unConduitT CI.Done $ HCC.bodyReaderSource $ responseBody res)
     return res { responseBody = rsrc }
 
 requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody
