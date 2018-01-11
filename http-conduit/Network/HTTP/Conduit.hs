@@ -225,7 +225,7 @@ module Network.HTTP.Conduit
 
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ResumableSource, ($$+-), await, ($$++), ($$+), Source)
+import           Conduit
 import qualified Data.Conduit.Internal        as CI
 import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
@@ -322,23 +322,25 @@ setConnectionClose :: Request -> Request
 setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
 
 lbsResponse :: Monad m
-            => Response (ResumableSource m S.ByteString)
+            => Response (ConduitT () S.ByteString m ())
             -> m (Response L.ByteString)
 lbsResponse res = do
-    bss <- responseBody res $$+- CL.consume
+    lbs <- runConduit $ responseBody res .| sinkLazy
     return res
-        { responseBody = L.fromChunks bss
+        { responseBody = lbs
         }
 
 http :: MonadResource m
      => Request
      -> Manager
-     -> m (Response (ResumableSource m S.ByteString))
+     -> m (Response (ConduitT i S.ByteString m ()))
 http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
-    let rsrc = CI.ResumableSource
-            (flip CI.unConduitT CI.Done $ HCC.bodyReaderSource $ responseBody res)
-    return res { responseBody = rsrc }
+    return res { responseBody = do
+                   x <- HCC.bodyReaderSource $ responseBody res
+                   release key
+                   return x
+               }
 
 requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopper

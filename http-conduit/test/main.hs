@@ -248,7 +248,7 @@ main = do
             withManager $ \manager -> do
                 req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- http req manager
-                bss <- responseBody res1 $$+- CL.consume
+                bss <- responseBody res1 $$ CL.consume
                 res2 <- httpLbs req manager
                 liftIO $ L.fromChunks bss `shouldBe` responseBody res2
     describe "DOS protection" $ do
