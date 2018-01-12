@@ -294,7 +294,11 @@ setRequestHeader name vals req =
          ++ (map (name, ) vals)
         }
 
--- | Set the request headers, wiping out any previously set headers
+-- | Set the request headers, wiping out __all__ previously set headers. This
+-- means if you use 'setRequestHeaders' to set some headers and also use one of
+-- the other setters that modifies the @content-type@ header (such as
+-- 'setRequestBodyJSON'), be sure that 'setRequestHeaders' is evaluated
+-- __first__.
 --
 -- @since 2.1.10
 setRequestHeaders :: [(H.HeaderName, S.ByteString)] -> H.Request -> H.Request
