@@ -51,9 +51,8 @@ import Data.String (IsString, fromString)
 import Data.Time (UTCTime)
 import Data.Traversable (Traversable)
 import qualified Data.List as DL
-import Network.Socket (HostAddress)
 import Data.IORef
-import qualified Network.Socket as NS
+import qualified Network.HTTP.Client.Socket as NS
 import qualified Data.IORef as I
 import qualified Data.Map as Map
 import Data.Text (Text)
@@ -476,7 +475,7 @@ data Request = Request
     -- ^ Optional HTTP proxy.
     --
     -- Since 0.1.0
-    , hostAddress :: Maybe HostAddress
+    , hostAddress :: Maybe NS.HostAddress
     -- ^ Optional resolved host address. May not be used by all backends.
     --
     -- Since 0.1.0

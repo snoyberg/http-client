@@ -35,7 +35,7 @@ import Control.Exception (mask_, catch, throwIO, fromException, mask, IOExceptio
 import Control.Concurrent (forkIO, threadDelay)
 import Data.Time (UTCTime (..), getCurrentTime, addUTCTime)
 
-import qualified Network.Socket as NS
+import qualified Network.HTTP.Client.Socket as NS
 
 import System.Mem.Weak (Weak, deRefWeak)
 import Network.HTTP.Types (status200)
@@ -50,14 +50,14 @@ import Control.Concurrent.MVar (MVar, takeMVar, tryPutMVar, newEmptyMVar)
 -- use case, see: <https://github.com/snoyberg/http-client/issues/71>.
 --
 -- Since 0.3.8
-rawConnectionModifySocket :: (NS.Socket -> IO ())
+rawConnectionModifySocket :: (NS.Socket' -> IO ())
                           -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocket = return . openSocketConnection
 
 -- | Same as @rawConnectionModifySocket@, but also takes in a chunk size.
 --
 -- @since 0.5.2
-rawConnectionModifySocketSize :: (NS.Socket -> IO ())
+rawConnectionModifySocketSize :: (NS.Socket' -> IO ())
                               -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
 rawConnectionModifySocketSize = return . openSocketConnectionSize
 
@@ -158,7 +158,6 @@ addToList now maxCount x l@(Cons _ currCount _ _)
 -- Since 0.1.0
 newManager :: ManagerSettings -> IO Manager
 newManager ms = do
-    NS.withSocketsDo $ return ()
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
@@ -399,7 +398,7 @@ getConn req m
             _ -> (Nothing, HostName $ T.pack connhost)
 
     wrapConnectExc = handle $ \e ->
-        throwHttp $ ConnectionFailure (toException (e :: IOException))
+        throwHttp $ ConnectionFailure (toException (e :: NS.SocketException))
     go =
         case (secure req, useProxy') of
             (False, _) -> mRawConnection m
