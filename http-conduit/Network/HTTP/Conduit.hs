@@ -337,9 +337,8 @@ http :: MonadResource m
 http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
     return res { responseBody = do
-                   x <- HCC.bodyReaderSource $ responseBody res
+                   HCC.bodyReaderSource $ responseBody res
                    release key
-                   return x
                }
 
 requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody
