@@ -389,7 +389,7 @@ getConn req m
     | S8.null h = throwHttp $ InvalidDestinationHost h
     | otherwise =
         getManagedConn m (ConnKey connKeyHost connport (host req) (port req) (secure req)) $
-            wrapConnectExc $ go connaddr connhost connport
+            wrapConnectExc2 $ wrapConnectExc $ go connaddr connhost connport
   where
     h = host req
     (useProxy', connhost, connport) = getConnDest req
@@ -400,6 +400,8 @@ getConn req m
 
     wrapConnectExc = handle $ \e ->
         throwHttp $ ConnectionFailure (toException (e :: IOException))
+    wrapConnectExc2 = handle $ throwHttp . ConnectionFailure . unWrappedConnectException
+
     go =
         case (secure req, useProxy') of
             (False, _) -> mRawConnection m
