@@ -40,7 +40,7 @@ module Data.KeyedPool
 import Control.Concurrent (forkIOWithUnmask, threadDelay)
 import Control.Concurrent.STM
 import Control.Exception (mask_, catch, SomeException)
-import Control.Monad (join, unless)
+import Control.Monad (join, unless, void)
 import Data.Map (Map)
 import Data.Maybe (isJust)
 import qualified Data.Map.Strict as Map
@@ -119,7 +119,7 @@ createKeyedPool create destroy maxPerKey maxTotal onReaperException = do
     -- above since the reaper thread will always be holding onto a
     -- reference.
     alive <- newIORef ()
-    mkWeakIORef alive $ destroyKeyedPool' destroy var
+    void $ mkWeakIORef alive $ destroyKeyedPool' destroy var
 
     -- Make sure to fork _after_ we've established the mkWeakIORef. If
     -- we did it the other way around, it would be possible for an
@@ -167,8 +167,8 @@ reap destroy var =
     loop = do
         threadDelay (5 * 1000 * 1000)
         join $ atomically $ do
-            m <- readTVar var
-            case m of
+            m'' <- readTVar var
+            case m'' of
                 PoolClosed -> return (return ())
                 PoolOpen idleCount m
                     | Map.null m -> retry

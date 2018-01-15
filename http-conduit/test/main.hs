@@ -20,7 +20,7 @@ import Network.HTTP.Types
 import UnliftIO.Exception (try, SomeException, bracket, onException, IOException)
 import qualified Data.IORef as I
 import qualified Control.Exception as E (catch)
-import Network.Socket (sClose)
+import qualified Network.Socket as NS
 import qualified Network.BSD
 import CookieTest (cookieTest)
 #if MIN_VERSION_conduit(1,1,0)
@@ -32,7 +32,7 @@ import Data.Conduit.Network (runTCPServer, serverSettings, HostPreference (..), 
 #endif
 import qualified Data.Conduit.Network
 import System.IO.Unsafe (unsafePerformIO)
-import Data.Conduit (($$), ($$+-), yield, Flush (Chunk, Flush), await)
+import Data.Conduit ((.|), yield, Flush (Chunk, Flush), await, runConduit)
 import Control.Monad (void, forever)
 import Control.Monad.IO.Class (liftIO)
 import Data.ByteString.UTF8 (fromString)
@@ -122,7 +122,7 @@ getPort = do
     case esocket of
         Left (_ :: IOException) -> getPort
         Right socket -> do
-            sClose socket
+            NS.close socket
             return port
 
 withApp :: (Wai.Request -> IO Wai.Response) -> (Int -> IO ()) -> IO ()
@@ -248,7 +248,7 @@ main = do
             withManager $ \manager -> do
                 req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- http req manager
-                bss <- responseBody res1 $$ CL.consume
+                bss <- runConduit $ responseBody res1 .| CL.consume
                 res2 <- httpLbs req manager
                 liftIO $ L.fromChunks bss `shouldBe` responseBody res2
     describe "DOS protection" $ do
@@ -397,8 +397,8 @@ main = do
     describe "HTTP/1.0" $ do
         it "BaseHTTP" $ do
             let baseHTTP app' = do
-                    _ <- appSource app' $$ await
-                    yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" $$ appSink app'
+                    _ <- runConduit $ appSource app' .| await
+                    runConduit $ yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" .| appSink app'
             withCApp baseHTTP $ \port -> withManager $ \manager -> do
                 req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- httpLbs req manager
@@ -509,14 +509,14 @@ withCApp app' f = do
 
 overLongHeaders :: (Int -> IO ()) -> IO ()
 overLongHeaders =
-    withCApp $ \app' -> src $$ appSink app'
+    withCApp $ \app' -> runConduit $ src .| appSink app'
   where
     src = sourceList $ "HTTP/1.0 200 OK\r\nfoo: " : repeat "bar"
 
 notOverLongHeaders :: (Int -> IO ()) -> IO ()
 notOverLongHeaders = withCApp $ \app' -> do
-    appSource app' $$ CL.drop 1
-    src $$ appSink app'
+    runConduit $ appSource app' .| CL.drop 1
+    runConduit $ src .| appSink app'
   where
     src = sourceList $ [S.concat $ "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16384\r\n\r\n" : ( take 16384 $ repeat "x")]
 
@@ -556,20 +556,20 @@ redir =
 
 echo :: (Int -> IO ()) -> IO ()
 echo = withApp $ \req -> do
-    bss <- sourceRequestBody req $$ CL.consume
+    bss <- runConduit $ sourceRequestBody req .| CL.consume
     return $ responseLBS status200 [] $ L.fromChunks bss
 
 noStatusMessage :: (Int -> IO ()) -> IO ()
 noStatusMessage =
-    withCApp $ \app' -> src $$ appSink app'
+    withCApp $ \app' -> runConduit $ src .| appSink app'
   where
     src = yield "HTTP/1.0 200\r\nContent-Length: 3\r\n\r\nfoo: barbazbin"
 
 wrongLength :: (Int -> IO ()) -> IO ()
 wrongLength =
     withCApp $ \app' -> do
-        _ <- appSource app' $$ await
-        src $$ appSink app'
+        _ <- runConduit $ appSource app' .| await
+        runConduit $ src .| appSink app'
   where
     src = do
         yield "HTTP/1.0 200 OK\r\nContent-Length: 50\r\n\r\n"
@@ -578,32 +578,32 @@ wrongLength =
 wrongLengthChunk1 :: (Int -> IO ()) -> IO ()
 wrongLengthChunk1 =
     withCApp $ \app' -> do
-        _ <- appSource app' $$ await
-        src $$ appSink app'
+        _ <- runConduit $ appSource app' .| await
+        runConduit $ src .| appSink app'
   where
     src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n"
 
 wrongLengthChunk2 :: (Int -> IO ()) -> IO ()
 wrongLengthChunk2 =
     withCApp $ \app' -> do
-        _ <- appSource app' $$ await
-        src $$ appSink app'
+        _ <- runConduit $ appSource app' .| await
+        runConduit $ src .| appSink app'
   where
     src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nWiki\r\n5\r\npedia\r\nE\r\nin\r\n\r\nch\r\n"
 
 invalidChunk :: (Int -> IO ()) -> IO ()
 invalidChunk =
     withCApp $ \app' -> do
-        _ <- appSource app' $$ await
-        src $$ appSink app'
+        _ <- runConduit $ appSource app' .| await
+        runConduit $ src .| appSink app'
   where
     src = yield "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\ngarbage\r\nef\r\n0\r\n\r\n"
 
 rawApp :: S8.ByteString -> (Int -> IO ()) -> IO ()
 rawApp bs =
     withCApp $ \app' -> do
-        _ <- appSource app' $$ await
-        src $$ appSink app'
+        _ <- runConduit $ appSource app' .| await
+        runConduit $ src .| appSink app'
   where
     src = yield bs
 

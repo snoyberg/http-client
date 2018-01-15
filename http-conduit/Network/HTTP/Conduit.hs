@@ -226,8 +226,6 @@ module Network.HTTP.Conduit
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
 import           Conduit
-import qualified Data.Conduit.Internal        as CI
-import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
 import           Data.Int                     (Int64)
 import           Control.Applicative          as A ((<$>))
@@ -341,13 +339,13 @@ http req man = do
                    release key
                }
 
-requestBodySource :: Int64 -> Source (ResourceT IO) S.ByteString -> RequestBody
+requestBodySource :: Int64 -> ConduitT () S.ByteString (ResourceT IO) () -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopper
 
-requestBodySourceChunked :: Source (ResourceT IO) S.ByteString -> RequestBody
+requestBodySourceChunked :: ConduitT () S.ByteString (ResourceT IO) () -> RequestBody
 requestBodySourceChunked = RequestBodyStreamChunked . srcToPopper
 
-srcToPopper :: Source (ResourceT IO) S.ByteString -> HCC.GivesPopper ()
+srcToPopper :: ConduitT () S.ByteString (ResourceT IO) () -> HCC.GivesPopper ()
 srcToPopper src f = runResourceT $ do
     (rsrc0, ()) <- src $$+ return ()
     irsrc <- liftIO $ newIORef rsrc0
@@ -364,8 +362,8 @@ srcToPopper src f = runResourceT $ do
                     | otherwise -> return bs
     liftIO $ f popper
 
-requestBodySourceIO :: Int64 -> Source IO S.ByteString -> RequestBody
+requestBodySourceIO :: Int64 -> ConduitT () S.ByteString IO () -> RequestBody
 requestBodySourceIO = HCC.requestBodySource
 
-requestBodySourceChunkedIO :: Source IO S.ByteString -> RequestBody
+requestBodySourceChunkedIO :: ConduitT () S.ByteString IO () -> RequestBody
 requestBodySourceChunkedIO = HCC.requestBodySourceChunked

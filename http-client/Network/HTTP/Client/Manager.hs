@@ -22,32 +22,20 @@ module Network.HTTP.Client.Manager
     , dropProxyAuthSecure
     ) where
 
-import qualified Data.IORef as I
-import qualified Data.Map as Map
-
 import qualified Data.ByteString.Char8 as S8
 
 import Data.Text (Text)
-import qualified Data.Text as T
 
-import Control.Monad (unless, join, void)
-import Control.Exception (mask_, catch, throwIO, fromException, mask, IOException, Exception (..), handle)
-import Control.Concurrent (forkIO, threadDelay)
-import Data.Time (UTCTime (..), getCurrentTime, addUTCTime)
+import Control.Monad (unless)
+import Control.Exception (throwIO, fromException, IOException, Exception (..), handle)
 
 import qualified Network.Socket as NS
 
-import System.Mem.Weak (Weak, deRefWeak)
 import Network.HTTP.Types (status200)
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Connection
 import Network.HTTP.Client.Headers (parseStatusHeaders)
 import Network.HTTP.Proxy
-import Network.HTTP.Client.Request (applyBasicProxyAuth, extractBasicAuthInfo)
-import Control.Concurrent.STM (TVar, readTVar, writeTVar, atomically, swapTVar, mkWeakTVar, newTVarIO, retry)
-import System.Environment (getEnvironment)
-import qualified Network.URI as U
-import Control.Monad (guard)
 import Data.KeyedPool
 import Data.Maybe (isJust)
 
@@ -193,27 +181,12 @@ closeManager :: Manager -> IO ()
 closeManager _ = return ()
 {-# DEPRECATED closeManager "Manager will be closed for you automatically when no longer in use" #-}
 
-closeManager' :: TVar ConnsMap
-              -> IO ()
-closeManager' connsVar = mask_ $ do
-    !m <- atomically $ swapTVar connsVar ManagerClosed
-    case m of
-        ManagerClosed -> return ()
-        ManagerOpen _ m' -> mapM_ (nonEmptyMapM_ safeConnClose) $ Map.elems m'
-
 -- | Create, use and close a 'Manager'.
 --
 -- Since 0.2.1
 withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
 withManager settings f = newManager settings >>= f
 {-# DEPRECATED withManager "Use newManager instead" #-}
-
-safeConnClose :: Connection -> IO ()
-safeConnClose ci = connectionClose ci `Control.Exception.catch` \(_ :: IOException) -> return ()
-
-nonEmptyMapM_ :: Monad m => (a -> m ()) -> NonEmptyList a -> m ()
-nonEmptyMapM_ f (One x _) = f x
-nonEmptyMapM_ f (Cons x _ _ l) = f x >> nonEmptyMapM_ f l
 
 -- | Drop the Proxy-Authorization header from the request if we're using a
 -- secure proxy.

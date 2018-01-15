@@ -164,7 +164,7 @@ instance Exception JSONException
 -- @since 2.1.10
 httpSink :: MonadUnliftIO m
          => H.Request
-         -> (H.Response () -> C.Sink S.ByteString m a)
+         -> (H.Response () -> C.ConduitT S.ByteString C.Void m a)
          -> m a
 httpSink req sink = withRunInIO $ \run -> do
     man <- H.getGlobalManager
@@ -358,7 +358,7 @@ setRequestBodyLBS = setRequestBody . H.RequestBodyLBS
 --
 -- @since 2.1.10
 setRequestBodySource :: Int64 -- ^ length of source
-                     -> C.Source IO S.ByteString
+                     -> C.ConduitT () S.ByteString IO ()
                      -> H.Request
                      -> H.Request
 setRequestBodySource len src req = req { H.requestBody = HC.requestBodySource len src }

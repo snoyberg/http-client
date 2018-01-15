@@ -51,11 +51,9 @@ import qualified Data.List as DL
 import Network.Socket (HostAddress)
 import Data.IORef
 import qualified Network.Socket as NS
-import qualified Data.IORef as I
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
-import Control.Concurrent.STM (TVar)
 import Data.CaseInsensitive as CI
 import Data.KeyedPool (KeyedPool)
 

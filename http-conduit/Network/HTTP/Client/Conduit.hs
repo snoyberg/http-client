@@ -39,8 +39,8 @@ import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ConduitM, Producer, Source,
-                                               await, yield, ($$+), ($$++))
+import           Data.Conduit                 (ConduitT, sealConduitT,
+                                               await, yield, ($$++))
 import           Data.Int                     (Int64)
 import           Data.IORef                   (newIORef, readIORef, writeIORef)
 import           Network.HTTP.Client          hiding (closeManager,
@@ -62,7 +62,7 @@ import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 -- Since 2.1.0
 withResponse :: (MonadUnliftIO m, MonadIO n, MonadReader env m, HasHttpManager env)
              => Request
-             -> (Response (ConduitM i ByteString n ()) -> m a)
+             -> (Response (ConduitT i ByteString n ()) -> m a)
              -> m a
 withResponse req f = do
     env <- ask
@@ -73,7 +73,7 @@ withResponse req f = do
 -- Since 2.1.0
 acquireResponse :: (MonadIO n, MonadReader env m, HasHttpManager env)
                 => Request
-                -> m (Acquire (Response (ConduitM i ByteString n ())))
+                -> m (Acquire (Response (ConduitT i ByteString n ())))
 acquireResponse req = do
     env <- ask
     let man = getHttpManager env
@@ -118,7 +118,7 @@ withManagerSettings settings (ReaderT inner) = newManagerSettings settings >>= i
 -- Since 2.1.0
 responseOpen :: (MonadIO m, MonadIO n, MonadReader env m, HasHttpManager env)
              => Request
-             -> m (Response (ConduitM i ByteString n ()))
+             -> m (Response (ConduitT i ByteString n ()))
 responseOpen req = do
     env <- ask
     liftIO $ fmap bodyReaderSource `fmap` H.responseOpen req (getHttpManager env)
@@ -131,7 +131,7 @@ responseClose = liftIO . H.responseClose
 
 bodyReaderSource :: MonadIO m
                  => H.BodyReader
-                 -> Producer m ByteString
+                 -> ConduitT i ByteString m ()
 bodyReaderSource br =
     loop
   where
@@ -141,16 +141,15 @@ bodyReaderSource br =
             yield bs
             loop
 
-requestBodySource :: Int64 -> Source IO ByteString -> RequestBody
+requestBodySource :: Int64 -> ConduitT () ByteString IO () -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopperIO
 
-requestBodySourceChunked :: Source IO ByteString -> RequestBody
+requestBodySourceChunked :: ConduitT () ByteString IO () -> RequestBody
 requestBodySourceChunked = RequestBodyStreamChunked . srcToPopperIO
 
-srcToPopperIO :: Source IO ByteString -> GivesPopper ()
+srcToPopperIO :: ConduitT () ByteString IO () -> GivesPopper ()
 srcToPopperIO src f = do
-    (rsrc0, ()) <- src $$+ return ()
-    irsrc <- newIORef rsrc0
+    irsrc <- newIORef $ sealConduitT src
     let popper :: IO ByteString
         popper = do
             rsrc <- readIORef irsrc
