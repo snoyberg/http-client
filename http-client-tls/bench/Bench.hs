@@ -1,6 +1,6 @@
 module Main where
 
-import Criterion.Main
+import Gauge.Main
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS
 
