@@ -10,6 +10,8 @@ import Network.HTTP.Client.Internal
 import Network.URI (URI(..), URIAuth(..), parseURI)
 import Test.Hspec
 import Data.Monoid ((<>))
+import Network.HTTP.Client (defaultRequest)
+import Data.List (isInfixOf)
 
 spec :: Spec
 spec = do
@@ -36,6 +38,11 @@ spec = do
         (uriRegName $ fromJust $ uriAuthority $ getUri $ fromJust request) `shouldBe` requestHostnameWithoutAuth
         field `shouldSatisfy` isJust
         field `shouldBe` Just "Basic dXNlcjpwYXNz"
+
+    describe "Show Request" $
+      it "redacts authorization header content" $ do
+        let request = defaultRequest { requestHeaders = [("Authorization", "secret")] }
+        isInfixOf "secret" (show request) `shouldBe` False
 
     describe "applyBasicProxyAuth" $ do
         let request = applyBasicProxyAuth "user" "pass" <$> parseUrlThrow "http://example.org"

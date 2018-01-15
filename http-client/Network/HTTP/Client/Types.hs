@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Client.Types
     ( BodyReader
     , Connection (..)
@@ -60,6 +61,7 @@ import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
 import Control.Concurrent.MVar (MVar)
 import Data.CaseInsensitive as CI
+import Control.Applicative((<$>))
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -558,7 +560,7 @@ instance Show Request where
         , "  host                 = " ++ show (host x)
         , "  port                 = " ++ show (port x)
         , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (requestHeaders x)
+        , "  requestHeaders       = " ++ show (redactSensitiveHeader <$> requestHeaders x)
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
         --, "  requestBody          = " ++ show (requestBody x)
@@ -570,6 +572,10 @@ instance Show Request where
         , "  requestVersion       = " ++ show (requestVersion x)
         , "}"
         ]
+
+redactSensitiveHeader :: Header -> Header
+redactSensitiveHeader ("Authorization", value) = ("Authorization", "<REDACTED>")
+redactSensitiveHeader h = h
 
 data ConnReuse = Reuse | DontReuse
     deriving T.Typeable
