@@ -656,7 +656,9 @@ data ManagerSettings = ManagerSettings
     --
     -- This limit helps deal with the case where you are making a large number
     -- of connections to different hosts. Without this limit, you could run out
-    -- of file descriptors.
+    -- of file descriptors. Additionally, it can be set to zero to prevent
+    -- reuse of any connections. Doing this is useful when the server your application
+    -- is talking to sits behind a load balancer.
     --
     -- Default: 512
     --
