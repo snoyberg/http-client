@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Client.Types
     ( BodyReader
     , Connection (..)
@@ -554,7 +555,7 @@ instance Show Request where
         , "  host                 = " ++ show (host x)
         , "  port                 = " ++ show (port x)
         , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (requestHeaders x)
+        , "  requestHeaders       = " ++ show (map redactSensitiveHeader (requestHeaders x))
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
         --, "  requestBody          = " ++ show (requestBody x)
@@ -566,6 +567,10 @@ instance Show Request where
         , "  requestVersion       = " ++ show (requestVersion x)
         , "}"
         ]
+
+redactSensitiveHeader :: Header -> Header
+redactSensitiveHeader ("Authorization", value) = ("Authorization", "<REDACTED>")
+redactSensitiveHeader h = h
 
 -- | A simple representation of the HTTP response.
 --
