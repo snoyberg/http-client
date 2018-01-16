@@ -57,6 +57,7 @@ import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
 import Data.CaseInsensitive as CI
 import Data.KeyedPool (KeyedPool)
+import Control.Applicative((<$>))
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -556,6 +557,7 @@ instance Show Request where
         , "  port                 = " ++ show (port x)
         , "  secure               = " ++ show (secure x)
         , "  requestHeaders       = " ++ show (map redactSensitiveHeader (requestHeaders x))
+        , "  requestHeaders       = " ++ show (redactSensitiveHeader <$> requestHeaders x)
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
         --, "  requestBody          = " ++ show (requestBody x)
