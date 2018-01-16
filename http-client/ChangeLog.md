@@ -2,6 +2,7 @@
 
 * Switch to the new STM-based manager
   [#254](https://github.com/snoyberg/http-client/pull/254)
+* Redact sensitive headers [#318](https://github.com/snoyberg/http-client/pull/318)
 
 ## 0.5.7.1
 
