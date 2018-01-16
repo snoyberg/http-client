@@ -33,6 +33,9 @@ library
                  , http-client-tls       >= 0.3     && < 0.4
                  , mtl
                  , unliftio-core
+
+    if !impl(ghc>=7.9)
+      build-depends:   void >= 0.5.5
     exposed-modules: Network.HTTP.Conduit
                      Network.HTTP.Client.Conduit
                      Network.HTTP.Simple
