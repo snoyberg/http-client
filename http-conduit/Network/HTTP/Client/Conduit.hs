@@ -19,8 +19,6 @@ module Network.HTTP.Client.Conduit
       -- * Manager helpers
     , defaultManagerSettings
     , newManager
-    , withManager
-    , withManagerSettings
     , newManagerSettings
       -- * General HTTP client interface
     , module Network.HTTP.Client
@@ -33,20 +31,20 @@ module Network.HTTP.Client.Conduit
     ) where
 
 import           Control.Monad                (unless)
-import           Control.Monad.IO.Unlift      (MonadIO, liftIO, MonadUnliftIO)
-import           Control.Monad.Reader         (MonadReader (..), ReaderT (..))
+import           Control.Monad.IO.Unlift      (MonadIO, liftIO, MonadUnliftIO, withRunInIO)
+import           Control.Monad.Reader         (MonadReader (..))
 import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ConduitT, sealConduitT,
+import           Data.Conduit                 (ConduitM, ($$+),
                                                await, yield, ($$++))
 import           Data.Int                     (Int64)
 import           Data.IORef                   (newIORef, readIORef, writeIORef)
 import           Network.HTTP.Client          hiding (closeManager,
                                                defaultManagerSettings, httpLbs,
                                                newManager, responseClose,
-                                               responseOpen, withManager,
+                                               responseOpen,
                                                withResponse, BodyReader, brRead, brConsume, httpNoBody)
 import qualified Network.HTTP.Client          as H
 import           Network.HTTP.Client.TLS      (tlsManagerSettings)
@@ -62,18 +60,18 @@ import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 -- Since 2.1.0
 withResponse :: (MonadUnliftIO m, MonadIO n, MonadReader env m, HasHttpManager env)
              => Request
-             -> (Response (ConduitT i ByteString n ()) -> m a)
+             -> (Response (ConduitM i ByteString n ()) -> m a)
              -> m a
 withResponse req f = do
     env <- ask
-    with (acquireResponse req env) f
+    withRunInIO $ \run -> with (acquireResponse req env) (run . f)
 
 -- | An @Acquire@ for getting a @Response@.
 --
 -- Since 2.1.0
 acquireResponse :: (MonadIO n, MonadReader env m, HasHttpManager env)
                 => Request
-                -> m (Acquire (Response (ConduitT i ByteString n ())))
+                -> m (Acquire (Response (ConduitM i ByteString n ())))
 acquireResponse req = do
     env <- ask
     let man = getHttpManager env
@@ -99,18 +97,6 @@ newManager = newManagerSettings defaultManagerSettings
 newManagerSettings :: MonadIO m => ManagerSettings -> m Manager
 newManagerSettings = liftIO . H.newManager
 
--- | Get a new manager with 'defaultManagerSettings' and construct a @ReaderT@ containing it.
---
--- Since 2.1.0
-withManager :: MonadIO m => (ReaderT Manager m a) -> m a
-withManager = withManagerSettings defaultManagerSettings
-
--- | Get a new manager with the given settings and construct a @ReaderT@ containing it.
---
--- Since 2.1.0
-withManagerSettings :: MonadIO m => ManagerSettings -> (ReaderT Manager m a) -> m a
-withManagerSettings settings (ReaderT inner) = newManagerSettings settings >>= inner
-
 -- | Conduit-powered version of 'H.responseOpen'.
 --
 -- See 'withResponse' for the differences with 'H.responseOpen'.
@@ -118,7 +104,7 @@ withManagerSettings settings (ReaderT inner) = newManagerSettings settings >>= i
 -- Since 2.1.0
 responseOpen :: (MonadIO m, MonadIO n, MonadReader env m, HasHttpManager env)
              => Request
-             -> m (Response (ConduitT i ByteString n ()))
+             -> m (Response (ConduitM i ByteString n ()))
 responseOpen req = do
     env <- ask
     liftIO $ fmap bodyReaderSource `fmap` H.responseOpen req (getHttpManager env)
@@ -131,7 +117,7 @@ responseClose = liftIO . H.responseClose
 
 bodyReaderSource :: MonadIO m
                  => H.BodyReader
-                 -> ConduitT i ByteString m ()
+                 -> ConduitM i ByteString m ()
 bodyReaderSource br =
     loop
   where
@@ -141,15 +127,16 @@ bodyReaderSource br =
             yield bs
             loop
 
-requestBodySource :: Int64 -> ConduitT () ByteString IO () -> RequestBody
+requestBodySource :: Int64 -> ConduitM () ByteString IO () -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopperIO
 
-requestBodySourceChunked :: ConduitT () ByteString IO () -> RequestBody
+requestBodySourceChunked :: ConduitM () ByteString IO () -> RequestBody
 requestBodySourceChunked = RequestBodyStreamChunked . srcToPopperIO
 
-srcToPopperIO :: ConduitT () ByteString IO () -> GivesPopper ()
+srcToPopperIO :: ConduitM () ByteString IO () -> GivesPopper ()
 srcToPopperIO src f = do
-    irsrc <- newIORef $ sealConduitT src
+    (rsrc0, ()) <- src $$+ return ()
+    irsrc <- newIORef rsrc0
     let popper :: IO ByteString
         popper = do
             rsrc <- readIORef irsrc

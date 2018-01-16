@@ -1,7 +1,13 @@
 ## 2.3.0
 
-* conduit 1.3
+* conduit 1.3 support
+    * NOTE: Even for older versions of conduit, this includes dropping
+      support for finalizers
+* `http` returns a `Source` instead of a `ResumableSource` (due to lack of
+  finalizers)
 * Drop monad-control for unliftio
+* Removed some deprecated functions: `withManager`, `withManagerSettings`,
+  `conduitManagerSettings`
 
 ## 2.2.4
 

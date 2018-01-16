@@ -181,11 +181,8 @@ module Network.HTTP.Conduit
     , Manager
     , newManager
     , closeManager
-    , withManager
-    , withManagerSettings
       -- ** Settings
     , ManagerSettings
-    , conduitManagerSettings
     , tlsManagerSettings
     , mkManagerSettings
     , managerConnCount
@@ -225,11 +222,12 @@ module Network.HTTP.Conduit
 
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Conduit
+import           Data.Conduit
+import qualified Data.Conduit.List            as CL
 import           Data.IORef                   (readIORef, writeIORef, newIORef)
 import           Data.Int                     (Int64)
 import           Control.Applicative          as A ((<$>))
-import           Control.Monad.IO.Unlift      (MonadIO (liftIO), MonadUnliftIO)
+import           Control.Monad.IO.Unlift      (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
 import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen, responseClose)
@@ -299,39 +297,22 @@ simpleHttp url = liftIO $ do
     req <- liftIO $ parseUrlThrow url
     responseBody A.<$> httpLbs (setConnectionClose req) man
 
-conduitManagerSettings :: ManagerSettings
-conduitManagerSettings = tlsManagerSettings
-{-# DEPRECATED conduitManagerSettings "Use tlsManagerSettings" #-}
-
-withManager :: MonadUnliftIO m
-            => (Manager -> ResourceT m a)
-            -> m a
-withManager = withManagerSettings tlsManagerSettings
-{-# DEPRECATED withManager "Please use newManager tlsManagerSettings" #-}
-
-withManagerSettings :: MonadUnliftIO m
-                    => ManagerSettings
-                    -> (Manager -> ResourceT m a)
-                    -> m a
-withManagerSettings set f = liftIO (newManager set) >>= runResourceT . f
-{-# DEPRECATED withManagerSettings "Please use newManager" #-}
-
 setConnectionClose :: Request -> Request
 setConnectionClose req = req{requestHeaders = ("Connection", "close") : requestHeaders req}
 
 lbsResponse :: Monad m
-            => Response (ConduitT () S.ByteString m ())
+            => Response (ConduitM () S.ByteString m ())
             -> m (Response L.ByteString)
 lbsResponse res = do
-    lbs <- runConduit $ responseBody res .| sinkLazy
+    bss <- runConduit $ responseBody res .| CL.consume
     return res
-        { responseBody = lbs
+        { responseBody = L.fromChunks bss
         }
 
 http :: MonadResource m
      => Request
      -> Manager
-     -> m (Response (ConduitT i S.ByteString m ()))
+     -> m (Response (ConduitM i S.ByteString m ()))
 http req man = do
     (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
     return res { responseBody = do
@@ -339,13 +320,13 @@ http req man = do
                    release key
                }
 
-requestBodySource :: Int64 -> ConduitT () S.ByteString (ResourceT IO) () -> RequestBody
+requestBodySource :: Int64 -> ConduitM () S.ByteString (ResourceT IO) () -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopper
 
-requestBodySourceChunked :: ConduitT () S.ByteString (ResourceT IO) () -> RequestBody
+requestBodySourceChunked :: ConduitM () S.ByteString (ResourceT IO) () -> RequestBody
 requestBodySourceChunked = RequestBodyStreamChunked . srcToPopper
 
-srcToPopper :: ConduitT () S.ByteString (ResourceT IO) () -> HCC.GivesPopper ()
+srcToPopper :: ConduitM () S.ByteString (ResourceT IO) () -> HCC.GivesPopper ()
 srcToPopper src f = runResourceT $ do
     (rsrc0, ()) <- src $$+ return ()
     irsrc <- liftIO $ newIORef rsrc0
@@ -362,8 +343,8 @@ srcToPopper src f = runResourceT $ do
                     | otherwise -> return bs
     liftIO $ f popper
 
-requestBodySourceIO :: Int64 -> ConduitT () S.ByteString IO () -> RequestBody
+requestBodySourceIO :: Int64 -> ConduitM () S.ByteString IO () -> RequestBody
 requestBodySourceIO = HCC.requestBodySource
 
-requestBodySourceChunkedIO :: ConduitT () S.ByteString IO () -> RequestBody
+requestBodySourceChunkedIO :: ConduitM () S.ByteString IO () -> RequestBody
 requestBodySourceChunkedIO = HCC.requestBodySourceChunked

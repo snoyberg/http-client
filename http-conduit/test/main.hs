@@ -12,7 +12,7 @@ import Network.HTTP.Client (streamFile)
 import System.IO.Temp (withSystemTempFile)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
-import Network.HTTP.Conduit hiding (port, withManager, withManagerSettings)
+import Network.HTTP.Conduit hiding (port)
 import qualified Network.HTTP.Conduit as NHC
 import Network.HTTP.Client.MultipartFormData
 import Control.Concurrent (forkIO, killThread, putMVar, takeMVar, newEmptyMVar, threadDelay)
@@ -53,14 +53,7 @@ import Data.Default.Class (def)
 import qualified Data.Aeson as A
 import qualified Network.HTTP.Simple as Simple
 import Data.Monoid (mempty)
-import Control.Monad.Trans.Resource (ResourceT, runResourceT)
-
--- I'm too lazy to rewrite code below
-withManager :: (Manager -> ResourceT IO a) -> IO a
-withManager = withManagerSettings tlsManagerSettings
-
-withManagerSettings :: ManagerSettings -> (Manager -> ResourceT IO a) -> IO a
-withManagerSettings set f = newManager set >>= (runResourceT . f)
+import Control.Monad.Trans.Resource (runResourceT)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -187,42 +180,42 @@ main = do
     describe "httpLbs" $ do
         it "preserves 'set-cookie' headers" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookies"]
-            withManager $ \manager -> do
-                response <- httpLbs request manager
-                let setCookie = mk (fromString "Set-Cookie")
-                    (setCookieHeaders, _) = partition ((== setCookie) . fst) (NHC.responseHeaders response)
-                liftIO $ assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
+            manager <- newManager tlsManagerSettings
+            response <- httpLbs request manager
+            let setCookie = mk (fromString "Set-Cookie")
+                (setCookieHeaders, _) = partition ((== setCookie) . fst) (NHC.responseHeaders response)
+            assertBool "response contains a 'set-cookie' header" $ length setCookieHeaders > 0
         it "redirects set cookies" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookie_redir1"]
-            withManager $ \manager -> do
-                response <- httpLbs request manager
-                liftIO $ (responseBody response) @?= "nom-nom-nom"
+            manager <- newManager tlsManagerSettings
+            response <- httpLbs request manager
+            (responseBody response) @?= "nom-nom-nom"
         it "user-defined cookie jar works" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
-            withManager $ \manager -> do
-                response <- httpLbs (request {redirectCount = 1, cookieJar = Just cookie_jar}) manager
-                liftIO $ (responseBody response) @?= "key=value"
+            manager <- newManager tlsManagerSettings
+            response <- httpLbs (request {redirectCount = 1, cookieJar = Just cookie_jar}) manager
+            (responseBody response) @?= "key=value"
         it "user-defined cookie jar is not ignored when redirection is disabled" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
-            withManager $ \manager -> do
-                response <- httpLbs (request {redirectCount = 0, cookieJar = Just cookie_jar}) manager
-                liftIO $ (responseBody response) @?= "key=value"
+            manager <- newManager tlsManagerSettings
+            response <- httpLbs (request {redirectCount = 0, cookieJar = Just cookie_jar}) manager
+            (responseBody response) @?= "key=value"
         it "cookie jar is available in response" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookies"]
-            withManager $ \manager -> do
-                response <- httpLbs (request {cookieJar = Just Data.Monoid.mempty}) manager
-                liftIO $ (length $ destroyCookieJar $ responseCookieJar response) @?= 1
+            manager <- newManager tlsManagerSettings
+            response <- httpLbs (request {cookieJar = Just Data.Monoid.mempty}) manager
+            (length $ destroyCookieJar $ responseCookieJar response) @?= 1
         it "Cookie header isn't touched when no cookie jar supplied" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/dump_cookies"]
-            withManager $ \manager -> do
-                let request_headers = (mk "Cookie", "key2=value2") : filter ((/= mk "Cookie") . fst) (NHC.requestHeaders request)
-                response <- httpLbs (request {NHC.requestHeaders = request_headers, cookieJar = Nothing}) manager
-                liftIO $ (responseBody response) @?= "key2=value2"
+            manager <- newManager tlsManagerSettings
+            let request_headers = (mk "Cookie", "key2=value2") : filter ((/= mk "Cookie") . fst) (NHC.requestHeaders request)
+            response <- httpLbs (request {NHC.requestHeaders = request_headers, cookieJar = Nothing}) manager
+            (responseBody response) @?= "key2=value2"
         it "Response cookie jar is nothing when request cookie jar is nothing" $ withApp app $ \port -> do
             request <- parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/cookies"]
-            withManager $ \manager -> do
-                response <- httpLbs (request {cookieJar = Nothing}) manager
-                liftIO $ (responseCookieJar response) @?= mempty
+            manager <- newManager tlsManagerSettings
+            response <- httpLbs (request {cookieJar = Nothing}) manager
+            (responseCookieJar response) @?= mempty
         it "TLS" $ withAppTls app $ \port -> do
             request <- parseUrlThrow $ "https://127.0.0.1:" ++ show port
             let set = mkManagerSettings
@@ -230,14 +223,16 @@ main = do
                         { settingDisableCertificateValidation = True
                         }
                     Nothing
-            response <- withManagerSettings set $ httpLbs request
+            manager <- newManager set
+            response <- httpLbs request manager
             responseBody response @?= "homepage"
     describe "manager" $ do
         it "closes all connections" $ withApp app $ \port1 -> withApp app $ \port2 -> do
             --FIXME clearSocketsList
-            withManager $ \manager -> do
-                let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port1
-                let Just req2 = parseUrlThrow $ "http://127.0.0.1:" ++ show port2
+            manager <- newManager tlsManagerSettings
+            let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port1
+            let Just req2 = parseUrlThrow $ "http://127.0.0.1:" ++ show port2
+            runResourceT $ do
                 _res1a <- http req1 manager
                 _res1b <- http req1 manager
                 _res2 <- http req2 manager
@@ -245,120 +240,122 @@ main = do
             --FIXME requireAllSocketsClosed
     describe "http" $ do
         it "response body" $ withApp app $ \port -> do
-            withManager $ \manager -> do
-                req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            manager <- newManager tlsManagerSettings
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            runResourceT $ do
                 res1 <- http req manager
                 bss <- runConduit $ responseBody res1 .| CL.consume
                 res2 <- httpLbs req manager
                 liftIO $ L.fromChunks bss `shouldBe` responseBody res2
     describe "DOS protection" $ do
         it "overlong headers" $ overLongHeaders $ \port -> do
-            withManager $ \manager -> do
-                let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
-                res1 <- try $ http req1 manager
-                case res1 of
-                    Left e -> liftIO $ show (e :: SomeException) @?= show (HttpExceptionRequest req1 OverlongHeaders)
-                    _ -> error "Shouldn't have worked"
+            manager <- newManager tlsManagerSettings
+            let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            res1 <- try $ runResourceT $ http req1 manager
+            case res1 of
+              Left e -> show (e :: SomeException) @?= show (HttpExceptionRequest req1 OverlongHeaders)
+              _ -> error "Shouldn't have worked"
         it "not overlong headers" $ notOverLongHeaders $ \port -> do
-            withManager $ \manager -> do
-                let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
-                _ <- httpLbs req1 manager
-                return ()
+            manager <- newManager tlsManagerSettings
+            let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            _ <- httpLbs req1 manager
+            return ()
     describe "redirects" $ do
         it "doesn't double escape" $ redir $ \port -> do
-            withManager $ \manager -> do
-                let go (encoded, final) = do
-                        let Just req1 = parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/redir/", encoded]
-                        res <- httpLbs req1 manager
-                        liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
-                        liftIO $ responseBody res @?= L.fromChunks [TE.encodeUtf8 final]
-                mapM_ go
-                    [ ("hello world%2F", "hello world/")
-                    , ("%D7%A9%D7%9C%D7%95%D7%9D", "שלום")
-                    , ("simple", "simple")
-                    , ("hello%20world", "hello world")
-                    , ("hello%20world%3f%23", "hello world?#")
-                    ]
+            manager <- newManager tlsManagerSettings
+            let go (encoded, final) = do
+                    let Just req1 = parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/redir/", encoded]
+                    res <- httpLbs req1 manager
+                    liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                    liftIO $ responseBody res @?= L.fromChunks [TE.encodeUtf8 final]
+            mapM_ go
+                [ ("hello world%2F", "hello world/")
+                , ("%D7%A9%D7%9C%D7%95%D7%9D", "שלום")
+                , ("simple", "simple")
+                , ("hello%20world", "hello world")
+                , ("hello%20world%3f%23", "hello world?#")
+                ]
         it "TooManyRedirects: redirect request body is preserved" $ withApp app $ \port -> do
             let Just req = parseUrlThrow $ concat ["http://127.0.0.1:", show port, "/infredir/0"]
             let go (res, i) = liftIO $ responseBody res @?= (L8.pack $ show i)
-            E.catch (withManager $ \manager -> do
-                void $ http req{redirectCount=5} manager) $ \e ->
+            manager <- newManager tlsManagerSettings
+            E.catch (void $ runResourceT $ http req{redirectCount=5} manager)
+              $ \e ->
                     case e of
                         HttpExceptionRequest _ (TooManyRedirects redirs) ->
                             mapM_ go (zip redirs [5,4..0 :: Int])
                         _ -> error $ show e
     describe "chunked request body" $ do
         it "works" $ echo $ \port -> do
-            withManager $ \manager -> do
-                let go bss = do
-                        let Just req1 = parseUrlThrow $ "POST http://127.0.0.1:" ++ show port
-                            src = sourceList bss
-                            lbs = L.fromChunks bss
-                        res <- httpLbs req1
-                            { requestBody = requestBodySourceChunked src
-                            } manager
-                        liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
-                        let ts = S.concat . L.toChunks
-                        liftIO $ ts (responseBody res) @?= ts lbs
-                mapM_ go
-                    [ ["hello", "world"]
-                    , replicate 500 "foo\003\n\r"
-                    ]
+            manager <- newManager tlsManagerSettings
+            let go bss = do
+                    let Just req1 = parseUrlThrow $ "POST http://127.0.0.1:" ++ show port
+                        src = sourceList bss
+                        lbs = L.fromChunks bss
+                    res <- httpLbs req1
+                        { requestBody = requestBodySourceChunked src
+                        } manager
+                    liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                    let ts = S.concat . L.toChunks
+                    liftIO $ ts (responseBody res) @?= ts lbs
+            mapM_ go
+                [ ["hello", "world"]
+                , replicate 500 "foo\003\n\r"
+                ]
     describe "no status message" $ do
         it "works" $ noStatusMessage $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                res <- httpLbs req manager
-                liftIO $ do
-                    Network.HTTP.Conduit.responseStatus res `shouldBe` status200
-                    responseBody res `shouldBe` "foo"
+            manager <- newManager tlsManagerSettings
+            res <- httpLbs req manager
+            liftIO $ do
+                Network.HTTP.Conduit.responseStatus res `shouldBe` status200
+                responseBody res `shouldBe` "foo"
 
     describe "response body too short" $ do
         it "throws an exception" $ wrongLength $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                eres <- try $ httpLbs req manager
-                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show $ HttpExceptionRequest req $ ResponseBodyTooShort 50 18)
+            manager <- newManager tlsManagerSettings
+            eres <- try $ httpLbs req manager
+            liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+             `shouldBe` Left (show $ HttpExceptionRequest req $ ResponseBodyTooShort 50 18)
 
     describe "chunked response body" $ do
         it "no chunk terminator" $ wrongLengthChunk1 $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                eres <- try $ httpLbs req manager
-                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show (HttpExceptionRequest req IncompleteHeaders))
+            manager <- newManager tlsManagerSettings
+            eres <- try $ httpLbs req manager
+            liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+             `shouldBe` Left (show (HttpExceptionRequest req IncompleteHeaders))
         it "incomplete chunk" $ wrongLengthChunk2 $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                eres <- try $ httpLbs req manager
-                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
+            manager <- newManager tlsManagerSettings
+            eres <- try $ httpLbs req manager
+            liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+             `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
         it "invalid chunk" $ invalidChunk $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                eres <- try $ httpLbs req manager
-                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
+            manager <- newManager tlsManagerSettings
+            eres <- try $ httpLbs req manager
+            liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+             `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
         it "missing header" $ rawApp
           "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\n\r\n\r\n"
           $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                eres <- try $ httpLbs req manager
-                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
+            manager <- newManager tlsManagerSettings
+            eres <- try $ httpLbs req manager
+            liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+             `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
         it "junk header" $ rawApp
           "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n4\r\nabcd\r\njunk\r\n\r\n"
           $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
-            withManager $ \manager -> do
-                eres <- try $ httpLbs req manager
-                liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-                 `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
+            manager <- newManager tlsManagerSettings
+            eres <- try $ httpLbs req manager
+            liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
+             `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
 
     describe "redirect" $ do
         it "ignores large response bodies" $ do
@@ -366,7 +363,8 @@ main = do
                     case pathInfo req of
                         ["foo"] -> return $ responseLBS status200 [] "Hello World!"
                         _ -> return $ responseSource status301 [("location", S8.pack $ "http://127.0.0.1:" ++ show port ++ "/foo")] $ forever $ yield $ Chunk $ fromByteString "hello\n"
-            withApp' app' $ \port -> withManager $ \manager -> do
+            manager <- newManager tlsManagerSettings
+            withApp' app' $ \port -> do
                 req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res <- httpLbs req manager
                 liftIO $ do
@@ -399,7 +397,8 @@ main = do
             let baseHTTP app' = do
                     _ <- runConduit $ appSource app' .| await
                     runConduit $ yield "HTTP/1.0 200 OK\r\n\r\nThis is it!" .| appSink app'
-            withCApp baseHTTP $ \port -> withManager $ \manager -> do
+            manager <- newManager tlsManagerSettings
+            withCApp baseHTTP $ \port -> do
                 req <- liftIO $ parseUrlThrow $ "http://127.0.0.1:" ++ show port
                 res1 <- httpLbs req manager
                 res2 <- httpLbs req manager
@@ -410,41 +409,42 @@ main = do
             entry <- Network.BSD.getHostByName "127.0.0.1"
             req' <- parseUrlThrow $ "http://example.com:" ++ show port
             let req = req' { hostAddress = Just $ Network.BSD.hostAddress entry }
-            res <- withManager $ httpLbs req
+            manager <- newManager tlsManagerSettings
+            res <- httpLbs req manager
             responseBody res @?= "homepage for example.com"
 
     describe "managerResponseTimeout" $ do
         it "works" $ withApp app $ \port -> do
             req1 <- parseUrlThrow $ "http://localhost:" ++ show port
             let req2 = req1 { responseTimeout = responseTimeoutMicro 5000000 }
-            withManagerSettings tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 1 } $ \man -> do
-                eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
-                case eres1 of
-                    Left (HttpExceptionRequest _ ConnectionTimeout{}) -> return ()
-                    _ -> error "Did not time out"
-                _ <- httpLbs req2 man
-                return ()
+            man <- newManager tlsManagerSettings { managerResponseTimeout = responseTimeoutMicro 1 }
+            eres1 <- try $ httpLbs req1 { NHC.path = "/delayed" } man
+            case eres1 of
+                Left (HttpExceptionRequest _ ConnectionTimeout{}) -> return ()
+                _ -> error "Did not time out"
+            _ <- httpLbs req2 man
+            return ()
 
     describe "delayed body" $ do
         it "works" $ withApp app $ \port -> do
             req <- parseUrlThrow $ "http://localhost:" ++ show port ++ "/delayed"
-            withManager $ \man -> do
-                _ <- http req man
-                return ()
+            man <- newManager tlsManagerSettings
+            _ <- runResourceT $ http req man
+            return ()
 
     it "reuse/connection close tries again" $ do
         withAppSettings (setTimeout 1) (const app) $ \port -> do
             req <- parseUrlThrow $ "http://localhost:" ++ show port
-            withManager $ \man -> do
-                res1 <- httpLbs req man
-                liftIO $ threadDelay 3000000
-                res2 <- httpLbs req man
-                let f res = res
-                        { NHC.responseHeaders = filter (not . isDate) (NHC.responseHeaders res)
-                        }
-                    isDate ("date", _) = True
-                    isDate _ = False
-                liftIO $ f res2 `shouldBe` f res1
+            man <- newManager tlsManagerSettings
+            res1 <- httpLbs req man
+            threadDelay 3000000
+            res2 <- httpLbs req man
+            let f res = res
+                    { NHC.responseHeaders = filter (not . isDate) (NHC.responseHeaders res)
+                    }
+                isDate ("date", _) = True
+                isDate _ = False
+            f res2 `shouldBe` f res1
 
     it "setQueryString" $ do
         ref <- I.newIORef undefined
@@ -457,10 +457,9 @@ main = do
                     , (TE.encodeUtf8 "שלום", Just "hola")
                     , ("noval", Nothing)
                     ]
-            withManager $ \man -> do
-                req <- parseUrlThrow $ "http://localhost:" ++ show port
-                _ <- httpLbs (setQueryString qs req) man
-                return ()
+            man <- newManager tlsManagerSettings
+            req <- parseUrlThrow $ "http://localhost:" ++ show port
+            _ <- httpLbs (setQueryString qs req) man
             res <- I.readIORef ref
             res `shouldBe` qs
 
@@ -471,24 +470,24 @@ main = do
             responseBody value `shouldBe` jsonValue
 
     it "RequestBodyIO" $ echo $ \port -> do
-        withManager $ \manager -> do
-            let go bss = withSystemTempFile "request-body-io" $ \tmpfp tmph -> do
-                    liftIO $ do
-                        mapM_ (S.hPutStr tmph) bss
-                        hClose tmph
+        manager <- newManager tlsManagerSettings
+        let go bss = withSystemTempFile "request-body-io" $ \tmpfp tmph -> do
+                liftIO $ do
+                    mapM_ (S.hPutStr tmph) bss
+                    hClose tmph
 
-                    let Just req1 = parseUrlThrow $ "POST http://127.0.0.1:" ++ show port
-                        lbs = L.fromChunks bss
-                    res <- httpLbs req1
-                        { requestBody = RequestBodyIO (streamFile tmpfp)
-                        } manager
-                    liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
-                    let ts = S.concat . L.toChunks
-                    liftIO $ ts (responseBody res) @?= ts lbs
-            mapM_ go
-                [ ["hello", "world"]
-                , replicate 500 "foo\003\n\r"
-                ]
+                let Just req1 = parseUrlThrow $ "POST http://127.0.0.1:" ++ show port
+                    lbs = L.fromChunks bss
+                res <- httpLbs req1
+                    { requestBody = RequestBodyIO (streamFile tmpfp)
+                    } manager
+                liftIO $ Network.HTTP.Conduit.responseStatus res @?= status200
+                let ts = S.concat . L.toChunks
+                liftIO $ ts (responseBody res) @?= ts lbs
+        mapM_ go
+            [ ["hello", "world"]
+            , replicate 500 "foo\003\n\r"
+            ]
 
 withCApp :: (Data.Conduit.Network.AppData -> IO ()) -> (Int -> IO ()) -> IO ()
 withCApp app' f = do

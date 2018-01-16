@@ -88,12 +88,13 @@ import qualified Data.Traversable as T
 import Control.Exception (throwIO, Exception)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
-import Data.Conduit (runConduit, (.|))
+import Data.Conduit (runConduit, (.|), ConduitM)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
 import Control.Monad.Trans.Resource (MonadResource)
 import qualified Control.Exception as E (bracket)
+import Data.Void (Void)
 
 -- | Perform an HTTP request and return the body as a @ByteString@.
 --
@@ -164,7 +165,7 @@ instance Exception JSONException
 -- @since 2.1.10
 httpSink :: MonadUnliftIO m
          => H.Request
-         -> (H.Response () -> C.ConduitT S.ByteString C.Void m a)
+         -> (H.Response () -> ConduitM S.ByteString Void m a)
          -> m a
 httpSink req sink = withRunInIO $ \run -> do
     man <- H.getGlobalManager
@@ -362,7 +363,7 @@ setRequestBodyLBS = setRequestBody . H.RequestBodyLBS
 --
 -- @since 2.1.10
 setRequestBodySource :: Int64 -- ^ length of source
-                     -> C.ConduitT () S.ByteString IO ()
+                     -> ConduitM () S.ByteString IO ()
                      -> H.Request
                      -> H.Request
 setRequestBodySource len src req = req { H.requestBody = HC.requestBodySource len src }
