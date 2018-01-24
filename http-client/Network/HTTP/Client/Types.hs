@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveFunctor #-}
@@ -44,7 +45,8 @@ import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
 import Data.Int (Int64)
 import Data.Foldable (Foldable)
-import Data.Monoid
+import Data.Monoid (Monoid(..))
+import Data.Semigroup (Semigroup(..))
 import Data.String (IsString, fromString)
 import Data.Time (UTCTime)
 import Data.Traversable (Traversable)
@@ -277,15 +279,20 @@ instance Ord Cookie where
 instance Eq CookieJar where
   (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
 
--- | Since 1.9
-instance Data.Monoid.Monoid CookieJar where
-  mempty = CJ []
-  (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a `mappend` b)
+instance Semigroup CookieJar where
+  (CJ a) <> (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a <> b)
     where compare' c1 c2 =
             -- inverse so that recent cookies are kept by nub over older
             if cookie_creation_time c1 > cookie_creation_time c2
                 then LT
                 else GT
+
+-- | Since 1.9
+instance Data.Monoid.Monoid CookieJar where
+  mempty = CJ []
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (<>)
+#endif
 
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
@@ -323,9 +330,14 @@ instance IsString RequestBody where
     fromString str = RequestBodyBS (fromString str)
 instance Monoid RequestBody where
     mempty = RequestBodyBS S.empty
-    mappend x0 y0 =
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = (<>)
+#endif
+
+instance Semigroup RequestBody where
+    x0 <> y0 =
         case (simplify x0, simplify y0) of
-            (Left (i, x), Left (j, y)) -> RequestBodyBuilder (i + j) (x `mappend` y)
+            (Left (i, x), Left (j, y)) -> RequestBodyBuilder (i + j) (x <> y)
             (Left x, Right y) -> combine (builderToStream x) y
             (Right x, Left y) -> combine x (builderToStream y)
             (Right x, Right y) -> combine x y
