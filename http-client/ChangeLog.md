@@ -1,3 +1,7 @@
+## 0.5.9
+
+* Add `Semigroup` instances for GHC 8.4 [#320](https://github.com/snoyberg/http-client/pull/320)
+
 ## 0.5.8
 
 * Switch to the new STM-based manager
