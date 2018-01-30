@@ -141,6 +141,7 @@ module Network.HTTP.Client
     , getUri
     , setRequestIgnoreStatus
     , setQueryString
+    , setQueryStringMinimalEscape
       -- ** Request type and fields
     , Request
     , method

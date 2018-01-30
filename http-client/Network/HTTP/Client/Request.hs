@@ -25,6 +25,7 @@ module Network.HTTP.Client.Request
     , requestBuilder
     , setRequestIgnoreStatus
     , setQueryString
+    , setQueryStringMinimalEscape
     , streamFile
     , observedStreamFile
     , extractBasicAuthInfo
@@ -475,6 +476,13 @@ setRequestIgnoreStatus req = req { checkResponse = \_ _ -> return () }
 -- Since 0.3.6
 setQueryString :: [(S.ByteString, Maybe S.ByteString)] -> Request -> Request
 setQueryString qs req = req { queryString = W.renderQuery True qs }
+
+-- | Set the query string to the given key/value pairs.
+--
+-- Since > 0.5.9
+setQueryStringMinimalEscape :: [(S.ByteString, [W.EscItem])] -> Request -> Request
+setQueryStringMinimalEscape qs req = req { queryString = W.renderQueryMinimalEscape True qs }
+
 
 -- | Send a file as the request body.
 --
