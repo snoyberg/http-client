@@ -1,3 +1,7 @@
+## 0.5.10
+
+* New function to partial escape query strings
+
 ## 0.5.9
 
 * Add `Semigroup` instances for GHC 8.4 [#320](https://github.com/snoyberg/http-client/pull/320)
