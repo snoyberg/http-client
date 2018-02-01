@@ -25,6 +25,9 @@ module Network.HTTP.Client.Request
     , requestBuilder
     , setRequestIgnoreStatus
     , setQueryString
+#if MIN_VERSION_http_types(0,12,1)
+    , setQueryStringPartialEscape
+#endif
     , streamFile
     , observedStreamFile
     , extractBasicAuthInfo
@@ -475,6 +478,14 @@ setRequestIgnoreStatus req = req { checkResponse = \_ _ -> return () }
 -- Since 0.3.6
 setQueryString :: [(S.ByteString, Maybe S.ByteString)] -> Request -> Request
 setQueryString qs req = req { queryString = W.renderQuery True qs }
+
+#if MIN_VERSION_http_types(0,12,1)
+-- | Set the query string to the given key/value pairs.
+--
+-- Since > 0.5.9
+setQueryStringPartialEscape :: [(S.ByteString, [W.EscapeItem])] -> Request -> Request
+setQueryStringPartialEscape qs req = req { queryString = W.renderQueryPartialEscape True qs }
+#endif
 
 -- | Send a file as the request body.
 --

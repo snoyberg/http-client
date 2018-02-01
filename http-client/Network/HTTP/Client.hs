@@ -3,6 +3,7 @@
 {-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
 -- |
 --
 -- = Simpler API
@@ -141,6 +142,9 @@ module Network.HTTP.Client
     , getUri
     , setRequestIgnoreStatus
     , setQueryString
+#if MIN_VERSION_http_types(0,12,1)
+    , setQueryStringPartialEscape
+#endif
       -- ** Request type and fields
     , Request
     , method
