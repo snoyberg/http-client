@@ -482,7 +482,7 @@ setQueryString qs req = req { queryString = W.renderQuery True qs }
 #if MIN_VERSION_http_types(0,12,1)
 -- | Set the query string to the given key/value pairs.
 --
--- Since > 0.5.9
+-- @since 0.5.10
 setQueryStringPartialEscape :: [(S.ByteString, [W.EscapeItem])] -> Request -> Request
 setQueryStringPartialEscape qs req = req { queryString = W.renderQueryPartialEscape True qs }
 #endif
