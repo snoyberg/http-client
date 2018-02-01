@@ -310,7 +310,7 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- > main = do
 -- >   manager <- newManager defaultManagerSettings
 -- >
--- >   request <- parseRequest "http://httpbin.org/post"
+-- >   request <- parseRequest "http://httpbin.org/get"
 -- >   response <- httpLbs request manager
 -- >
 -- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
