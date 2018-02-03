@@ -1,3 +1,6 @@
+* [#289](https://github.com/snoyberg/http-client/issues/289):
+  Keep original `TLSSettings` when creating a `Manager` using `newTlsManagerWith`.
+
 ## 0.3.5.1
 
 * Also catch TLSError exceptions [#273](https://github.com/snoyberg/http-client/pull/273)
