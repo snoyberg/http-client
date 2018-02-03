@@ -1,3 +1,5 @@
+## 0.3.5.2
+
 * [#289](https://github.com/snoyberg/http-client/issues/289):
   Keep original `TLSSettings` when creating a `Manager` using `newTlsManagerWith`.
 
