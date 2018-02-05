@@ -1,3 +1,7 @@
+## 0.3.5.3
+
+* Fix `newTlsManager` [#325](https://github.com/snoyberg/http-client/issues/325)
+
 ## 0.3.5.2
 
 * [#289](https://github.com/snoyberg/http-client/issues/289):

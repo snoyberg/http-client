@@ -180,7 +180,16 @@ globalConnectionContext = unsafePerformIO NC.initConnectionContext
 --
 -- @since 0.3.4
 newTlsManager :: MonadIO m => m Manager
-newTlsManager = newTlsManagerWith defaultManagerSettings
+newTlsManager = liftIO $ do
+    env <- getEnvironment
+    let lenv = Map.fromList $ map (first $ T.toLower . T.pack) env
+        msocksHTTP = parseSocksSettings env lenv "http_proxy"
+        msocksHTTPS = parseSocksSettings env lenv "https_proxy"
+        settings = mkManagerSettingsContext' defaultManagerSettings (Just globalConnectionContext) def msocksHTTP msocksHTTPS
+        settings' = maybe id (const $ managerSetInsecureProxy proxyFromRequest) msocksHTTP
+                  $ maybe id (const $ managerSetSecureProxy proxyFromRequest) msocksHTTPS
+                    settings
+    newManager settings'
 
 -- | Load up a new TLS manager based upon specified settings,
 -- respecting proxy environment variables.
