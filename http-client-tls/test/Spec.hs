@@ -44,3 +44,9 @@ main = hspec $ do
         request <- parseRequest url
         response <- httpNoBody request manager
         responseStatus response `shouldBe` status200
+
+    it "global supports TLS" $ do
+        manager <- getGlobalManager
+        request <- parseRequest "https://httpbin.org"
+        response <- httpNoBody request manager
+        responseStatus response `shouldBe` status200
