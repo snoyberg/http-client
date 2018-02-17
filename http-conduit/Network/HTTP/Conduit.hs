@@ -31,7 +31,7 @@
 --
 -- > import Data.Conduit.Binary (sinkFile) -- Exported from the package conduit-extra
 -- > import Network.HTTP.Conduit
--- > import qualified Data.Conduit as C
+-- > import Conduit (runConduit, (.|))
 -- > import Control.Monad.Trans.Resource (runResourceT)
 -- >
 -- > main :: IO ()
@@ -40,7 +40,7 @@
 -- >      manager <- newManager tlsManagerSettings
 -- >      runResourceT $ do
 -- >          response <- http request manager
--- >          responseBody response C.$$+- sinkFile "google.html"
+-- >          runConduit $ responseBody response .| sinkFile "google.html"
 --
 -- The following headers are automatically set by this module, and should not
 -- be added to 'requestHeaders':
