@@ -102,6 +102,9 @@ test-suite spec-nonet
   type:                exitcode-stdio-1.0
   hs-source-dirs:      test-nonet
   default-language:    Haskell2010
+  ghc-options:         -threaded
+  if os(windows)
+    cpp-options:       -DWINDOWS
   other-modules:       Network.HTTP.ClientSpec
                        Network.HTTP.Client.ResponseSpec
                        Network.HTTP.Client.BodySpec

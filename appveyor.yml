@@ -14,6 +14,11 @@ environment:
 
 test_script:
 - stack setup > nul
+
+# Missing C libraries on Windows
+- stack exec -- grep -v openssl < stack.yaml > tmp
+- mv tmp stack.yaml
+
 # The ugly echo "" hack is to avoid complaints about 0 being an invalid file
 # descriptor
-- echo "" | stack --no-terminal build http-client http-client-tls http-conduit
+- echo "" | stack --no-terminal test

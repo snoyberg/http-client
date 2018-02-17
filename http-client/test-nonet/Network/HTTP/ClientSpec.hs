@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.ClientSpec where
@@ -20,6 +21,14 @@ import qualified Data.ByteString.Lazy      as SL
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
 import           Data.IORef
 import           System.Mem                (performGC)
+
+-- See: https://github.com/snoyberg/http-client/issues/111#issuecomment-366526660
+notWindows :: Monad m => m () -> m ()
+#ifdef WINDOWS
+notWindows _ = return ()
+#else
+notWindows x = x
+#endif
 
 main :: IO ()
 main = hspec spec
@@ -110,12 +119,14 @@ lengthZeroAndChunkZero :: (Int -> IO a) -> IO a
 lengthZeroAndChunkZero = serveWith "HTTP/1.1 200 OK\r\ncontent-length: 0\r\ntransfer-encoding: chunked\r\n\r\n0\r\n\r\n"
 
 serveWith :: S.ByteString -> (Int -> IO a) -> IO a
-serveWith resp inner = bracket
-    (N.bindRandomPortTCP "*4")
-    (NS.close . snd)
-    $ \(port, lsocket) -> withAsync
-        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
-        (const $ inner port)
+serveWith resp inner = do
+  (port, lsocket) <- (N.bindRandomPortTCP "*4")
+  res <- Async.race
+    (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+    (inner port)
+  case res of
+    Left () -> error $ "serveWith: got Left"
+    Right x -> return x
   where
     app ad = silentIOError $ do
         let readHeaders front = do
@@ -185,28 +196,28 @@ spec = describe "Client" $ do
         test False
         test True
 
-    it "early close on a 413" $ earlyClose413 $ \port' -> do
+    notWindows $ it "early close on a 413" $ earlyClose413 $ \port' -> do
         man <- newManager defaultManagerSettings
         res <- getChunkedResponse port' man
         responseBody res `shouldBe` "goodbye"
         responseStatus res `shouldBe` status413
 
-    it "length zero and chunking zero #108" $ lengthZeroAndChunkZero $ \port' -> do
+    notWindows $ it "length zero and chunking zero #108" $ lengthZeroAndChunkZero $ \port' -> do
         man <- newManager defaultManagerSettings
         res <- getChunkedResponse port' man
         responseBody res `shouldBe` ""
 
-    it "length zero and chunking" $ lengthZeroAndChunked $ \port' -> do
+    notWindows $ it "length zero and chunking" $ lengthZeroAndChunked $ \port' -> do
         man <- newManager defaultManagerSettings
         res <- getChunkedResponse port' man
         responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
 
-    it "length and chunking" $ lengthAndChunked $ \port' -> do
+    notWindows $ it "length and chunking" $ lengthAndChunked $ \port' -> do
         man <- newManager defaultManagerSettings
         res <- getChunkedResponse port' man
         responseBody res `shouldBe` "Wikipedia in\r\n\r\nchunks."
 
-    it "withResponseHistory and redirect" $ redirectCloseServer $ \port -> do
+    notWindows $ it "withResponseHistory and redirect" $ redirectCloseServer $ \port -> do
         -- see https://github.com/snoyberg/http-client/issues/169
         req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         let req = req' {redirectCount = 1}
