@@ -1,19 +1,33 @@
-build: off
+version: "{build}"
+clone_folder: "c:/WORK"
 
-before_test:
-# http://help.appveyor.com/discussions/problems/6312-curl-command-not-found
-- set PATH=C:\Program Files\Git\mingw64\bin;%PATH%
-
-- curl -sS -ostack.zip -L --insecure http://www.stackage.org/stack/windows-x86_64
-- 7z x stack.zip stack.exe
-
-clone_folder: "c:\\stack"
 environment:
   global:
-    STACK_ROOT: "c:\\sr"
+    CABOPTS: "--store-dir=c:/SR --http-transport=plain-http"
+    C_INCLUDE_PATH: "c:/msys64/mingw64/include"
+    LIBRARY_PATH: "c:/msys64/mingw64/lib;c:/msys64/mingw64/bin"
+    APPVEYOR_SAVE_CACHE_ON_ERROR: true
+  matrix:
+    - GHCVER: "8.2.2"
+    - GHCVER: "8.0.2"
+    - GHCVER: "7.10.3.2"
+
+cache:
+ - "c:/SR"
+
+install:
+ - "choco install -y ghc --version %GHCVER%"
+ - "refreshenv"
+ - "set PATH=C:\\msys64\\mingw64\\bin;C:\\msys64\\usr\\bin;%PATH%"
+ - "cabal --version"
+ - "ghc --version"
+ - "cabal %CABOPTS% update -vverbose+nowrap"
+
+build: off
 
 test_script:
-- stack setup > nul
-# The ugly echo "" hack is to avoid complaints about 0 being an invalid file
-# descriptor
-- echo "" | stack --no-terminal build http-client http-client-tls http-conduit
+ - "cabal %CABOPTS% new-build -vnormal+nowrap --dry all"
+ - ps: "Push-AppveyorArtifact dist-newstyle\\cache\\plan.json"
+ - "cabal %CABOPTS% new-build -j -vnormal+nowrap all --dep"
+ - "cabal %CABOPTS% new-build -j1 -vnormal+nowrap all"
+ - "cabal %CABOPTS% new-test -j1 -vnormal+nowrap all"
