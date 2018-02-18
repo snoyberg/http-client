@@ -3,7 +3,6 @@
 import Test.Hspec
 import Network.HTTP.Client
 import Network.HTTP.Client.OpenSSL
-import Network.HTTP.Client.Internal
 import Network.HTTP.Types
 import qualified OpenSSL.Session       as SSL
 
