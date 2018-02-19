@@ -10,15 +10,10 @@ module Network.HTTP.Client.OpenSSL
 import Network.HTTP.Client
 import Network.HTTP.Client.Internal
 import Control.Exception
-import Network.Socket (HostAddress)
 import Network.Socket.ByteString (sendAll, recv)
 import OpenSSL
 import qualified Network.Socket as N
 import qualified OpenSSL.Session       as SSL
-
--- | FIXME This needs better defaults
-defaultMakeContext :: IO SSL.SSLContext
-defaultMakeContext = SSL.context
 
 -- | Note that it is the caller's responsibility to pass in an appropriate
 -- context. Future versions of http-client-openssl will hopefully include a
@@ -27,14 +22,14 @@ opensslManagerSettings :: IO SSL.SSLContext -> ManagerSettings
 opensslManagerSettings mkContext = defaultManagerSettings
     { managerTlsConnection = do
         ctx <- mkContext
-        return $ \_ha host port -> do
+        return $ \_ha host' port' -> do
             -- Copied/modified from openssl-streams
             let hints      = N.defaultHints
                                 { N.addrFlags      = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
                                 , N.addrFamily     = N.AF_INET
                                 , N.addrSocketType = N.Stream
                                 }
-            (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host) (Just $ show port)
+            (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host') (Just $ show port')
 
             let family     = N.addrFamily addrInfo
             let socketType = N.addrSocketType addrInfo
@@ -52,14 +47,14 @@ opensslManagerSettings mkContext = defaultManagerSettings
                         (N.close sock)
     , managerTlsProxyConnection = do
         ctx <- mkContext
-        return $ \connstr checkConn serverName _ha host port -> do
+        return $ \connstr checkConn _serverName _ha host' port' -> do
             -- Copied/modified from openssl-streams
             let hints      = N.defaultHints
                                 { N.addrFlags      = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
                                 , N.addrFamily     = N.AF_INET
                                 , N.addrSocketType = N.Stream
                                 }
-            (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host) (Just $ show port)
+            (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host') (Just $ show port')
 
             let family     = N.addrFamily addrInfo
             let socketType = N.addrSocketType addrInfo
