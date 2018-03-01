@@ -56,7 +56,7 @@ import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIStrin
 import Control.Exception (throw, throwIO, IOException)
 import qualified Control.Exception as E
 import qualified Data.CaseInsensitive as CI
-import qualified Data.ByteString.Base64 as B64
+import qualified Data.ByteArray.Encoding as BAE
 
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Types
@@ -266,6 +266,14 @@ alwaysDecompress = const True
 browserDecompress :: S.ByteString -> Bool
 browserDecompress = (/= "application/x-tar")
 
+-- | Build a basic-auth header value
+buildBasicAuth ::
+    S8.ByteString -- ^ Username
+    -> S8.ByteString -- ^ Password
+    -> S8.ByteString
+buildBasicAuth user passwd =
+    S8.append "Basic " (BAE.convertToBase BAE.Base64 (S8.concat [ user, ":", passwd ]))
+
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
 --
@@ -280,8 +288,7 @@ applyBasicAuth :: S.ByteString -> S.ByteString -> Request -> Request
 applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where
-    authHeader = (CI.mk "Authorization", basic)
-    basic = S8.append "Basic " (B64.encode $ S8.concat [ user, ":", passwd ])
+    authHeader = (CI.mk "Authorization", buildBasicAuth user passwd)
 
 -- | Add a proxy to the Request so that the Request when executed will use
 -- the provided proxy.
@@ -302,8 +309,7 @@ applyBasicProxyAuth :: S.ByteString -> S.ByteString -> Request -> Request
 applyBasicProxyAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where
-    authHeader = (CI.mk "Proxy-Authorization", basic)
-    basic = S8.append "Basic " (B64.encode $ S8.concat [ user , ":", passwd ])
+    authHeader = (CI.mk "Proxy-Authorization", buildBasicAuth user passwd)
 
 -- | Add url-encoded parameters to the 'Request'.
 --
