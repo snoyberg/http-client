@@ -1,3 +1,7 @@
+## 0.5.11
+
+* Replaced `base64-bytestring` dependency with `memory`.
+
 ## 0.5.10
 
 * New function to partial escape query strings
