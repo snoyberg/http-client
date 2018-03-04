@@ -66,7 +66,9 @@ redirectCloseServer inner = bracket
       Async.race_
           (silentIOError $ forever (N.appRead ad))
           (silentIOError $ N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\nConnection: close\r\n\r\nhello")
-      N.appCloseConnection ad
+      case N.appRawSocket ad of
+        Nothing -> error "appRawSocket failed"
+        Just s -> NS.shutdown s NS.ShutdownSend
 
 bad100Server :: Bool -- ^ include extra headers?
              -> (Int -> IO a) -> IO a
