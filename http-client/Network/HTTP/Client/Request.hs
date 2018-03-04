@@ -11,6 +11,8 @@ module Network.HTTP.Client.Request
     , parseUrlThrow
     , parseRequest
     , parseRequest_
+    , requestFromURI
+    , requestFromURI_
     , defaultRequest
     , setUriRelative
     , getUri
@@ -96,8 +98,8 @@ parseUrlThrow =
 
 -- | Convert a URL into a 'Request'.
 --
--- This defaults some of the values in 'Request', such as setting 'method' to
--- GET and 'requestHeaders' to @[]@.
+-- This function defaults some of the values in 'Request', such as setting 'method' to
+-- @"GET"@ and 'requestHeaders' to @[]@.
 --
 -- Since this function uses 'MonadThrow', the return monad can be anything that is
 -- an instance of 'MonadThrow', such as 'IO' or 'Maybe'.
@@ -111,7 +113,7 @@ parseUrlThrow =
 --
 -- Note that the request method must be provided as all capital letters.
 --
--- 'Request' created by this function won't cause exceptions on non-2XX
+-- A 'Request' created by this function won't cause exceptions on non-2XX
 -- response status codes. 
 --
 -- To create a request which throws on non-2XX status codes, see 'parseUrlThrow'
@@ -139,6 +141,29 @@ parseRequest s' =
 -- are known to be correctly formatted.
 parseRequest_ :: String -> Request
 parseRequest_ = either throw id . parseRequest
+
+-- | Convert a 'URI' into a 'Request'.
+--
+-- This can fail if the given 'URI' is not absolute, or if the 
+-- 'URI' scheme is not @"http"@ or @"https"@. In these cases the function
+-- will throw an error via 'MonadThrow'.
+--
+-- This function defaults some of the values in 'Request', such as setting 'method' to
+-- @"GET"@ and 'requestHeaders' to @[]@.
+-- 
+-- A 'Request' created by this function won't cause exceptions on non-2XX
+-- response status codes. 
+--
+-- @since 0.5.12
+requestFromURI :: MonadThrow m => URI -> m Request
+requestFromURI = setUri defaultRequest
+
+-- | Same as 'requestFromURI', but if the conversion would fail,
+-- throws an impure exception.
+--
+-- @since 0.5.12
+requestFromURI_ :: URI -> Request
+requestFromURI_ = either throw id . requestFromURI
 
 -- | Add a 'URI' to the request. If it is absolute (includes a host name), add
 -- it as per 'setUri'; if it is relative, merge it with the existing request.
