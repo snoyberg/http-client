@@ -135,6 +135,8 @@ module Network.HTTP.Client
     , parseUrlThrow
     , parseRequest
     , parseRequest_
+    , requestFromURI
+    , requestFromURI_
     , defaultRequest
 
     , applyBasicAuth

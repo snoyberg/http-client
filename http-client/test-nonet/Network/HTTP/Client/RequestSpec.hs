@@ -16,14 +16,29 @@ import Data.List (isInfixOf)
 spec :: Spec
 spec = do
     describe "case insensitive scheme" $ do
-        forM_ ["http://example.com", "httP://example.com", "HttP://example.com", "HttPs://example.com"] $ \url ->
+        forM_ ["http://example.com", "httP://example.com", "HttP://example.com", "HttPs://example.com"] $ \url -> do
             it url $ case parseUrlThrow url of
                 Nothing -> error "failed"
                 Just _ -> return () :: IO ()
-        forM_ ["ftp://example.com"] $ \url ->
+            it ("URI " ++ url) $ do
+                case parseURI url of
+                    Nothing -> error ("invalid test URI: " ++ url)
+                    Just uri ->
+                        case requestFromURI uri of
+                            Nothing -> error "failed"
+                            Just _ -> return () :: IO ()
+        forM_ ["ftp://example.com"] $ \url -> do
             it url $ case parseUrlThrow url of
                 Nothing -> return () :: IO ()
                 Just req -> error $ show req
+            it ("URI " ++ url) $ do
+                case parseURI url of
+                    Nothing -> error ("invalid test URI: " ++ url)
+                    Just uri ->
+                        case requestFromURI uri of
+                            Nothing -> return () :: IO ()
+                            Just req -> error (show req)
+
 
     describe "authentication in url" $ do
       it "passes validation" $ do

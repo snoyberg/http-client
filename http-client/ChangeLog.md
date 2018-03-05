@@ -1,3 +1,7 @@
+## 0.5.12
+
+* Added `requestFromURI` and `requestFromURI_` functions.
+
 ## 0.5.11
 
 * Replaced `base64-bytestring` dependency with `memory`.
