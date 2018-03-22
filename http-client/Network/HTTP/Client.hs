@@ -341,7 +341,7 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >    [ "name" .= ("Michael" :: Text)
 -- >    , "age"  .= (30 :: Int)
 -- >    ]
-
+-- >
 -- >   initialRequest <- parseRequest "http://httpbin.org/post"
 -- >   let request = initialRequest { method = "POST", requestBody = RequestBodyLBS $ encode requestObject }
 -- >
