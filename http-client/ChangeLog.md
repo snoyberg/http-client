@@ -1,6 +1,7 @@
 ## 0.5.12
 
 * Added `requestFromURI` and `requestFromURI_` functions.
+* Fixed non-TLS connections going though proxy [#337](https://github.com/snoyberg/http-client/issues/337)
 
 ## 0.5.11
 
