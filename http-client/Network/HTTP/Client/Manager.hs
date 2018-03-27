@@ -218,12 +218,14 @@ connKey req =
         Nothing
             | secure req -> simple CKSecure
             | otherwise -> simple CKRaw
-        Just p -> CKProxy
-            (proxyHost p)
-            (proxyPort p)
-            (lookup "Proxy-Authorization" (requestHeaders req))
-            (host req)
-            (port req)
+        Just p
+            | secure req -> CKProxy
+                (proxyHost p)
+                (proxyPort p)
+                (lookup "Proxy-Authorization" (requestHeaders req))
+                (host req)
+                (port req)
+            | otherwise -> CKRaw Nothing (proxyHost p) (proxyPort p)
   where
     simple con = con (hostAddress req) (host req) (port req)
 
