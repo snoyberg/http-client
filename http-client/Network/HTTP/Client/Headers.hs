@@ -1,6 +1,6 @@
+{-# LANGUAGE DisambiguateRecordFields #-}
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE RecordWildCards   #-}
-{-# LANGUAGE ViewPatterns      #-}
+{-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Headers
     ( parseStatusHeaders
     ) where
