@@ -66,6 +66,10 @@ library
   if !impl(ghc>=8.0)
     build-depends: semigroups >= 0.16.1
 
+  -- See build failure at https://travis-ci.org/snoyberg/http-client/jobs/359573631
+  if impl(ghc < 7.10)
+    buildable: False
+
   if os(mingw32)
     build-depends: Win32, safe
 
