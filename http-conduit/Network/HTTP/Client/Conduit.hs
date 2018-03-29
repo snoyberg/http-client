@@ -1,6 +1,5 @@
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
 -- | A new, experimental API to replace "Network.HTTP.Conduit".
 --
 -- For most users, "Network.HTTP.Simple" is probably a better choice. For more

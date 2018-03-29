@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 import Network.HTTP.Conduit
 import Network
 import qualified Data.ByteString as S

@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 -- | This module handles building multipart/form-data. Example usage:
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
