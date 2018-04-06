@@ -28,6 +28,7 @@ module Network.HTTP.Simple
     , httpSource
     , withResponse
       -- * Types
+    , H.Query
     , H.Request
     , H.Response
     , JSONException (..)
