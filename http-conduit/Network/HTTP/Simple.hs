@@ -312,13 +312,13 @@ setRequestHeaders x req = req { H.requestHeaders = x }
 -- | Get the query string parameters
 --
 -- @since 2.1.10
-getRequestQueryString :: H.Request -> [(S.ByteString, Maybe S.ByteString)]
+getRequestQueryString :: H.Request -> H.Query
 getRequestQueryString = H.parseQuery . H.queryString
 
 -- | Set the query string parameters
 --
 -- @since 2.1.10
-setRequestQueryString :: [(S.ByteString, Maybe S.ByteString)] -> H.Request -> H.Request
+setRequestQueryString :: H.Query -> H.Request -> H.Request
 setRequestQueryString = H.setQueryString
 
 -- | Set the request body to the given 'H.RequestBody'. You may want to
