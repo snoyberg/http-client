@@ -72,6 +72,12 @@ module Network.HTTP.Simple
     , httpLbs
       -- * Signature generation
     , signWithHmacSha
+      -- ** hmac-sha functions
+    , SHA.hmacSha1
+    , SHA.hmacSha224
+    , SHA.hmacSha256
+    , SHA.hmacSha384
+    , SHA.hmacSha512
     ) where
 
 import qualified Data.ByteString as S
