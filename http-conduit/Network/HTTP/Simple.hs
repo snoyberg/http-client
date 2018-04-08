@@ -448,9 +448,7 @@ getResponseBody :: H.Response a -> a
 getResponseBody = H.responseBody
 
 -- | Signature generation with hmac-sha algorithms
-signWithHmacSha :: (L.ByteString -- ^ secret key
-                 -> L.ByteString -- ^ message
-                 -> SHA.Digest t)
+signWithHmacSha :: (L.ByteString -> L.ByteString -> SHA.Digest t) -- ^ hmac-sha function
                 -> L.ByteString -- ^ secret key
                 -> H.Request
                 -> String -- ^ signature
