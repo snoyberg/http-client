@@ -1,3 +1,8 @@
+## 2.3.1
+
+* Reexport Query from Network.HTTP.Types
+* Rewrite a type signatures of getRequestQueryString and setRequestQueryString with Query
+
 ## 2.3.0
 
 * conduit 1.3 support
