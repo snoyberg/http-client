@@ -58,6 +58,7 @@ module Network.HTTP.Simple
     , setRequestBodySource
     , setRequestBodyFile
     , setRequestBodyURLEncoded
+    , getRequestBodyLBS
       -- ** Special fields
     , H.setRequestIgnoreStatus
     , setRequestBasicAuth
@@ -386,6 +387,10 @@ setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 -- @since 2.1.10
 setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Request
 setRequestBodyURLEncoded = H.urlEncodedBody
+
+-- | Get the request body lazy bytestring
+getRequestBodyLBS :: H.Request -> L.ByteString
+getRequestBodyLBS = H.requestBodyLBS . H.requestBody
 
 -- | Set basic auth with the given username and password
 --
