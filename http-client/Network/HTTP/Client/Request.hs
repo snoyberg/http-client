@@ -559,3 +559,4 @@ observedStreamFile obs path = do
 -- | Get the request body lazy bytestring
 requestBodyLBS :: RequestBody -> L.ByteString
 requestBodyLBS (RequestBodyLBS body) = body
+requestBodyLBS (RequestBodyBS body) = L.fromStrict body
