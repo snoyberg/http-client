@@ -33,6 +33,7 @@ module Network.HTTP.Client.Request
     , streamFile
     , observedStreamFile
     , extractBasicAuthInfo
+    , requestBodyLBS
     ) where
 
 import Data.Int (Int64)
@@ -554,3 +555,9 @@ observedStreamFile obs path = do
             k (filePopper h)
 
     return $ RequestBodyStream size givesFilePopper
+
+-- | Get the request body lazy bytestring
+requestBodyLBS :: RequestBody -> Maybe L.ByteString
+requestBodyLBS (RequestBodyLBS body) = Just body
+requestBodyLBS (RequestBodyBS body) = Just $ L.fromStrict body
+requestBodyLBS _ = Nothing

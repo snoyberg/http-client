@@ -171,6 +171,7 @@ module Network.HTTP.Client
     , streamFile
     , observedStreamFile
     , StreamFileStatus (..)
+    , requestBodyLBS
       -- * Response
     , Response
     , responseStatus
