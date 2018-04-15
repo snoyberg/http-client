@@ -71,6 +71,14 @@ module Network.HTTP.Simple
     , getResponseBody
       -- * Alternate spellings
     , httpLbs
+      -- * Signature generation
+    , signWithHmacSha
+      -- ** hmac-sha functions
+    , SHA.hmacSha1
+    , SHA.hmacSha224
+    , SHA.hmacSha256
+    , SHA.hmacSha384
+    , SHA.hmacSha512
     ) where
 
 import qualified Data.ByteString as S
@@ -96,6 +104,7 @@ import Data.Int (Int64)
 import Control.Monad.Trans.Resource (MonadResource)
 import qualified Control.Exception as E (bracket)
 import Data.Void (Void)
+import qualified Data.Digest.Pure.SHA as SHA
 
 -- | Perform an HTTP request and return the body as a @ByteString@.
 --
@@ -438,3 +447,14 @@ getResponseHeaders = H.responseHeaders
 -- @since 2.1.10
 getResponseBody :: H.Response a -> a
 getResponseBody = H.responseBody
+
+-- | Signature generation with hmac-sha algorithms
+signWithHmacSha :: (L.ByteString -> L.ByteString -> SHA.Digest t) -- ^ hmac-sha function
+                -> L.ByteString -- ^ secret key
+                -> H.Request
+                -> String -- ^ signature
+signWithHmacSha hmac key req =
+    if L.null query
+    then SHA.showDigest $ hmac key L.empty
+    else SHA.showDigest $ hmac key (L.tail query)
+    where query = L.fromStrict $ H.queryString req
