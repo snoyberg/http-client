@@ -9,7 +9,7 @@ module Network.HTTP.Client.Response
 import Data.ByteString (ByteString)
 import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
-import Data.CaseInsensitive (mk)
+import qualified Data.CaseInsensitive as CI
 import Control.Arrow (second)
 
 import Data.Monoid (mempty)
@@ -88,7 +88,7 @@ getResponse timeout' req@(Request {..}) mconn cont = do
     let conn = managedResource mconn
     StatusHeaders s version hs <- parseStatusHeaders conn timeout' cont
     let mcl = lookup "content-length" hs >>= readDec . S8.unpack
-        isChunked = ("transfer-encoding", mk "chunked") `elem` map (second mk) hs
+        isChunked = ("transfer-encoding", CI.mk "chunked") `elem` map (second CI.mk) hs
 
         -- should we put this connection back into the connection manager?
         toPut = Just "close" /= lookup "connection" hs && version > W.HttpVersion 1 0
