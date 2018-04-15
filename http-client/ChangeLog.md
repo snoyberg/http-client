@@ -1,3 +1,8 @@
+## 0.5.12.1
+
+* Make the chunked transfer-encoding detection case insensitive
+  [#303](https://github.com/snoyberg/http-client/pull/303)
+
 ## 0.5.12
 
 * Added `requestFromURI` and `requestFromURI_` functions.
