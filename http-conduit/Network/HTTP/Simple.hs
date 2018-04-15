@@ -389,7 +389,7 @@ setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Req
 setRequestBodyURLEncoded = H.urlEncodedBody
 
 -- | Get the request body lazy bytestring
-getRequestBodyLBS :: H.Request -> L.ByteString
+getRequestBodyLBS :: H.Request -> Maybe L.ByteString
 getRequestBodyLBS = H.requestBodyLBS . H.requestBody
 
 -- | Set basic auth with the given username and password
