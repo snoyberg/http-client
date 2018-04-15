@@ -557,6 +557,7 @@ observedStreamFile obs path = do
     return $ RequestBodyStream size givesFilePopper
 
 -- | Get the request body lazy bytestring
-requestBodyLBS :: RequestBody -> L.ByteString
-requestBodyLBS (RequestBodyLBS body) = body
-requestBodyLBS (RequestBodyBS body) = L.fromStrict body
+requestBodyLBS :: RequestBody -> Maybe L.ByteString
+requestBodyLBS (RequestBodyLBS body) = Just body
+requestBodyLBS (RequestBodyBS body) = Just $ L.fromStrict body
+requestBodyLBS _ = Nothing
