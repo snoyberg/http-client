@@ -2,6 +2,8 @@
 
 * Make the chunked transfer-encoding detection case insensitive
   [#303](https://github.com/snoyberg/http-client/pull/303)
+* Remove some unneeded language extensions
+* Mark older versions of GHC as unsupported
 
 ## 0.5.12
 
