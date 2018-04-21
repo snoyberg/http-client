@@ -26,6 +26,7 @@ module Network.HTTP.Client.Request
     , needsGunzip
     , requestBuilder
     , setRequestIgnoreStatus
+    , setRequestCheckStatus
     , setQueryString
 #if MIN_VERSION_http_types(0,12,1)
     , setQueryStringPartialEscape
@@ -33,6 +34,7 @@ module Network.HTTP.Client.Request
     , streamFile
     , observedStreamFile
     , extractBasicAuthInfo
+    , throwErrorStatusCodes
     ) where
 
 import Data.Int (Int64)
@@ -42,6 +44,7 @@ import Data.String (IsString(..))
 import Data.Char (toLower)
 import Control.Applicative as A ((<$>))
 import Control.Monad (unless, guard)
+import Control.Monad.IO.Class (MonadIO, liftIO)
 import Numeric (showHex)
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
@@ -77,24 +80,32 @@ parseUrl :: MonadThrow m => String -> m Request
 parseUrl = parseUrlThrow
 {-# DEPRECATED parseUrl "Please use parseUrlThrow, parseRequest, or parseRequest_ instead" #-}
 
--- | Same as 'parseRequest', except will throw an 'HttpException' in
--- the event of a non-2XX response.
+-- | Same as 'parseRequest', except will throw an 'HttpException' in the
+-- event of a non-2XX response. This uses 'throwErrorStatusCodes' to
+-- implement 'checkResponse'.
 --
 -- @since 0.4.30
 parseUrlThrow :: MonadThrow m => String -> m Request
 parseUrlThrow =
     liftM yesThrow . parseRequest
   where
-    yesThrow req = req
-        { checkResponse = \_req res ->
-            let W.Status sci _ = responseStatus res in
-            if 200 <= sci && sci < 300
-                then return ()
-                else do
-                    chunk <- brReadSome (responseBody res) 1024
-                    let res' = fmap (const ()) res
-                    throwHttp $ StatusCodeException res' (L.toStrict chunk)
-        }
+    yesThrow req = req { checkResponse = throwErrorStatusCodes }
+
+-- | Throws a 'StatusCodeException' wrapped in 'HttpExceptionRequest',
+-- if the response's status code indicates an error (if it isn't 2xx).
+-- This can be used to implement 'checkResponse'.
+--
+-- @since 0.5.13
+throwErrorStatusCodes :: MonadIO m => Request -> Response BodyReader -> m ()
+throwErrorStatusCodes req res = do
+    let W.Status sci _ = responseStatus res
+    if 200 <= sci && sci < 300
+        then return ()
+        else liftIO $ do
+            chunk <- brReadSome (responseBody res) 1024
+            let res' = fmap (const ()) res
+            let ex = StatusCodeException res' (L.toStrict chunk)
+            throwIO $ HttpExceptionRequest req ex
 
 -- | Convert a URL into a 'Request'.
 --
@@ -114,7 +125,7 @@ parseUrlThrow =
 -- Note that the request method must be provided as all capital letters.
 --
 -- A 'Request' created by this function won't cause exceptions on non-2XX
--- response status codes. 
+-- response status codes.
 --
 -- To create a request which throws on non-2XX status codes, see 'parseUrlThrow'
 --
@@ -136,23 +147,23 @@ parseRequest s' =
             Nothing -> req
             Just m -> req { method = S8.pack m }
 
--- | Same as 'parseRequest', but in the cases of a parse error
--- generates an impure exception. Mostly useful for static strings which
--- are known to be correctly formatted.
+-- | Same as 'parseRequest', but parse errors cause an impure exception.
+-- Mostly useful for static strings which are known to be correctly
+-- formatted.
 parseRequest_ :: String -> Request
 parseRequest_ = either throw id . parseRequest
 
 -- | Convert a 'URI' into a 'Request'.
 --
--- This can fail if the given 'URI' is not absolute, or if the 
+-- This can fail if the given 'URI' is not absolute, or if the
 -- 'URI' scheme is not @"http"@ or @"https"@. In these cases the function
 -- will throw an error via 'MonadThrow'.
 --
 -- This function defaults some of the values in 'Request', such as setting 'method' to
 -- @"GET"@ and 'requestHeaders' to @[]@.
--- 
+--
 -- A 'Request' created by this function won't cause exceptions on non-2XX
--- response status codes. 
+-- response status codes.
 --
 -- @since 0.5.12
 requestFromURI :: MonadThrow m => URI -> m Request
@@ -246,7 +257,10 @@ setUri req uri = do
                     False {- HTTP -} -> return 80
                     True {- HTTPS -} -> return 443
 
--- | A default request value
+-- | A default request value, a GET request of localhost/:80, with an
+-- empty request body.
+--
+-- Note that the default 'checkResponse' does nothing.
 --
 -- @since 0.4.30
 defaultRequest :: Request
@@ -503,6 +517,13 @@ requestBuilder req Connection {..} = do
 -- @since 0.4.29
 setRequestIgnoreStatus :: Request -> Request
 setRequestIgnoreStatus req = req { checkResponse = \_ _ -> return () }
+
+-- | Modify the request so that non-2XX status codes generate a runtime
+-- 'StatusCodeException', by using 'throwErrorStatusCodes'
+--
+-- @since 0.5.13
+setRequestCheckStatus :: Request -> Request
+setRequestCheckStatus req = req { checkResponse = throwErrorStatusCodes }
 
 -- | Set the query string to the given key/value pairs.
 --

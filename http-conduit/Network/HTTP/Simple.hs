@@ -38,6 +38,8 @@ module Network.HTTP.Simple
     , H.defaultRequest
     , H.parseRequest
     , H.parseRequest_
+    , parseRequestThrow
+    , parseRequestThrow_
       -- * Request lenses
       -- ** Basics
     , setRequestMethod
@@ -60,6 +62,7 @@ module Network.HTTP.Simple
     , setRequestBodyURLEncoded
       -- ** Special fields
     , H.setRequestIgnoreStatus
+    , H.setRequestCheckStatus
     , setRequestBasicAuth
     , setRequestManager
     , setRequestProxy
@@ -86,14 +89,14 @@ import Data.Aeson.Parser (json')
 import qualified Data.Aeson.Types as A
 import qualified Data.Aeson as A
 import qualified Data.Traversable as T
-import Control.Exception (throwIO, Exception)
+import Control.Exception (throw, throwIO, Exception)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
 import Data.Conduit (runConduit, (.|), ConduitM)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
-import Control.Monad.Trans.Resource (MonadResource)
+import Control.Monad.Trans.Resource (MonadResource, MonadThrow)
 import qualified Control.Exception as E (bracket)
 import Data.Void (Void)
 
@@ -236,6 +239,25 @@ withResponse req withRes = withRunInIO $ \run -> do
         (H.responseOpen req man)
         H.responseClose
         (run . withRes . fmap bodyReaderSource)
+
+-- | Same as 'parseRequest', except will throw an 'HttpException' in the
+-- event of a non-2XX response. This uses 'throwErrorStatusCodes' to
+-- implement 'checkResponse'.
+--
+-- Exactly the same as 'parseUrlThrow', but has a name that is more
+-- consistent with the other parseRequest functions.
+--
+-- @since 2.3.2
+parseRequestThrow :: MonadThrow m => String -> m HC.Request
+parseRequestThrow = HC.parseUrlThrow
+
+-- | Same as 'parseRequestThrow', but parse errors cause an impure
+-- exception. Mostly useful for static strings which are known to be
+-- correctly formatted.
+--
+-- @since 2.3.2
+parseRequestThrow_ :: String -> HC.Request
+parseRequestThrow_ = either throw id . HC.parseUrlThrow
 
 -- | Alternate spelling of 'httpLBS'
 --
