@@ -136,11 +136,11 @@ module Network.HTTP.Client
     , requestFromURI
     , requestFromURI_
     , defaultRequest
-
     , applyBasicAuth
     , urlEncodedBody
     , getUri
     , setRequestIgnoreStatus
+    , setRequestCheckStatus
     , setQueryString
 #if MIN_VERSION_http_types(0,12,1)
     , setQueryStringPartialEscape
@@ -178,6 +178,7 @@ module Network.HTTP.Client
     , responseHeaders
     , responseBody
     , responseCookieJar
+    , throwErrorStatusCodes
       -- ** Response body
     , BodyReader
     , brRead

@@ -1,3 +1,8 @@
+## 0.5.13
+
+* Adds `setRequestCheckStatus` and `throwErrorStatusCodes` functions.
+  See [#304](https://github.com/snoyberg/http-client/issues/304)
+
 ## 0.5.12.1
 
 * Make the chunked transfer-encoding detection case insensitive

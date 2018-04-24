@@ -1,3 +1,9 @@
+## 2.3.2
+
+* Adds `parseRequestThrow`, `parseRequestThrow_`, and
+  `setRequestCheckStatus` to `Network.HTTP.Simple`.
+  See [#304](https://github.com/snoyberg/http-client/issues/304)
+
 ## 2.3.1
 
 * Reexport Query from Network.HTTP.Types
