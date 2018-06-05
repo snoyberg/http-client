@@ -193,6 +193,7 @@ module Network.HTTP.Client
     , Cookie (..)
     , CookieJar
     , Proxy (..)
+    , withProxiedConnection
       -- * Cookies
     , module Network.HTTP.Client.Cookies
     ) where

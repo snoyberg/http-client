@@ -33,6 +33,7 @@ module Data.KeyedPool
     , managedResource
     , managedReused
     , managedRelease
+    , keepAlive
     , Reuse (..)
     , dummyManaged
     ) where
@@ -45,7 +46,7 @@ import Data.Map (Map)
 import Data.Maybe (isJust)
 import qualified Data.Map.Strict as Map
 import Data.Time (UTCTime, getCurrentTime, addUTCTime)
-import Data.IORef (IORef, newIORef, mkWeakIORef)
+import Data.IORef (IORef, newIORef, mkWeakIORef, readIORef)
 import qualified Data.Foldable as F
 import GHC.Conc (unsafeIOToSTM)
 import System.IO.Unsafe (unsafePerformIO)
@@ -318,3 +319,7 @@ dummyManaged resource = Managed
 
 ignoreExceptions :: IO () -> IO ()
 ignoreExceptions f = f `catch` \(_ :: SomeException) -> return ()
+
+-- | Prevent the managed resource from getting released before you want to use.
+keepAlive :: Managed resource -> IO ()
+keepAlive = readIORef . _managedAlive

@@ -11,6 +11,7 @@ module Network.HTTP.Client.Core
     , responseClose
     , httpRedirect
     , httpRedirect'
+    , withProxiedConnection
     ) where
 
 import Network.HTTP.Types
@@ -270,3 +271,11 @@ httpRedirect' count0 http' req0 = go count0 req0 []
 -- Since 0.1.0
 responseClose :: Response a -> IO ()
 responseClose = runResponseClose . responseClose'
+
+-- | Perform an action using a @Connection@ acquired from the given @Manager@,
+--   considering the proxy server.
+withProxiedConnection :: Request -> Manager -> (Connection -> IO a) -> IO a
+withProxiedConnection origReq man action = do
+    mHttpConn <- getConn (mSetProxy man origReq) man
+    action (managedResource mHttpConn) <* keepAlive mHttpConn
+        `finally` managedRelease mHttpConn DontReuse
