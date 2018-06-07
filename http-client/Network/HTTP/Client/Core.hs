@@ -11,7 +11,7 @@ module Network.HTTP.Client.Core
     , responseClose
     , httpRedirect
     , httpRedirect'
-    , withProxiedConnection
+    , withConnection
     ) where
 
 import Network.HTTP.Types
@@ -278,8 +278,8 @@ responseClose = runResponseClose . responseClose'
 -- through the connection (e.g. connection by the WebSocket protocol).
 --
 -- @since 0.5.14
-withProxiedConnection :: Request -> Manager -> (Connection -> IO a) -> IO a
-withProxiedConnection origReq man action = do
+withConnection :: Request -> Manager -> (Connection -> IO a) -> IO a
+withConnection origReq man action = do
     mHttpConn <- getConn (mSetProxy man origReq) man
     action (managedResource mHttpConn) <* keepAlive mHttpConn
         `finally` managedRelease mHttpConn DontReuse
