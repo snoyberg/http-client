@@ -272,8 +272,12 @@ httpRedirect' count0 http' req0 = go count0 req0 []
 responseClose :: Response a -> IO ()
 responseClose = runResponseClose . responseClose'
 
--- | Perform an action using a @Connection@ acquired from the given @Manager@,
---   considering the proxy server.
+-- | Perform an action using a @Connection@ acquired from the given @Manager@.
+--
+-- You should use this only when you have to read and write interactively
+-- through the connection (e.g. connection by the WebSocket protocol).
+--
+-- @since 0.5.14
 withProxiedConnection :: Request -> Manager -> (Connection -> IO a) -> IO a
 withProxiedConnection origReq man action = do
     mHttpConn <- getConn (mSetProxy man origReq) man
