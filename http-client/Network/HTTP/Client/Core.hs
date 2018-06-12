@@ -277,7 +277,7 @@ responseClose = runResponseClose . responseClose'
 -- You should use this only when you have to read and write interactively
 -- through the connection (e.g. connection by the WebSocket protocol).
 --
--- @since 0.5.14
+-- @since 0.5.13
 withConnection :: Request -> Manager -> (Connection -> IO a) -> IO a
 withConnection origReq man action = do
     mHttpConn <- getConn (mSetProxy man origReq) man

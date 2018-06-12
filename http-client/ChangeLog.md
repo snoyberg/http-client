@@ -1,12 +1,9 @@
-## 0.5.14
-
-* Add `withConnection` function.  
-  See [#352](https://github.com/snoyberg/http-client/pull/352).
-
 ## 0.5.13
 
 * Adds `setRequestCheckStatus` and `throwErrorStatusCodes` functions.
   See [#304](https://github.com/snoyberg/http-client/issues/304)
+* Add `withConnection` function.
+  See [#352](https://github.com/snoyberg/http-client/pull/352).
 
 ## 0.5.12.1
 
