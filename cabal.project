@@ -1,0 +1,10 @@
+-- See http://cabal.readthedocs.io/en/latest/nix-local-build-overview.html for more information
+
+packages:
+  http-client
+  http-client-tls
+  http-client-openssl
+  http-conduit
+
+tests: True
+benchmarks: True

@@ -81,6 +81,7 @@ test-suite spec
   hs-source-dirs:      test
   default-language:    Haskell2010
   other-modules:       Network.HTTP.ClientSpec
+  build-tools:         hspec-discover
   build-depends:       base
                      , http-client
                      , hspec
@@ -115,6 +116,7 @@ test-suite spec-nonet
                        Network.HTTP.Client.RequestSpec
                        Network.HTTP.Client.RequestBodySpec
                        Network.HTTP.Client.CookieSpec
+  build-tools:         hspec-discover
   build-depends:       base
                      , http-client
                      , hspec
