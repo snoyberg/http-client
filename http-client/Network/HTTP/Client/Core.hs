@@ -14,6 +14,7 @@ module Network.HTTP.Client.Core
     , withConnection
     ) where
 
+import Control.Monad (when)
 import Network.HTTP.Types
 import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Types
@@ -85,41 +86,58 @@ httpRaw'
      -> Manager
      -> IO (Request, Response BodyReader)
 httpRaw' req0 m = do
-    let req' = mSetProxy m req0
-    (req, cookie_jar') <- case cookieJar req' of
-        Just cj -> do
-            now <- getCurrentTime
-            return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
-        Nothing -> return (req', Data.Monoid.mempty)
-    (timeout', mconn) <- getConnectionWrapper
-        (responseTimeout' req)
-        (getConn req m)
+    ex0 <- try $ do
+        let req' = mSetProxy m req0
+        (req, cookie_jar') <- case cookieJar req' of
+            Just cj -> do
+                now <- getCurrentTime
+                return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
+            Nothing -> return (req', Data.Monoid.mempty)
 
-    -- Originally, we would only test for exceptions when sending the request,
-    -- not on calling @getResponse@. However, some servers seem to close
-    -- connections after accepting the request headers, so we need to check for
-    -- exceptions in both.
-    ex <- try $ do
-        cont <- requestBuilder (dropProxyAuthSecure req) (managedResource mconn)
+        (timeout', mconn) <- getConnectionWrapper
+            (responseTimeout' req)
+            (getConn req m)
 
-        getResponse timeout' req mconn cont
+        -- Originally, we would only test for exceptions when sending the request,
+        -- not on calling @getResponse@. However, some servers seem to close
+        -- connections after accepting the request headers, so we need to check for
+        -- exceptions in both.
+        ex <- try $ do
+            cont <- requestBuilder (dropProxyAuthSecure req) (managedResource mconn)
 
-    case ex of
-        -- Connection was reused, and might have been closed. Try again
-        Left e | managedReused mconn && mRetryableException m e -> do
-            managedRelease mconn DontReuse
-            httpRaw' req m
-        -- Not reused, or a non-retry, so this is a real exception
-        Left e -> throwIO e
-        -- Everything went ok, so the connection is good. If any exceptions get
-        -- thrown in the response body, just throw them as normal.
-        Right res -> case cookieJar req' of
-            Just _ -> do
-                now' <- getCurrentTime
-                let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
-                return (req, res {responseCookieJar = cookie_jar})
-            Nothing -> return (req, res)
+            getResponse timeout' req mconn cont
+
+        case ex of
+            -- Connection was reused, and might have been closed. Try again
+            Left (e :: SomeException) -> do
+                when (managedReused mconn) $
+                    managedRelease mconn DontReuse
+                throwIO e
+            -- Everything went ok, so the connection is good. If any exceptions get
+            -- thrown in the response body, just throw them as normal.
+            Right res -> case cookieJar req' of
+                Just _ -> do
+                    now' <- getCurrentTime
+                    let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
+                    return (req, res {responseCookieJar = cookie_jar})
+                Nothing -> return (req, res)
+
+    case ex0 of
+        Left se | attemptsRemaining req0 && mRetryableException m se ->
+            httpRaw' (decrementMaxAttempts req0) m
+        Left se -> throwIO se
+        Right r -> return r
+
   where
+    decrementMaxAttempts :: Request -> Request
+    decrementMaxAttempts req =
+        req { requestMaxAttempts = subtract 1 <$> requestMaxAttempts req }
+
+    attemptsRemaining req =
+        case requestMaxAttempts req of
+            Nothing -> True
+            Just a  -> a > 1
+
     getConnectionWrapper mtimeout f =
         case mtimeout of
             Nothing -> fmap ((,) Nothing) f

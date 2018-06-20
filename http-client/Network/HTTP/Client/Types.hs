@@ -9,6 +9,7 @@ module Network.HTTP.Client.Types
     , StatusHeaders (..)
     , HttpException (..)
     , HttpExceptionContent (..)
+    , HttpExceptionContentWrapper
     , unHttpExceptionContentWrapper
     , throwHttp
     , toHttpException
@@ -547,6 +548,18 @@ data Request = Request
     -- dealing with implicit global managers, such as in @Network.HTTP.Simple@
     --
     -- @since 0.4.28
+
+    , requestMaxAttempts :: Maybe Int
+    -- ^ The 'Request' will be retried if all the following conditions are met:
+    --
+    -- * this value is greater than 1 or @Nothing@,
+    -- * the exception is retryable as defined by 'managerRetryableException'.
+    --
+    -- Note: Exceptions thrown via 'checkResponse' will not trigger a retry.
+    --
+    -- Default: Just 1
+    --
+    -- @since
     }
     deriving T.Typeable
 
@@ -575,6 +588,7 @@ instance Show Request where
         , "  redirectCount        = " ++ show (redirectCount x)
         , "  responseTimeout      = " ++ show (responseTimeout x)
         , "  requestVersion       = " ++ show (requestVersion x)
+        , "  maxAttempts          = " ++ show (requestMaxAttempts x)
         , "}"
         ]
 

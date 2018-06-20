@@ -163,6 +163,7 @@ module Network.HTTP.Client
     , responseTimeout
     , cookieJar
     , requestVersion
+    , requestMaxAttempts
       -- ** Request body
     , RequestBody (..)
     , Popper
