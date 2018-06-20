@@ -233,9 +233,6 @@ data HttpExceptionContent
                    | InvalidProxySettings Text
                    -- ^ Proxy settings are not valid (Windows specific currently)
                    -- @since 0.5.7
-
-                   | MaxAttempts HttpExceptionContent
-                   -- ^ The maximum number of attempts has been reached.
     deriving (Show, T.Typeable)
 
 -- Purposely not providing this instance, since we don't want users to

@@ -125,12 +125,7 @@ httpRaw' req0 m = do
     case ex0 of
         Left se | attemptsRemaining req0 && mRetryableException m se ->
             httpRaw' (decrementMaxAttempts req0) m
-        Left se -> do
-            case fromException se of
-                Just (hecw :: HttpExceptionContentWrapper) ->
-                    throwHttp . MaxAttempts . unHttpExceptionContentWrapper $ hecw
-                Nothing ->
-                    throwHttp . MaxAttempts . InternalException $ se
+        Left se -> throwIO se
         Right r -> return r
 
   where

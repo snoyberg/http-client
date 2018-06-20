@@ -8,7 +8,7 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
 import Network.Wai.Conduit (responseSource, sourceRequestBody)
-import Network.HTTP.Client (streamFile)
+import Network.HTTP.Client (streamFile, requestMaxAttempts)
 import System.IO.Temp (withSystemTempFile)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
@@ -435,10 +435,11 @@ main = do
     it "reuse/connection close tries again" $ do
         withAppSettings (setTimeout 1) (const app) $ \port -> do
             req <- parseUrlThrow $ "http://localhost:" ++ show port
+            let req' = req { requestMaxAttempts = Just 2 }
             man <- newManager tlsManagerSettings
-            res1 <- httpLbs req man
+            res1 <- httpLbs req' man
             threadDelay 3000000
-            res2 <- httpLbs req man
+            res2 <- httpLbs req' man
             let f res = res
                     { NHC.responseHeaders = filter (not . isDate) (NHC.responseHeaders res)
                     }
