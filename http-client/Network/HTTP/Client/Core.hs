@@ -136,7 +136,7 @@ httpRaw' req0 m = do
   where
     decrementMaxAttempts :: Request -> Request
     decrementMaxAttempts req =
-        req { requestMaxAttempts = flip (-) 1 <$> requestMaxAttempts req }
+        req { requestMaxAttempts = subtract 1 <$> requestMaxAttempts req }
 
     attemptsRemaining req =
         case requestMaxAttempts req of
