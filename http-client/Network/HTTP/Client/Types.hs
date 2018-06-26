@@ -77,7 +77,7 @@ data Connection = Connection
       -- ^ Send data to server
     , connectionClose :: IO ()
       -- ^ Close connection. Any successive operation on the connection
-      -- (exept closing) should fail with `ConnectionClosed` exception.
+      -- (except closing) should fail with `ConnectionClosed` exception.
       -- It is allowed to close connection multiple times.
     }
     deriving T.Typeable
@@ -156,7 +156,7 @@ data HttpExceptionContent
                    --
                    -- @since 0.5.0
                    | ConnectionFailure SomeException
-                   -- ^ An exception occured when trying to connect to the
+                   -- ^ An exception occurred when trying to connect to the
                    -- server.
                    --
                    -- @since 0.5.0

@@ -121,7 +121,7 @@ evictExpiredCookies cookie_jar' now = CJ $ filter (\ cookie -> cookie_expiry_tim
 insertCookiesIntoRequest :: Req.Request                 -- ^ The request to insert into
                          -> CookieJar                   -- ^ Current cookie jar
                          -> UTCTime                     -- ^ Value that should be used as \"now\"
-                         -> (Req.Request, CookieJar)    -- ^ (Ouptut request, Updated cookie jar (last-access-time is updated))
+                         -> (Req.Request, CookieJar)    -- ^ (Output request, Updated cookie jar (last-access-time is updated))
 insertCookiesIntoRequest request cookie_jar now
   | BS.null cookie_string = (request, cookie_jar')
   | otherwise = (request {Req.requestHeaders = cookie_header : purgedHeaders}, cookie_jar')
