@@ -1,8 +1,7 @@
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE DeriveFoldable #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveGeneric #-}
+{-# LANGUAGE CPP #-}
 -- |
 --
 -- = Simpler API
@@ -19,7 +18,7 @@
 -- This is the main entry point for using http-client. Used by itself, this
 -- module provides low-level access for streaming request and response bodies,
 -- and only non-secure HTTP connections. Helper packages such as http-conduit
--- provided higher level streaming approaches, while other helper packages like
+-- provide higher level streaming approaches, while other helper packages like
 -- http-client-tls provide secure connections.
 --
 -- There are three core components to be understood here: requests, responses,
@@ -67,7 +66,7 @@
 -- be assumed to throw an 'HttpException' in the event of some problem, and all
 -- pure functions will be total. For example, 'withResponse', 'httpLbs', and
 -- 'BodyReader' can all throw exceptions. Functions like 'responseStatus' and
--- 'applyBasicAuth' are guaranteed to be total (or there\'s a bug in the
+-- 'applyBasicAuth' are guaranteed to be total (or there's a bug in the
 -- library).
 --
 -- One thing to be cautioned about: the type of 'parseRequest' allows it to work in
@@ -108,6 +107,7 @@ module Network.HTTP.Client
     , managerWrapException
     , managerIdleConnectionCount
     , managerModifyRequest
+    , managerModifyResponse
       -- *** Manager proxy settings
     , managerSetProxy
     , managerSetInsecureProxy
@@ -128,17 +128,23 @@ module Network.HTTP.Client
     , rawConnectionModifySocket
     , rawConnectionModifySocketSize
       -- * Request
+      -- $parsing-request
     , parseUrl
     , parseUrlThrow
     , parseRequest
     , parseRequest_
+    , requestFromURI
+    , requestFromURI_
     , defaultRequest
-
     , applyBasicAuth
     , urlEncodedBody
     , getUri
     , setRequestIgnoreStatus
+    , setRequestCheckStatus
     , setQueryString
+#if MIN_VERSION_http_types(0,12,1)
+    , setQueryStringPartialEscape
+#endif
       -- ** Request type and fields
     , Request
     , method
@@ -172,6 +178,7 @@ module Network.HTTP.Client
     , responseHeaders
     , responseBody
     , responseCookieJar
+    , throwErrorStatusCodes
       -- ** Response body
     , BodyReader
     , brRead
@@ -186,6 +193,7 @@ module Network.HTTP.Client
     , Cookie (..)
     , CookieJar
     , Proxy (..)
+    , withConnection
       -- * Cookies
     , module Network.HTTP.Client.Cookies
     ) where
@@ -234,8 +242,8 @@ data HistoriedResponse body = HistoriedResponse
 --
 -- Since 0.4.1
 responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory req0 man0 = handle (throwIO . toHttpException req0) $ do
-    reqRef <- newIORef req0
+responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
+    reqRef <- newIORef reqOrig
     historyRef <- newIORef id
     let go req0 = do
             (man, req) <- getModifiedRequestManager man0 req0
@@ -255,7 +263,7 @@ responseOpenHistory req0 man0 = handle (throwIO . toHttpException req0) $ do
                     body <- brReadSome (responseBody res) 1024
                     modifyIORef historyRef (. ((req, res { responseBody = body }):))
                     return (res, req'', True)
-    (_, res) <- httpRedirect' (redirectCount req0) go req0
+    (_, res) <- httpRedirect' (redirectCount reqOrig) go reqOrig
     reqFinal <- readIORef reqRef
     history <- readIORef historyRef
     return HistoriedResponse
@@ -296,8 +304,6 @@ managerSetSecureProxy po m = m { managerProxySecure = po }
 managerSetProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
 managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 
-
-
 -- $example1
 -- = Example Usage
 --
@@ -310,7 +316,7 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- > main = do
 -- >   manager <- newManager defaultManagerSettings
 -- >
--- >   request <- parseRequest "http://httpbin.org/post"
+-- >   request <- parseRequest "http://httpbin.org/get"
 -- >   response <- httpLbs request manager
 -- >
 -- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
@@ -323,6 +329,7 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- > import Network.HTTP.Client
 -- > import Network.HTTP.Types.Status (statusCode)
 -- > import Data.Aeson (object, (.=), encode)
+-- > import Data.Text (Text)
 -- >
 -- > main :: IO ()
 -- > main = do
@@ -330,6 +337,11 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >
 -- >   -- Create the request
 -- >   let requestObject = object ["name" .= "Michael", "age" .= 30]
+-- >   let requestObject = object
+-- >    [ "name" .= ("Michael" :: Text)
+-- >    , "age"  .= (30 :: Int)
+-- >    ]
+-- >
 -- >   initialRequest <- parseRequest "http://httpbin.org/post"
 -- >   let request = initialRequest { method = "POST", requestBody = RequestBodyLBS $ encode requestObject }
 -- >
@@ -337,7 +349,6 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >   putStrLn $ "The status code was: " ++ (show $ statusCode $ responseStatus response)
 -- >   print $ responseBody response
 --
-
 
 -- | Specify a response timeout in microseconds
 --
@@ -360,3 +371,11 @@ responseTimeoutNone = ResponseTimeoutNone
 -- @since 0.5.0
 responseTimeoutDefault :: ResponseTimeout
 responseTimeoutDefault = ResponseTimeoutDefault
+
+-- $parsing-request
+--
+-- The way you parse string of characters to construct a 'Request' will
+-- determine whether exceptions will be thrown on non-2XX response status
+-- codes. This is because the behavior is controlled by a setting in
+-- 'Request' itself (see 'checkResponse') and different parsing functions
+-- set it to different 'IO' actions.

@@ -25,6 +25,7 @@ module Network.HTTP.Client.Internal
     , module Network.HTTP.Client.Types
       -- * Various utilities
     , module Network.HTTP.Client.Util
+    , dummyManaged
     ) where
 
 import Network.HTTP.Client.Body
@@ -37,3 +38,4 @@ import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
 import Network.HTTP.Client.Types
 import Network.HTTP.Client.Util
+import Data.KeyedPool (dummyManaged)

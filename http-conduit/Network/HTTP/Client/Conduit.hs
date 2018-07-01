@@ -1,6 +1,5 @@
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE RankNTypes            #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE RankNTypes #-}
 -- | A new, experimental API to replace "Network.HTTP.Conduit".
 --
 -- For most users, "Network.HTTP.Simple" is probably a better choice. For more
@@ -19,8 +18,6 @@ module Network.HTTP.Client.Conduit
       -- * Manager helpers
     , defaultManagerSettings
     , newManager
-    , withManager
-    , withManagerSettings
     , newManagerSettings
       -- * General HTTP client interface
     , module Network.HTTP.Client
@@ -33,21 +30,20 @@ module Network.HTTP.Client.Conduit
     ) where
 
 import           Control.Monad                (unless)
-import           Control.Monad.IO.Class       (MonadIO, liftIO)
-import           Control.Monad.Reader         (MonadReader (..), ReaderT (..))
-import           Control.Monad.Trans.Control  (MonadBaseControl)
+import           Control.Monad.IO.Unlift      (MonadIO, liftIO, MonadUnliftIO, withRunInIO)
+import           Control.Monad.Reader         (MonadReader (..))
 import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ConduitM, Producer, Source,
-                                               await, yield, ($$+), ($$++))
+import           Data.Conduit                 (ConduitM, ($$+),
+                                               await, yield, ($$++))
 import           Data.Int                     (Int64)
 import           Data.IORef                   (newIORef, readIORef, writeIORef)
 import           Network.HTTP.Client          hiding (closeManager,
                                                defaultManagerSettings, httpLbs,
                                                newManager, responseClose,
-                                               responseOpen, withManager,
+                                               responseOpen,
                                                withResponse, BodyReader, brRead, brConsume, httpNoBody)
 import qualified Network.HTTP.Client          as H
 import           Network.HTTP.Client.TLS      (tlsManagerSettings)
@@ -56,18 +52,18 @@ import           Network.HTTP.Client.TLS      (tlsManagerSettings)
 --
 -- * Response body is represented as a @Producer@.
 --
--- * Generalized to any instance of @MonadBaseControl@, not just @IO@.
+-- * Generalized to any instance of @MonadUnliftIO@, not just @IO@.
 --
 -- * The @Manager@ is contained by a @MonadReader@ context.
 --
 -- Since 2.1.0
-withResponse :: (MonadBaseControl IO m, MonadIO n, MonadReader env m, HasHttpManager env)
+withResponse :: (MonadUnliftIO m, MonadIO n, MonadReader env m, HasHttpManager env)
              => Request
              -> (Response (ConduitM i ByteString n ()) -> m a)
              -> m a
 withResponse req f = do
     env <- ask
-    with (acquireResponse req env) f
+    withRunInIO $ \run -> with (acquireResponse req env) (run . f)
 
 -- | An @Acquire@ for getting a @Response@.
 --
@@ -100,18 +96,6 @@ newManager = newManagerSettings defaultManagerSettings
 newManagerSettings :: MonadIO m => ManagerSettings -> m Manager
 newManagerSettings = liftIO . H.newManager
 
--- | Get a new manager with 'defaultManagerSettings' and construct a @ReaderT@ containing it.
---
--- Since 2.1.0
-withManager :: MonadIO m => (ReaderT Manager m a) -> m a
-withManager = withManagerSettings defaultManagerSettings
-
--- | Get a new manager with the given settings and construct a @ReaderT@ containing it.
---
--- Since 2.1.0
-withManagerSettings :: MonadIO m => ManagerSettings -> (ReaderT Manager m a) -> m a
-withManagerSettings settings (ReaderT inner) = newManagerSettings settings >>= inner
-
 -- | Conduit-powered version of 'H.responseOpen'.
 --
 -- See 'withResponse' for the differences with 'H.responseOpen'.
@@ -132,7 +116,7 @@ responseClose = liftIO . H.responseClose
 
 bodyReaderSource :: MonadIO m
                  => H.BodyReader
-                 -> Producer m ByteString
+                 -> ConduitM i ByteString m ()
 bodyReaderSource br =
     loop
   where
@@ -142,13 +126,13 @@ bodyReaderSource br =
             yield bs
             loop
 
-requestBodySource :: Int64 -> Source IO ByteString -> RequestBody
+requestBodySource :: Int64 -> ConduitM () ByteString IO () -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopperIO
 
-requestBodySourceChunked :: Source IO ByteString -> RequestBody
+requestBodySourceChunked :: ConduitM () ByteString IO () -> RequestBody
 requestBodySourceChunked = RequestBodyStreamChunked . srcToPopperIO
 
-srcToPopperIO :: Source IO ByteString -> GivesPopper ()
+srcToPopperIO :: ConduitM () ByteString IO () -> GivesPopper ()
 srcToPopperIO src f = do
     (rsrc0, ()) <- src $$+ return ()
     irsrc <- newIORef rsrc0

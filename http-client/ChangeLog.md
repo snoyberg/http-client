@@ -1,3 +1,80 @@
+## 0.5.13.1
+
+* Add a workaround for a cabal bug [haskell-infra/hackage-trustees#165](https://github.com/haskell-infra/hackage-trustees/issues/165)
+
+## 0.5.13
+
+* Adds `setRequestCheckStatus` and `throwErrorStatusCodes` functions.
+  See [#304](https://github.com/snoyberg/http-client/issues/304)
+* Add `withConnection` function.
+  See [#352](https://github.com/snoyberg/http-client/pull/352).
+
+## 0.5.12.1
+
+* Make the chunked transfer-encoding detection case insensitive
+  [#303](https://github.com/snoyberg/http-client/pull/303)
+* Remove some unneeded language extensions
+* Mark older versions of GHC as unsupported
+
+## 0.5.12
+
+* Added `requestFromURI` and `requestFromURI_` functions.
+* Fixed non-TLS connections going though proxy [#337](https://github.com/snoyberg/http-client/issues/337)
+
+## 0.5.11
+
+* Replaced `base64-bytestring` dependency with `memory`.
+
+## 0.5.10
+
+* New function to partial escape query strings
+
+## 0.5.9
+
+* Add `Semigroup` instances for GHC 8.4 [#320](https://github.com/snoyberg/http-client/pull/320)
+
+## 0.5.8
+
+* Switch to the new STM-based manager
+  [#254](https://github.com/snoyberg/http-client/pull/254)
+* Redact sensitive headers [#318](https://github.com/snoyberg/http-client/pull/318)
+
+## 0.5.7.1
+
+* Code cleanup/delete dead code
+* Compat with Win32 2.6 [#309](https://github.com/snoyberg/http-client/issues/309)
+
+## 0.5.7.0
+
+* Support for Windows system proxy settings
+  [#274](https://github.com/snoyberg/http-client/pull/274)
+
+## 0.5.6.1
+
+* Revert socks5 and socks5h support from
+  [#262](https://github.com/snoyberg/http-client/pull/262); the support was
+  untested and did not work as intended.
+
+## 0.5.6
+
+* Added socks5 and socks5h support [#262](https://github.com/snoyberg/http-client/pull/262)
+
+## 0.5.5
+
+* http-client should allow to log requests and responses [#248](https://github.com/snoyberg/http-client/issues/248)
+
+## 0.5.4
+
+* Derive ‘Eq’ for ‘ResponseTimeout’ [#239](https://github.com/snoyberg/http-client/pull/239)
+
+## 0.5.3.4
+
+* Doc improvements
+
+## 0.5.3.3
+
+* Add missing colon in Host header [#235](https://github.com/snoyberg/http-client/pull/235)
+
 ## 0.5.3.2
 
 * Minor doc updates

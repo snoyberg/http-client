@@ -1,5 +1,4 @@
 {-# LANGUAGE OverloadedStrings #-}
-{-# LANGUAGE CPP #-}
 import Network.HTTP.Conduit
 import Network
 import qualified Data.ByteString as S
@@ -16,7 +15,7 @@ mproxify sockshost req
 	| otherwise       = req { socksProxy = Just $ defaultSocksConf sockshost 1080 }
 
 main :: IO ()
-main = withSocketsDo $ do
+main = do
     [url] <- getArgs
     proxy <- catch (getEnv "SOCKS_PROXY") (const $ return "")
     _req2 <- mproxify proxy `fmap` parseUrl url

@@ -1,3 +1,15 @@
+## 0.2.1.1
+
+* Fix a connection-bug with http-proxy(Previous version closes a connection before reading all respose-data.)
+
+## 0.2.1.0
+
+* Add support for http-proxy
+
+## 0.2.0.5
+
+* Use different domain name so tests pass
+
 ## 0.2.0.4
 
 * Minor doc updates

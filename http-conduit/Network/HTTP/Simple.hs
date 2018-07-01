@@ -11,13 +11,16 @@
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
 -- > import Network.HTTP.Simple
--- > import qualified Data.ByteString.Lazy.Char8 as L8
+-- > import qualified Data.ByteString.Char8 as B8
 -- >
 -- > main :: IO ()
--- > main = httpLBS "http://example.com" >>= L8.putStrLn
+-- > main = httpBS "http://example.com" >>= B8.putStrLn . getResponseBody
+--
+-- The `Data.String.IsString` instance uses `H.parseRequest` behind the scenes and inherits its behavior.
 module Network.HTTP.Simple
     ( -- * Perform requests
-      httpLBS
+      httpBS
+    , httpLBS
     , httpNoBody
     , httpJSON
     , httpJSONEither
@@ -25,6 +28,7 @@ module Network.HTTP.Simple
     , httpSource
     , withResponse
       -- * Types
+    , H.Query
     , H.Request
     , H.Response
     , JSONException (..)
@@ -34,6 +38,8 @@ module Network.HTTP.Simple
     , H.defaultRequest
     , H.parseRequest
     , H.parseRequest_
+    , parseRequestThrow
+    , parseRequestThrow_
       -- * Request lenses
       -- ** Basics
     , setRequestMethod
@@ -56,6 +62,7 @@ module Network.HTTP.Simple
     , setRequestBodyURLEncoded
       -- ** Special fields
     , H.setRequestIgnoreStatus
+    , H.setRequestCheckStatus
     , setRequestBasicAuth
     , setRequestManager
     , setRequestProxy
@@ -76,24 +83,36 @@ import qualified Network.HTTP.Client.Internal as HI
 import qualified Network.HTTP.Client.TLS as H
 import Network.HTTP.Client.Conduit (bodyReaderSource)
 import qualified Network.HTTP.Client.Conduit as HC
-import Control.Monad.IO.Class (MonadIO, liftIO)
+import Control.Monad.IO.Unlift (MonadIO, liftIO, MonadUnliftIO, withRunInIO)
 import Data.Aeson (FromJSON (..), Value)
 import Data.Aeson.Parser (json')
 import qualified Data.Aeson.Types as A
-import qualified Data.Aeson.Encode as A
+import qualified Data.Aeson as A
 import qualified Data.Traversable as T
-import Control.Exception (throwIO, Exception)
+import Control.Exception (throw, throwIO, Exception)
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
+import Data.Conduit (runConduit, (.|), ConduitM)
 import qualified Data.Conduit.Attoparsec as C
-import qualified Control.Monad.Catch as Catch
 import qualified Network.HTTP.Types as H
 import Data.Int (Int64)
-import Control.Monad.Trans.Resource (MonadResource)
+import Control.Monad.Trans.Resource (MonadResource, MonadThrow)
+import qualified Control.Exception as E (bracket)
+import Data.Void (Void)
 
--- | Perform an HTTP request and return the body as a lazy @ByteString@. Note
--- that the entire value will be read into memory at once (no lazy I\/O will be
--- performed).
+-- | Perform an HTTP request and return the body as a @ByteString@.
+--
+-- @since 2.2.4
+httpBS :: MonadIO m => H.Request -> m (H.Response S.ByteString)
+httpBS req = liftIO $ do
+    man <- H.getGlobalManager
+    fmap L.toStrict `fmap` H.httpLbs req man
+
+-- | Perform an HTTP request and return the body as a lazy
+-- @ByteString@. Note that the entire value will be read into memory
+-- at once (no lazy I\/O will be performed). The advantage of a lazy
+-- @ByteString@ here (versus using 'httpBS') is--if needed--a better
+-- in-memory representation.
 --
 -- @since 2.1.10
 httpLBS :: MonadIO m => H.Request -> m (H.Response L.ByteString)
@@ -123,17 +142,17 @@ httpJSON req = liftIO $ httpJSONEither req >>= T.mapM (either throwIO return)
 httpJSONEither :: (MonadIO m, FromJSON a)
                => H.Request
                -> m (H.Response (Either JSONException a))
-httpJSONEither req =
-    liftIO $ httpSink req sink
+httpJSONEither req = liftIO $ httpSink req' sink
   where
+    req' = addRequestHeader H.hAccept "application/json" req
     sink orig = fmap (\x -> fmap (const x) orig) $ do
         eres1 <- C.sinkParserEither json'
         case eres1 of
-            Left e -> return $ Left $ JSONParseException req orig e
+            Left e -> return $ Left $ JSONParseException req' orig e
             Right value ->
                 case A.fromJSON value of
                     A.Error e -> return $ Left $ JSONConversionException
-                        req (fmap (const value) orig) e
+                        req' (fmap (const value) orig) e
                     A.Success x -> return $ Right x
 
 -- | An exception that can occur when parsing JSON
@@ -148,17 +167,19 @@ instance Exception JSONException
 -- | Perform an HTTP request and consume the body with the given 'C.Sink'
 --
 -- @since 2.1.10
-httpSink :: (MonadIO m, Catch.MonadMask m)
+httpSink :: MonadUnliftIO m
          => H.Request
-         -> (H.Response () -> C.Sink S.ByteString m a)
+         -> (H.Response () -> ConduitM S.ByteString Void m a)
          -> m a
-httpSink req sink = do
-    man <- liftIO H.getGlobalManager
-    Catch.bracket
-        (liftIO $ H.responseOpen req man)
-        (liftIO . H.responseClose)
-        (\res -> bodyReaderSource (getResponseBody res)
-            C.$$ sink (fmap (const ()) res))
+httpSink req sink = withRunInIO $ \run -> do
+    man <- H.getGlobalManager
+    E.bracket
+        (H.responseOpen req man)
+        H.responseClose
+        $ \res -> run
+            $ runConduit
+            $ bodyReaderSource (getResponseBody res)
+           .| sink (fmap (const ()) res)
 
 -- | Perform an HTTP request, and get the response body as a Source.
 --
@@ -208,16 +229,35 @@ httpSource req withRes = do
 -- value.
 --
 -- @since 2.2.3
-withResponse :: (MonadIO m, Catch.MonadMask m, MonadIO n)
+withResponse :: (MonadUnliftIO m, MonadIO n)
              => H.Request
              -> (H.Response (C.ConduitM i S.ByteString n ()) -> m a)
              -> m a
-withResponse req withRes = do
-    man <- liftIO H.getGlobalManager
-    Catch.bracket
-        (liftIO (H.responseOpen req man))
-        (liftIO . H.responseClose)
-        (withRes . fmap bodyReaderSource)
+withResponse req withRes = withRunInIO $ \run -> do
+    man <- H.getGlobalManager
+    E.bracket
+        (H.responseOpen req man)
+        H.responseClose
+        (run . withRes . fmap bodyReaderSource)
+
+-- | Same as 'parseRequest', except will throw an 'HttpException' in the
+-- event of a non-2XX response. This uses 'throwErrorStatusCodes' to
+-- implement 'checkResponse'.
+--
+-- Exactly the same as 'parseUrlThrow', but has a name that is more
+-- consistent with the other parseRequest functions.
+--
+-- @since 2.3.2
+parseRequestThrow :: MonadThrow m => String -> m HC.Request
+parseRequestThrow = HC.parseUrlThrow
+
+-- | Same as 'parseRequestThrow', but parse errors cause an impure
+-- exception. Mostly useful for static strings which are known to be
+-- correctly formatted.
+--
+-- @since 2.3.2
+parseRequestThrow_ :: String -> HC.Request
+parseRequestThrow_ = either throw id . HC.parseUrlThrow
 
 -- | Alternate spelling of 'httpLBS'
 --
@@ -281,7 +321,11 @@ setRequestHeader name vals req =
          ++ (map (name, ) vals)
         }
 
--- | Set the request headers, wiping out any previously set headers
+-- | Set the request headers, wiping out __all__ previously set headers. This
+-- means if you use 'setRequestHeaders' to set some headers and also use one of
+-- the other setters that modifies the @content-type@ header (such as
+-- 'setRequestBodyJSON'), be sure that 'setRequestHeaders' is evaluated
+-- __first__.
 --
 -- @since 2.1.10
 setRequestHeaders :: [(H.HeaderName, S.ByteString)] -> H.Request -> H.Request
@@ -290,13 +334,13 @@ setRequestHeaders x req = req { H.requestHeaders = x }
 -- | Get the query string parameters
 --
 -- @since 2.1.10
-getRequestQueryString :: H.Request -> [(S.ByteString, Maybe S.ByteString)]
+getRequestQueryString :: H.Request -> H.Query
 getRequestQueryString = H.parseQuery . H.queryString
 
 -- | Set the query string parameters
 --
 -- @since 2.1.10
-setRequestQueryString :: [(S.ByteString, Maybe S.ByteString)] -> H.Request -> H.Request
+setRequestQueryString :: H.Query -> H.Request -> H.Request
 setRequestQueryString = H.setQueryString
 
 -- | Set the request body to the given 'H.RequestBody'. You may want to
@@ -315,7 +359,7 @@ setRequestBody x req = req { H.requestBody = x }
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
--- This also sets the @content-type@ to @application/json; chatset=utf8@
+-- This also sets the @Content-Type@ to @application/json; charset=utf-8@
 --
 -- @since 2.1.10
 setRequestBodyJSON :: A.ToJSON a => a -> H.Request -> H.Request
@@ -342,7 +386,7 @@ setRequestBodyLBS = setRequestBody . H.RequestBodyLBS
 --
 -- @since 2.1.10
 setRequestBodySource :: Int64 -- ^ length of source
-                     -> C.Source IO S.ByteString
+                     -> ConduitM () S.ByteString IO ()
                      -> H.Request
                      -> H.Request
 setRequestBodySource len src req = req { H.requestBody = HC.requestBodySource len src }
@@ -358,10 +402,8 @@ setRequestBodyFile = setRequestBody . HI.RequestBodyIO . H.streamFile
 
 -- | Set the request body as URL encoded data
 --
--- /Note/: This will not modify the request method. For that, please use
--- 'requestMethod'. You likely don't want the default of @GET@.
---
--- This also sets the @content-type@ to @application/x-www-form-urlencoded@
+-- /Note/: This will change the request method to @POST@ and set the @content-type@
+-- to @application/x-www-form-urlencoded@
 --
 -- @since 2.1.10
 setRequestBodyURLEncoded :: [(S.ByteString, S.ByteString)] -> H.Request -> H.Request

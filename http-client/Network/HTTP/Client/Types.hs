@@ -1,8 +1,8 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE DeriveFoldable #-}
-{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveTraversable #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Client.Types
     ( BodyReader
     , Connection (..)
@@ -20,9 +20,6 @@ module Network.HTTP.Client.Types
     , NeedsPopper
     , GivesPopper
     , Request (..)
-    , ConnReuse (..)
-    , ConnRelease
-    , ManagedConn (..)
     , Response (..)
     , ResponseClose (..)
     , Manager (..)
@@ -46,7 +43,8 @@ import qualified Data.ByteString.Lazy as L
 import Blaze.ByteString.Builder (Builder, fromLazyByteString, fromByteString, toLazyByteString)
 import Data.Int (Int64)
 import Data.Foldable (Foldable)
-import Data.Monoid
+import Data.Monoid (Monoid(..))
+import Data.Semigroup (Semigroup(..))
 import Data.String (IsString, fromString)
 import Data.Time (UTCTime)
 import Data.Traversable (Traversable)
@@ -54,12 +52,11 @@ import qualified Data.List as DL
 import Network.Socket (HostAddress)
 import Data.IORef
 import qualified Network.Socket as NS
-import qualified Data.IORef as I
 import qualified Data.Map as Map
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
-import Control.Concurrent.MVar (MVar)
 import Data.CaseInsensitive as CI
+import Data.KeyedPool (KeyedPool)
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -80,7 +77,7 @@ data Connection = Connection
       -- ^ Send data to server
     , connectionClose :: IO ()
       -- ^ Close connection. Any successive operation on the connection
-      -- (exept closing) should fail with `ConnectionClosed` exception.
+      -- (except closing) should fail with `ConnectionClosed` exception.
       -- It is allowed to close connection multiple times.
     }
     deriving T.Typeable
@@ -159,7 +156,7 @@ data HttpExceptionContent
                    --
                    -- @since 0.5.0
                    | ConnectionFailure SomeException
-                   -- ^ An exception occured when trying to connect to the
+                   -- ^ An exception occurred when trying to connect to the
                    -- server.
                    --
                    -- @since 0.5.0
@@ -232,6 +229,9 @@ data HttpExceptionContent
                    -- ^ Attempted to use a 'Connection' which was already closed
                    --
                    -- @since 0.5.0
+                   | InvalidProxySettings Text
+                   -- ^ Proxy settings are not valid (Windows specific currently)
+                   -- @since 0.5.7
     deriving (Show, T.Typeable)
 
 -- Purposely not providing this instance, since we don't want users to
@@ -276,15 +276,20 @@ instance Ord Cookie where
 instance Eq CookieJar where
   (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
 
--- | Since 1.9
-instance Data.Monoid.Monoid CookieJar where
-  mempty = CJ []
-  (CJ a) `mappend` (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a `mappend` b)
+instance Semigroup CookieJar where
+  (CJ a) <> (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a <> b)
     where compare' c1 c2 =
             -- inverse so that recent cookies are kept by nub over older
             if cookie_creation_time c1 > cookie_creation_time c2
                 then LT
                 else GT
+
+-- | Since 1.9
+instance Data.Monoid.Monoid CookieJar where
+  mempty = CJ []
+#if !(MIN_VERSION_base(4,11,0))
+  mappend = (<>)
+#endif
 
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
@@ -322,9 +327,14 @@ instance IsString RequestBody where
     fromString str = RequestBodyBS (fromString str)
 instance Monoid RequestBody where
     mempty = RequestBodyBS S.empty
-    mappend x0 y0 =
+#if !(MIN_VERSION_base(4,11,0))
+    mappend = (<>)
+#endif
+
+instance Semigroup RequestBody where
+    x0 <> y0 =
         case (simplify x0, simplify y0) of
-            (Left (i, x), Left (j, y)) -> RequestBodyBuilder (i + j) (x `mappend` y)
+            (Left (i, x), Left (j, y)) -> RequestBodyBuilder (i + j) (x <> y)
             (Left x, Right y) -> combine (builderToStream x) y
             (Right x, Left y) -> combine x (builderToStream y)
             (Right x, Right y) -> combine x y
@@ -547,7 +557,7 @@ data ResponseTimeout
     = ResponseTimeoutMicro !Int
     | ResponseTimeoutNone
     | ResponseTimeoutDefault
-    deriving Show
+    deriving (Eq, Show)
 
 instance Show Request where
     show x = unlines
@@ -555,7 +565,7 @@ instance Show Request where
         , "  host                 = " ++ show (host x)
         , "  port                 = " ++ show (port x)
         , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (requestHeaders x)
+        , "  requestHeaders       = " ++ show (DL.map redactSensitiveHeader (requestHeaders x))
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
         --, "  requestBody          = " ++ show (requestBody x)
@@ -568,12 +578,9 @@ instance Show Request where
         , "}"
         ]
 
-data ConnReuse = Reuse | DontReuse
-    deriving T.Typeable
-
-type ConnRelease = ConnReuse -> IO ()
-
-data ManagedConn = Fresh | Reused
+redactSensitiveHeader :: Header -> Header
+redactSensitiveHeader ("Authorization", _) = ("Authorization", "<REDACTED>")
+redactSensitiveHeader h = h
 
 -- | A simple representation of the HTTP response.
 --
@@ -664,7 +671,9 @@ data ManagerSettings = ManagerSettings
     --
     -- This limit helps deal with the case where you are making a large number
     -- of connections to different hosts. Without this limit, you could run out
-    -- of file descriptors.
+    -- of file descriptors. Additionally, it can be set to zero to prevent
+    -- reuse of any connections. Doing this is useful when the server your application
+    -- is talking to sits behind a load balancer.
     --
     -- Default: 512
     --
@@ -675,6 +684,12 @@ data ManagerSettings = ManagerSettings
     -- Default: no modification
     --
     -- Since 0.4.4
+    , managerModifyResponse :: Response BodyReader -> IO (Response BodyReader)
+    -- ^ Perform the given modification to a @Response@ after receiving it.
+    --
+    -- Default: no modification
+    --
+    -- @since 0.5.5
     , managerProxyInsecure :: ProxyOverride
     -- ^ How HTTP proxy server settings should be discovered.
     --
@@ -704,26 +719,14 @@ newtype ProxyOverride = ProxyOverride
 --
 -- Since 0.1.0
 data Manager = Manager
-    { mConns :: I.IORef ConnsMap
-    -- ^ @Nothing@ indicates that the manager is closed.
-    , mConnsBaton :: MVar ()
-    -- ^ Used to indicate to the reaper thread that it has some work to do.
-    -- This must be filled every time a connection is returned to the manager.
-    -- While redundant with the @IORef@ above, this allows us to have the
-    -- reaper thread fully blocked instead of running every 5 seconds when
-    -- there are no connections to manage.
-    , mMaxConns :: Int
-    -- ^ This is a per-@ConnKey@ value.
+    { mConns :: KeyedPool ConnKey Connection
     , mResponseTimeout :: ResponseTimeout
     -- ^ Copied from 'managerResponseTimeout'
-    , mRawConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
-    , mTlsConnection :: Maybe NS.HostAddress -> String -> Int -> IO Connection
-    , mTlsProxyConnection :: S.ByteString -> (Connection -> IO ()) -> String -> Maybe NS.HostAddress -> String -> Int -> IO Connection
     , mRetryableException :: SomeException -> Bool
     , mWrapException :: forall a. Request -> IO a -> IO a
-    , mIdleConnectionCount :: Int
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
+    , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
     }
     deriving T.Typeable
@@ -750,7 +753,21 @@ data ConnHost =
 
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
-data ConnKey = ConnKey ConnHost Int S.ByteString Int Bool
+data ConnKey
+    = CKRaw (Maybe HostAddress) {-# UNPACK #-} !S.ByteString !Int
+    | CKSecure (Maybe HostAddress) {-# UNPACK #-} !S.ByteString !Int
+    | CKProxy
+        {-# UNPACK #-} !S.ByteString
+        !Int
+
+        -- Proxy-Authorization request header
+        (Maybe S.ByteString)
+
+        -- ultimate host
+        {-# UNPACK #-} !S.ByteString
+
+        -- ultimate port
+        !Int
     deriving (Eq, Show, Ord, T.Typeable)
 
 -- | Status of streaming a request body from a file.

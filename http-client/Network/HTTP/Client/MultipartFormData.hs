@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings #-}
 -- | This module handles building multipart/form-data. Example usage:
 --
 -- > {-# LANGUAGE OverloadedStrings #-}
@@ -10,7 +10,7 @@
 -- >
 -- > import Control.Monad
 -- >
--- > main = withSocketsDo $ void $ withManager defaultManagerSettings $ \m -> do
+-- > main = void $ withManager defaultManagerSettings $ \m -> do
 -- >     req1 <- parseRequest "http://random-cat-photo.net/cat.jpg"
 -- >     res <- httpLbs req1 m
 -- >     req2 <- parseRequest "http://example.org/~friedrich/blog/addPost.hs"

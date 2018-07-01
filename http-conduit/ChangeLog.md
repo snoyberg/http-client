@@ -1,3 +1,37 @@
+## 2.3.2
+
+* Adds `parseRequestThrow`, `parseRequestThrow_`, and
+  `setRequestCheckStatus` to `Network.HTTP.Simple`.
+  See [#304](https://github.com/snoyberg/http-client/issues/304)
+
+## 2.3.1
+
+* Reexport Query from Network.HTTP.Types
+* Rewrite a type signatures of getRequestQueryString and setRequestQueryString with Query
+
+## 2.3.0
+
+* conduit 1.3 support
+    * NOTE: Even for older versions of conduit, this includes dropping
+      support for finalizers
+* `http` returns a `Source` instead of a `ResumableSource` (due to lack of
+  finalizers)
+* Drop monad-control for unliftio
+* Removed some deprecated functions: `withManager`, `withManagerSettings`,
+  `conduitManagerSettings`
+
+## 2.2.4
+
+* Add `httpBS` to `Network.HTTP.Simple`
+
+## 2.2.3.2
+
+* Add proper headers for `httpJSON` and `httpJSONEither` [#284](https://github.com/snoyberg/http-client/issues/284)
+
+## 2.2.3.1
+
+* Minor README improvement
+
 ## 2.2.3
 
 * Add `withResponse` to `Network.HTTP.Simple`

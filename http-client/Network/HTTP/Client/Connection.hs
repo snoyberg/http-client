@@ -16,7 +16,7 @@ import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
 import Network.HTTP.Client.Types
-import Network.Socket (Socket, sClose, HostAddress)
+import Network.Socket (Socket, HostAddress)
 import qualified Network.Socket as NS
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
@@ -61,7 +61,6 @@ killCR bs
     | S.null bs = bs
     | S.last bs == charCR = S.init bs
     | otherwise = bs
-
 
 -- | For testing
 dummyConnection :: [ByteString] -- ^ input
@@ -130,7 +129,7 @@ socketConnection :: Socket
 socketConnection socket chunksize = makeConnection
     (recv socket chunksize)
     (sendAll socket)
-    (sClose socket)
+    (NS.close socket)
 
 openSocketConnection :: (Socket -> IO ())
                      -> Maybe HostAddress
@@ -168,7 +167,7 @@ openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
         E.bracketOnError
             (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
                        (NS.addrProtocol addr))
-            (NS.sClose)
+            NS.close
             (\sock -> do
                 NS.setSocketOption sock NS.NoDelay 1
                 tweakSocket sock

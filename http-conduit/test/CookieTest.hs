@@ -139,7 +139,7 @@ testRemoveCookie = assertEqual "Removing a cookie works"
   (Just default_cookie, createCookieJar []) (removeExistingCookieFromCookieJar default_cookie $ createCookieJar [default_cookie])
 
 testRemoveNonexistantCookie :: IO ()
-testRemoveNonexistantCookie = assertEqual "Removing a nonexistant cookie doesn't work"
+testRemoveNonexistantCookie = assertEqual "Removing a nonexistent cookie doesn't work"
   (Nothing, createCookieJar [default_cookie]) (removeExistingCookieFromCookieJar (default_cookie {cookie_name = fromString "key2"}) $ createCookieJar [default_cookie])
 
 testRemoveCorrectCookie :: IO ()
@@ -379,7 +379,7 @@ testReceiveSetCookiePath = assertEqual "Path gets set correctly"
   where set_cookie = default_set_cookie {setCookiePath = Just $ fromString "/a/path"}
 
 testReceiveSetCookieNoPath :: IO ()
-testReceiveSetCookieNoPath = assertEqual "Path gets set correctly when nonexistant"
+testReceiveSetCookieNoPath = assertEqual "Path gets set correctly when nonexistent"
   (fromString "/a/path/to") (cookie_path $ head $ destroyCookieJar $ receiveSetCookie set_cookie request default_time True $ createCookieJar [])
   where set_cookie = default_set_cookie {setCookiePath = Nothing}
         request = default_request {HC.path = fromString "/a/path/to/nowhere"}
@@ -487,7 +487,7 @@ equalityTests = do
 removeTests :: Spec
 removeTests = do
     it "Removing a cookie works" testRemoveCookie
-    it "Removing a nonexistant cookie doesn't work" testRemoveNonexistantCookie
+    it "Removing a nonexistent cookie doesn't work" testRemoveNonexistantCookie
     it "Removing the correct cookie" testRemoveCorrectCookie
 
 evictionTests :: Spec
@@ -528,7 +528,7 @@ receivingTests = do
     it "Expiry gets set based on max age if no expiry is given" testReceiveSetCookieNoExpiry
     it "Expiry gets set based on given value if no max age is given" testReceiveSetCookieNoMaxAge
     it "Expiry gets set to a future date if no expiry and no max age are given" testReceiveSetCookieNoExpiryNoMaxAge
-    it "Path gets set correctly when nonexistant" testReceiveSetCookieNoPath
+    it "Path gets set correctly when nonexistent" testReceiveSetCookieNoPath
     it "Path gets set correctly" testReceiveSetCookiePath
     it "Creation time gets set correctly" testReceiveSetCookieCreationTime
     it "Last access time gets set correctly" testReceiveSetCookieAccessTime

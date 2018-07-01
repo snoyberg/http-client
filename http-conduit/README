@@ -1,4 +1,0 @@
-Provides for making efficient HTTP/HTTPS requests, providing either a simple or
-streaming interface.
-
-For more information, please see http://www.yesodweb.com/book/http-conduit
