@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.5.13
+version:             0.5.13.1
 synopsis:            An HTTP client engine
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client
@@ -68,7 +68,12 @@ library
 
   -- See build failure at https://travis-ci.org/snoyberg/http-client/jobs/359573631
   if impl(ghc < 7.10)
-    buildable: False
+    -- Disable building with GHC before 8.0.2.
+    -- Due to a cabal bug, do not use buildable: False,
+    -- but instead give it an impossible constraint.
+    -- See: https://github.com/haskell-infra/hackage-trustees/issues/165
+    build-depends: unsupported-ghc-version > 1 && < 1
+
 
   if os(mingw32)
     build-depends: Win32, safe
