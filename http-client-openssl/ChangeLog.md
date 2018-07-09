@@ -1,3 +1,7 @@
+## 0.2.2.0
+
+* Tell OpenSSL what host is being contacted, so it can use the SNI extension for certificate selection if the server requires it.
+
 ## 0.2.1.1
 
 * Fix a connection-bug with http-proxy(Previous version closes a connection before reading all respose-data.)
