@@ -38,6 +38,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                 $ \sock -> do
                     N.connect sock address
                     ssl <- SSL.connection ctx sock
+                    SSL.setTlsextHostName ssl host'
                     SSL.connect ssl
                     makeConnection
                         (SSL.read ssl 32752)
@@ -69,6 +70,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                     connectionWrite conn connstr
                     checkConn conn
                     ssl <- SSL.connection ctx sock
+                    SSL.setTlsextHostName ssl host'
                     SSL.connect ssl
                     makeConnection
                         (SSL.read ssl 32752)

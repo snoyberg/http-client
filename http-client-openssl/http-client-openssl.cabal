@@ -1,5 +1,5 @@
 name:                http-client-openssl
-version:             0.2.1.1
+version:             0.2.2.0
 synopsis:            http-client backend using the OpenSSL library.
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client
