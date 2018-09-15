@@ -192,7 +192,7 @@ getUri req = URI
     , uriAuthority = Just URIAuth
         { uriUserInfo = ""
         , uriRegName = S8.unpack $ host req
-        , uriPort = ':' : show (port req)
+        , uriPort = port'
         }
     , uriPath = S8.unpack $ path req
     , uriQuery =
@@ -201,6 +201,10 @@ getUri req = URI
             _ -> S8.unpack $ queryString req
     , uriFragment = ""
     }
+  where
+    port'
+      | secure req && (port req) == 443 = ""
+      | otherwise = ':' : show (port req)
 
 applyAnyUriBasedAuth :: URI -> Request -> Request
 applyAnyUriBasedAuth uri req =

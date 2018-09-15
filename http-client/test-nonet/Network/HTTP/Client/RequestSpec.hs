@@ -54,6 +54,13 @@ spec = do
         field `shouldSatisfy` isJust
         field `shouldBe` Just "Basic dXNlcjpwYXNz"
 
+    describe "getUri" $ do
+      context "when protocol is https and port is 443" $ do
+        it "omits port" $ do
+          let url = "https://example.com/"
+          request <- parseRequest url
+          show (getUri request) `shouldBe` url
+
     describe "Show Request" $
       it "redacts authorization header content" $ do
         let request = defaultRequest { requestHeaders = [("Authorization", "secret")] }
