@@ -1,6 +1,7 @@
 ## next
 
-* Omit port for `getUri` when protocol is `https` and port is `443`
+* Omit port for `getUri` when protocol is `http` and port is `80`, or when
+  protocol is `https` and port is `443`
 
 ## 0.5.13.1
 

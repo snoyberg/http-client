@@ -204,6 +204,7 @@ getUri req = URI
   where
     port'
       | secure req && (port req) == 443 = ""
+      | not (secure req) && (port req) == 80 = ""
       | otherwise = ':' : show (port req)
 
 applyAnyUriBasedAuth :: URI -> Request -> Request
