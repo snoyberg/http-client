@@ -1,3 +1,8 @@
+## next
+
+* Omit port for `getUri` when protocol is `http` and port is `80`, or when
+  protocol is `https` and port is `443`
+
 ## 0.5.13.1
 
 * Add a workaround for a cabal bug [haskell-infra/hackage-trustees#165](https://github.com/haskell-infra/hackage-trustees/issues/165)
