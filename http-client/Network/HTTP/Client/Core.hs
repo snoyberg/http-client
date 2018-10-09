@@ -6,6 +6,7 @@ module Network.HTTP.Client.Core
     , httpNoBody
     , httpRaw
     , httpRaw'
+    , requestAction
     , getModifiedRequestManager
     , responseOpen
     , responseClose
@@ -25,11 +26,13 @@ import Network.HTTP.Client.Response
 import Network.HTTP.Client.Cookies
 import Data.Maybe (fromMaybe, isJust)
 import Data.Time
+import Data.IORef
 import Control.Exception
 import qualified Data.ByteString.Lazy as L
 import Data.Monoid
 import Control.Monad (void)
 import System.Timeout (timeout)
+import System.IO.Unsafe (unsafePerformIO)
 import Data.KeyedPool
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
 
@@ -94,13 +97,18 @@ httpRaw' req0 m = do
             now <- getCurrentTime
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
         Nothing -> return (req', Data.Monoid.mempty)
-    res <- makeRequest req m
+    action <- readIORef requestAction
+    res <- action req m
     case cookieJar req' of
         Just _ -> do
             now' <- getCurrentTime
             let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
             return (req, res {responseCookieJar = cookie_jar})
         Nothing -> return (req, res)
+
+requestAction :: IORef (Request -> Manager -> IO (Response BodyReader))
+{-# NOINLINE requestAction #-}
+requestAction = unsafePerformIO (newIORef makeRequest)
 
 makeRequest
      :: Request
