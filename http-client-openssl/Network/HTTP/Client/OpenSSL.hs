@@ -1,3 +1,4 @@
+{-# LANGUAGE ScopedTypeVariables #-}
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
     ( opensslManagerSettings
@@ -76,4 +77,23 @@ opensslManagerSettings mkContext = defaultManagerSettings
                         (SSL.read ssl 32752)
                         (SSL.write ssl)
                         (N.close sock)
+
+    , managerRetryableException = \se ->
+        case () of
+          ()
+            | Just (_ :: SSL.ConnectionAbruptlyTerminated) <- fromException se -> True
+            | otherwise -> managerRetryableException defaultManagerSettings se
+
+    , managerWrapException = \req ->
+        let
+          wrap se
+            | Just (_ :: IOException)                      <- fromException se = se'
+            | Just (_ :: SSL.SomeSSLException)             <- fromException se = se'
+            | Just (_ :: SSL.ConnectionAbruptlyTerminated) <- fromException se = se'
+            | Just (_ :: SSL.ProtocolError)                <- fromException se = se'
+            | otherwise                                                        = se
+            where
+              se' = toException (HttpExceptionRequest req (InternalException se))
+        in
+          handle (throwIO . wrap)
     }
