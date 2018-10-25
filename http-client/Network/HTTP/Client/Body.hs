@@ -115,9 +115,13 @@ makeUnlimitedReader :: Connection -> IO BodyReader
 makeUnlimitedReader Connection {..} = do
     icomplete <- newIORef False
     return $ do
-        bs <- connectionRead
-        when (S.null bs) $ writeIORef icomplete True
-        return bs
+      complete <- readIORef icomplete
+      if complete
+          then return empty
+          else do
+              bs <- connectionRead
+              when (S.null bs) $ writeIORef icomplete True
+              return bs
 
 makeLengthReader :: Int -> Connection -> IO BodyReader
 makeLengthReader count0 Connection {..} = do
