@@ -1,3 +1,8 @@
+## 0.3.0.0
+
+* Wrap HsOpenSSL specific exceptions into http-clients own `HttpExceptionRequest`. This is a breaking change and might need adjustment with respect to exception handling in user code.
+* More robust handling of unexpectedly closed connections
+
 ## 0.2.2.0
 
 * Tell OpenSSL what host is being contacted, so it can use the SNI extension for certificate selection if the server requires it.
