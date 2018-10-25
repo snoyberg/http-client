@@ -11,6 +11,7 @@ import Network.HTTP.Client.Internal
 import Control.Exception
 import Network.Socket.ByteString (sendAll, recv)
 import OpenSSL
+import qualified Data.ByteString as S
 import qualified Network.Socket as N
 import qualified OpenSSL.Session       as SSL
 
@@ -42,7 +43,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                     SSL.setTlsextHostName ssl host'
                     SSL.connect ssl
                     makeConnection
-                        (SSL.read ssl 32752)
+                        (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure S.empty)
                         (SSL.write ssl)
                         (N.close sock)
     , managerTlsProxyConnection = do
@@ -74,7 +75,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                     SSL.setTlsextHostName ssl host'
                     SSL.connect ssl
                     makeConnection
-                        (SSL.read ssl 32752)
+                        (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure S.empty)
                         (SSL.write ssl)
                         (N.close sock)
 
