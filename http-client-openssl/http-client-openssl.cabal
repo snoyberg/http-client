@@ -6,7 +6,7 @@ homepage:            https://github.com/snoyberg/http-client
 license:             MIT
 license-file:        LICENSE
 author:              Michael Snoyman
-maintainer:          michael@snoyman.com
+maintainer:          michael@snoyman.com alexbiehl@gmail.com
 category:            Network
 build-type:          Simple
 cabal-version:       >=1.10
