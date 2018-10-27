@@ -43,7 +43,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                     SSL.setTlsextHostName ssl host'
                     SSL.connect ssl
                     makeConnection
-                        (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure S.empty)
+                        (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> return S.empty)
                         (SSL.write ssl)
                         (N.close sock)
     , managerTlsProxyConnection = do
@@ -75,7 +75,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                     SSL.setTlsextHostName ssl host'
                     SSL.connect ssl
                     makeConnection
-                        (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> pure S.empty)
+                        (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> return S.empty)
                         (SSL.write ssl)
                         (N.close sock)
 
