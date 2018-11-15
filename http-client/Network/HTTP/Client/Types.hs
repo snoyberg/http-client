@@ -166,6 +166,7 @@ data HttpExceptionContent
                    -- @since 0.5.0
                    | InvalidHeader S.ByteString
                    -- ^ The given response header line could not be parsed
+                   --   or given request header is not compliant (e.g. has newlines)
                    --
                    -- @since 0.5.0
                    | InternalException SomeException

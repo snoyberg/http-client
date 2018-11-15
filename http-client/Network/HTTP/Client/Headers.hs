@@ -3,6 +3,8 @@
 {-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Headers
     ( parseStatusHeaders
+    , validateHeaders
+    , HeadersValidationResult (..)
     ) where
 
 import           Control.Applicative            as A ((<$>), (<*>))
@@ -10,6 +12,9 @@ import           Control.Monad
 import qualified Data.ByteString                as S
 import qualified Data.ByteString.Char8          as S8
 import qualified Data.CaseInsensitive           as CI
+import           Data.Char (ord)
+import           Data.Maybe (mapMaybe)
+import           Data.Monoid
 import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
 import           System.Timeout                 (timeout)
@@ -94,3 +99,15 @@ parseStatusHeaders conn timeout' cont
         return (CI.mk $! strip key, strip $! S.drop 1 bs2)
 
     strip = S.dropWhile (== charSpace) . fst . S.spanEnd (== charSpace)
+
+data HeadersValidationResult = GoodHeaders | BadHeaders { _reason :: S.ByteString }
+
+validateHeaders :: RequestHeaders -> HeadersValidationResult
+validateHeaders headers =
+    case mapMaybe validateHeader headers of
+        [] -> GoodHeaders
+        reasons -> BadHeaders (S8.unlines reasons)
+    where
+    validateHeader (k, v)
+        | S8.count '\n' v > 0 = Just ("Header " <> CI.original k <> " has newlines")
+        | True = Nothing

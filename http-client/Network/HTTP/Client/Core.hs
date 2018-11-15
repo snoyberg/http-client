@@ -17,6 +17,7 @@ module Network.HTTP.Client.Core
 import Network.HTTP.Types
 import Network.HTTP.Client.Manager
 import Network.HTTP.Client.Types
+import Network.HTTP.Client.Headers
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Response
@@ -190,6 +191,9 @@ getModifiedRequestManager manager0 req0 = do
 -- Since 0.1.0
 responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen inputReq manager' = do
+  case validateHeaders (requestHeaders inputReq) of
+    GoodHeaders -> return ()
+    BadHeaders reason -> throwHttp $ InvalidHeader reason
   (manager, req0) <- getModifiedRequestManager manager' inputReq
   wrapExc req0 $ mWrapException manager req0 $ do
     (req, res) <- go manager (redirectCount req0) req0
