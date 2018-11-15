@@ -109,5 +109,5 @@ validateHeaders headers =
         reasons -> BadHeaders (S8.unlines reasons)
     where
     validateHeader (k, v)
-        | S8.count '\n' v > 0 = Just ("Header " <> CI.original k <> " has newlines")
+        | S8.elem '\n' v = Just ("Header " <> CI.original k <> " has newlines")
         | True = Nothing
