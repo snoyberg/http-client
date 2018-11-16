@@ -100,7 +100,9 @@ parseStatusHeaders conn timeout' cont
 
     strip = S.dropWhile (== charSpace) . fst . S.spanEnd (== charSpace)
 
-data HeadersValidationResult = GoodHeaders | BadHeaders { _reason :: S.ByteString }
+data HeadersValidationResult
+    = GoodHeaders
+    | BadHeaders S.ByteString -- contains a message with the reason
 
 validateHeaders :: RequestHeaders -> HeadersValidationResult
 validateHeaders headers =

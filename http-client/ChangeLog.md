@@ -1,7 +1,10 @@
 ## next
 
+## 0.5.14
+
 * Omit port for `getUri` when protocol is `http` and port is `80`, or when
   protocol is `https` and port is `443`
+* Sending requests with invalid headers now throws InvalidRequestHeader exception
 
 ## 0.5.13.1
 

@@ -193,7 +193,7 @@ responseOpen :: Request -> Manager -> IO (Response BodyReader)
 responseOpen inputReq manager' = do
   case validateHeaders (requestHeaders inputReq) of
     GoodHeaders -> return ()
-    BadHeaders reason -> throwHttp $ InvalidHeader reason
+    BadHeaders reason -> throwHttp $ InvalidRequestHeader reason
   (manager, req0) <- getModifiedRequestManager manager' inputReq
   wrapExc req0 $ mWrapException manager req0 $ do
     (req, res) <- go manager (redirectCount req0) req0
