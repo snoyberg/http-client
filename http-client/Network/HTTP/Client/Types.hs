@@ -168,6 +168,10 @@ data HttpExceptionContent
                    -- ^ The given response header line could not be parsed
                    --
                    -- @since 0.5.0
+                   | InvalidRequestHeader S.ByteString
+                   -- ^ The given request header is not compliant (e.g. has newlines)
+                   --
+                   -- @since 0.5.14
                    | InternalException SomeException
                    -- ^ An exception was raised by an underlying library when
                    -- performing the request. Most often, this is caused by a
