@@ -28,8 +28,11 @@ module Network.HTTP.Simple
     , httpSource
     , withResponse
       -- * Types
+    , H.Header
     , H.Query
+    , H.QueryItem
     , H.Request
+    , H.ResponseHeaders
     , H.Response
     , JSONException (..)
     , H.HttpException (..)
@@ -328,7 +331,7 @@ setRequestHeader name vals req =
 -- __first__.
 --
 -- @since 2.1.10
-setRequestHeaders :: [(H.HeaderName, S.ByteString)] -> H.Request -> H.Request
+setRequestHeaders :: H.RequestHeaders -> H.Request -> H.Request
 setRequestHeaders x req = req { H.requestHeaders = x }
 
 -- | Get the query string parameters

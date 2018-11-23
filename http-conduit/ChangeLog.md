@@ -1,3 +1,8 @@
+## 2.3.3
+
+* Reexport Header, QueryItem and RequestHeaders from Network.HTTP.Types
+* Rewrite a type signature of setRequestHeaders with RequestHeaders
+
 ## 2.3.2
 
 * Adds `parseRequestThrow`, `parseRequestThrow_`, and
