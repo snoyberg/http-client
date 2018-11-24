@@ -32,8 +32,9 @@ module Network.HTTP.Simple
     , H.Query
     , H.QueryItem
     , H.Request
-    , H.ResponseHeaders
+    , H.RequestHeaders
     , H.Response
+    , H.ResponseHeaders
     , JSONException (..)
     , H.HttpException (..)
     , H.Proxy (..)
