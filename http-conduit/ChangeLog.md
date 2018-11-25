@@ -1,6 +1,11 @@
+## 2.3.4
+
+* Reexport RequestHeaders from Network.HTTP.Types (what was intended in last version)
+* Fix mistake in ChangeLog
+
 ## 2.3.3
 
-* Reexport Header, QueryItem and RequestHeaders from Network.HTTP.Types
+* Reexport Header, QueryItem and ResponseHeaders from Network.HTTP.Types
 * Rewrite a type signature of setRequestHeaders with RequestHeaders
 
 ## 2.3.2
