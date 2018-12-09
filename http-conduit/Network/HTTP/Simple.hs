@@ -35,6 +35,7 @@ module Network.HTTP.Simple
     , H.RequestHeaders
     , H.Response
     , H.ResponseHeaders
+    , H.Status
     , JSONException (..)
     , H.HttpException (..)
     , H.Proxy (..)
@@ -73,9 +74,12 @@ module Network.HTTP.Simple
       -- * Response lenses
     , getResponseStatus
     , getResponseStatusCode
+    , H.statusCode
+    , H.statusMessage
     , getResponseHeader
     , getResponseHeaders
     , getResponseBody
+    , getResponseBodyEither
       -- * Alternate spellings
     , httpLbs
     ) where
@@ -464,3 +468,15 @@ getResponseHeaders = H.responseHeaders
 -- @since 2.1.10
 getResponseBody :: H.Response a -> a
 getResponseBody = H.responseBody
+
+-- | Get the response body if the status code is 200 or the status with the body
+--
+-- @since
+getResponseBodyEither :: H.Response a -> Either (H.Status, a) a
+getResponseBodyEither response = case code of
+    200 -> Right body
+    _   -> Left (status, body)
+
+    where code = getResponseStatusCode response
+          status = getResponseStatus response
+          body = getResponseBody response
