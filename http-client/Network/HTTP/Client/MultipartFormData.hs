@@ -24,6 +24,7 @@ module Network.HTTP.Client.MultipartFormData
     (
     -- * Part type
      Part
+    ,PartM
     ,partName
     ,partFilename
     ,partContentType
@@ -77,17 +78,19 @@ import Data.Monoid (Monoid(..))
 import Control.Monad
 import Data.ByteString.Lazy.Internal (defaultChunkSize)
 
+type Part = PartM IO
+
 -- | A single part of a multipart message.
-data Part = Part
+data PartM m = Part
     { partName :: Text -- ^ Name of the corresponding \<input\>
     , partFilename :: Maybe String -- ^ A file name, if this is an attached file
     , partContentType :: Maybe MimeType -- ^ Content type
     , partHeaders :: [Header] -- ^ List of additional headers
-    , partGetBody :: IO RequestBody -- ^ Action in m which returns the body
+    , partGetBody :: m RequestBody -- ^ Action in m which returns the body
                                    -- of a message.
     }
 
-instance Show Part where
+instance Show (PartM m) where
     showsPrec d (Part n f c h _) =
         showParen (d>=11) $ showString "Part "
             . showsPrec 11 n
@@ -104,19 +107,21 @@ instance Show Part where
 --
 -- The 'Part' does not have a file name or content type associated
 -- with it.
-partBS :: Text              -- ^ Name of the corresponding \<input\>.
+partBS :: Applicative m
+       => Text              -- ^ Name of the corresponding \<input\>.
        -> BS.ByteString     -- ^ The body for this 'Part'.
-       -> Part
-partBS n b = Part n Data.Monoid.mempty mempty mempty $ return $ RequestBodyBS b
+       -> PartM m
+partBS n b = Part n Data.Monoid.mempty mempty mempty $ pure $ RequestBodyBS b
 
 -- | Make a 'Part' whose content is a lazy 'BL.ByteString'.
 --
 -- The 'Part' does not have a file name or content type associated
 -- with it.
-partLBS :: Text             -- ^ Name of the corresponding \<input\>.
+partLBS :: Applicative m
+        => Text             -- ^ Name of the corresponding \<input\>.
         -> BL.ByteString    -- ^ The body for this 'Part'.
-        -> Part
-partLBS n b = Part n mempty mempty mempty $ return $ RequestBodyLBS b
+        -> PartM m
+partLBS n b = Part n mempty mempty mempty $ pure $ RequestBodyLBS b
 
 -- | Make a 'Part' from a file.
 --
@@ -179,12 +184,13 @@ partFileSourceChunked n f =
 -- > partFileRequestBody "file" mempty mempty
 --
 -- The 'Part' does not have a content type associated with it.
-partFileRequestBody :: Text        -- ^ Name of the corresponding \<input\>.
+partFileRequestBody :: Applicative m
+                    => Text        -- ^ Name of the corresponding \<input\>.
                     -> FilePath    -- ^ File name to supply to the server.
                     -> RequestBody -- ^ Data to upload.
-                    -> Part
+                    -> PartM m
 partFileRequestBody n f rqb =
-    partFileRequestBodyM n f $ return rqb
+    partFileRequestBodyM n f $ pure rqb
 
 -- | Construct a 'Part' from action returning the 'RequestBody'
 --
@@ -195,8 +201,8 @@ partFileRequestBody n f rqb =
 -- The 'Part' does not have a content type associated with it.
 partFileRequestBodyM :: Text        -- ^ Name of the corresponding \<input\>.
                      -> FilePath    -- ^ File name to supply to the server.
-                     -> IO RequestBody -- ^ Action that will supply data to upload.
-                     -> Part
+                     -> m RequestBody -- ^ Action that will supply data to upload.
+                     -> PartM m
 partFileRequestBodyM n f rqb =
     Part n (Just f) (Just $ defaultMimeLookup $ pack f) mempty rqb
 
@@ -205,12 +211,13 @@ cp :: BS.ByteString -> RequestBody
 cp bs = RequestBodyBuilder (fromIntegral $ BS.length bs) $ copyByteString bs
 
 -- | Add a list of additional headers to this 'Part'.
-addPartHeaders :: Part -> [Header] -> Part
+addPartHeaders :: PartM m -> [Header] -> PartM m
 addPartHeaders p hs = p { partHeaders = partHeaders p <> hs }
 
-renderPart :: BS.ByteString     -- ^ Boundary between parts.
-           -> Part -> IO RequestBody
-renderPart boundary (Part name mfilename mcontenttype hdrs get) = liftM render get
+renderPart :: Functor m
+           => BS.ByteString     -- ^ Boundary between parts.
+           -> PartM m -> m RequestBody
+renderPart boundary (Part name mfilename mcontenttype hdrs get) = render <$> get
   where render renderBody =
             cp "--" <> cp boundary <> cp "\r\n"
          <> cp "Content-Disposition: form-data; name=\""
@@ -234,9 +241,10 @@ renderPart boundary (Part name mfilename mcontenttype hdrs get) = liftM render g
          <> renderBody <> cp "\r\n"
 
 -- | Combine the 'Part's to form multipart/form-data body
-renderParts :: BS.ByteString    -- ^ Boundary between parts.
-            -> [Part] -> IO RequestBody
-renderParts boundary parts = (fin . mconcat) `liftM` mapM (renderPart boundary) parts
+renderParts :: Applicative m
+            => BS.ByteString    -- ^ Boundary between parts.
+            -> [PartM m] -> m RequestBody
+renderParts boundary parts = (fin . mconcat) <$> traverse (renderPart boundary) parts
   where fin = (<> cp "--" <> cp boundary <> cp "--\r\n")
 
 -- | Generate a boundary simillar to those generated by WebKit-based browsers.
@@ -273,13 +281,12 @@ formDataBody a b = liftIO $ do
     formDataBodyWithBoundary boundary a b
 
 -- | Add form data with supplied boundary
-formDataBodyWithBoundary :: BS.ByteString -> [Part] -> Request -> IO Request
+formDataBodyWithBoundary :: Applicative m => BS.ByteString -> [PartM m] -> Request -> m Request
 formDataBodyWithBoundary boundary parts req = do
-    body <- renderParts boundary parts
-    return $ req
+    (\ body -> req
         { method = methodPost
         , requestHeaders =
             (hContentType, "multipart/form-data; boundary=" <> boundary)
           : Prelude.filter (\(x, _) -> x /= hContentType) (requestHeaders req)
         , requestBody = body
-        }
+        }) <$> renderParts boundary parts
