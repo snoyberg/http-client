@@ -1,5 +1,11 @@
 # Changelog for http-client
 
+## 0.6.0
+
+* Generalize `renderParts` over arbitrary applicative functors.  One particular
+  use case that is enabled by this change is that now `renderParts` can be used
+  in pure code by using it in combination with `runIdentity`.
+
 ## 0.5.14
 
 * Omit port for `getUri` when protocol is `http` and port is `80`, or when
