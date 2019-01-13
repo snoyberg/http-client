@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.6.1
+
+* Add `setUriEither` to `Network.HTTP.Client.Internal`
+
 ## 0.6.0
 
 * Generalize `renderParts` over arbitrary applicative functors.  One particular
