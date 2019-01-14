@@ -233,6 +233,8 @@ setUri req uri = either throwInvalidUrlException return (setUriEither req uri)
 
 -- | A variant of `setUri` that returns an error message on validation errors,
 -- instead of propagating them with `throwM`.
+--
+-- @since 0.6.1
 setUriEither :: Request -> URI -> Either String Request
 setUriEither req uri = do
     sec <- parseScheme uri
