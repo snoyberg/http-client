@@ -57,6 +57,7 @@ module Network.HTTP.Simple
     , setRequestHeaders
     , setRequestQueryString
     , getRequestQueryString
+    , addToRequestQueryString
       -- ** Request body
     , setRequestBody
     , setRequestBodyJSON
@@ -346,6 +347,13 @@ getRequestQueryString = H.parseQuery . H.queryString
 -- @since 2.1.10
 setRequestQueryString :: H.Query -> H.Request -> H.Request
 setRequestQueryString = H.setQueryString
+
+-- | Add to the existing query string parameters.
+--
+-- @since 2.3.5
+addToRequestQueryString :: H.Query -> H.Request -> H.Request
+addToRequestQueryString additions req = setRequestQueryString q req
+    where q = additions <> getRequestQueryString req
 
 -- | Set the request body to the given 'H.RequestBody'. You may want to
 -- consider using one of the convenience functions in the modules, e.g.
