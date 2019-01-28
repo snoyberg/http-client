@@ -1,3 +1,7 @@
+## 2.3.5
+
+* Adds `addToRequestQueryString` helper function
+
 ## 2.3.4
 
 * Reexport RequestHeaders from Network.HTTP.Types (what was intended in last version)
