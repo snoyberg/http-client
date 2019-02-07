@@ -40,7 +40,7 @@
 -- application which will make a large number of requests to different hosts,
 -- and will never make more than one connection to a single host, then sharing
 -- a 'Manager' will result in idle connections being kept open longer than
--- necessary. In such a situation, it makes sense to use 'withManager' around
+-- necessary. In such a situation, it makes sense to use 'newManager' before
 -- each new request, to avoid running out of file descriptors. (Note that the
 -- 'managerIdleConnectionCount' setting mitigates the risk of leaking too many
 -- file descriptors.)
