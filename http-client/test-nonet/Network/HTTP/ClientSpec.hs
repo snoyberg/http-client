@@ -254,3 +254,8 @@ spec = describe "Client" $ do
         ok <- readIORef okRef
         unless ok $
           throwIO (ErrorCall "already closed")
+
+    it "does not allow port overflow #383" $ do
+      case parseRequest "https://o_O:18446744072699450606" of
+        Left _ -> pure () :: IO ()
+        Right req -> error $ "Invalid request: " ++ show req

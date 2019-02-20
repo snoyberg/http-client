@@ -263,7 +263,7 @@ setUriEither req uri = do
             ':':rest -> maybe
                 (Left "Invalid port")
                 return
-                (readDec rest)
+                (readPositiveInt rest)
             -- Otherwise, use the default port
             _ -> case sec of
                     False {- HTTP -} -> return 80

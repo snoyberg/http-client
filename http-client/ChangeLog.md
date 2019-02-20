@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.6.1.1
+
+* Ensure that `Int` parsing doesn't overflow [#383](https://github.com/snoyberg/http-client/issues/383)
+
 ## 0.6.1
 
 * Add `setUriEither` to `Network.HTTP.Client.Internal`

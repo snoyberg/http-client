@@ -1,15 +1,15 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.Client.Util
-    ( readDec
+    ( readPositiveInt
     ) where
 
-import qualified Data.Text as T
-import qualified Data.Text.Read
+import Text.Read (readMaybe)
+import Control.Monad (guard)
 
-readDec :: Integral i => String -> Maybe i
-readDec s =
-    case Data.Text.Read.decimal $ T.pack s of
-        Right (i, t)
-            | T.null t -> Just i
-        _ -> Nothing
+-- | Read a positive 'Int', accounting for overflow
+readPositiveInt :: String -> Maybe Int
+readPositiveInt s = do
+  i <- readMaybe s
+  guard $ i >= 0
+  Just i
