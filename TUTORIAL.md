@@ -1,3 +1,5 @@
+# http-client tutorial
+
 http-client is a minimalistic package with a relatively low-level API and no
 support for TLS (HTTPS). This tutorial follows the `Network.HTTP.Simple` module
 from the http-conduit package, which provides a higher-level interface.
@@ -9,11 +11,18 @@ The API documentation can be found at:
 * [http-client](https://www.stackage.org/lts/package/http-client)
 * [http-conduit](https://www.stackage.org/lts/package/http-conduit)
 
+## Tutorial exercise
+
+To help motivate learning, keep in mind this exercise while reading through the
+content below, and try to implement a solution. Write a program that takes an
+input file with one URL per line, and ensures that making a request to each URL
+returns a non-error status code.
+
 ## Basic usage
 
 ``` haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Simple
@@ -42,7 +51,7 @@ We can also use aeson to receive a JSON message.
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -102,7 +111,7 @@ You can specify the request method at the beginning of your URL:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -125,7 +134,7 @@ more explicit about it with `parseRequest`:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -153,7 +162,7 @@ a runtime exception when forcing the pure `Request` value, e.g.:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Network.HTTP.Simple
 
@@ -176,7 +185,7 @@ modified with various request setter functions:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -209,7 +218,7 @@ without any URL parsing:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson            (Value)
 import qualified Data.ByteString.Char8 as S8
@@ -237,7 +246,7 @@ different request body formats. These include JSON:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson
 import qualified Data.ByteString.Char8 as S8
@@ -269,7 +278,7 @@ Or data from a file:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson
 import qualified Data.ByteString.Char8 as S8
@@ -336,7 +345,7 @@ as due to failed connections. To catch these, you should catch the
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Exception          (try)
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -358,7 +367,7 @@ at once. For these cases, a streaming data approach is useful.
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Monad.IO.Class (liftIO)
 import qualified Data.ByteString        as S
@@ -382,7 +391,7 @@ or `https_proxy` environment variables. This can be overridden:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Simple
@@ -414,7 +423,7 @@ global:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client        (defaultManagerSettings, newManager)
@@ -444,7 +453,7 @@ some settings:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -463,11 +472,11 @@ main = do
                show (getResponseStatusCode response)
     print $ getResponseHeader "Content-Type" response
     L8.putStrLn $ getResponseBody response
+```
 
 For our purposes, you should use
 `tlsManagerSettings` to ensure you have full HTTP and HTTPS support (as all
 examples below do).
-```
 
 ## Lower level API
 
@@ -478,7 +487,7 @@ lower-level API.
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 import Network.HTTP.Client
 import Network.HTTP.Client.TLS   (tlsManagerSettings)
 import Network.HTTP.Types.Status (statusCode)
@@ -506,7 +515,7 @@ It's also straightforward to compose this streaming with aeson to parse JSON:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 import           Data.Aeson.Parser           (json)
 import           Data.Conduit                (($$))
 import           Data.Conduit.Attoparsec     (sinkParser)
@@ -536,7 +545,7 @@ Sending JSON can be done with modifying the request method and body:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Data.Aeson                 (encode, object, (.=))
 import qualified Data.ByteString.Lazy.Char8 as L8
@@ -574,7 +583,7 @@ sets the request method to `POST`, which we can override if desired:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -602,38 +611,11 @@ main = do
 
 ## Non-2XX responses
 
-The `checkStatus` record selector in versions older than 0.5 and
-`checkResponse` in 0.5 and later allows to examine request and response and
+The `checkResponse` record selector (starting in version 0.5 of http-client)
+allows you to examine the request and response and
 throw an exception if something is wrong. In versions older than 0.5 non-2XX
 response status codes were throwing exceptions, but now this has been
-changed and `checkResponse` does nothing by default. For users of older
-versions of the library, here is how to forbid throwing exceptions on
-adverse status codes:
-
-```haskell
-#!/usr/bin/env stack
--- stack script --resolver lts-5.13
-{-# LANGUAGE OverloadedStrings #-}
-import qualified Data.ByteString.Lazy.Char8 as L8
-import           Network.HTTP.Client
-import           Network.HTTP.Client.TLS
-import           Network.HTTP.Types.Status  (statusCode)
-
-main :: IO ()
-main = do
-    manager <- newManager tlsManagerSettings
-
-    -- Make a GET request to a POST-expecting endpoint, which will generate a
-    -- 405 status code
-    let request = "http://httpbin.org/post"
-            { checkStatus = \_ _ _ -> Nothing
-            }
-
-    response <- httpLbs request manager
-    putStrLn $ "The status code was: "
-            ++ show (statusCode $ responseStatus response)
-    L8.putStrLn $ responseBody response
-```
+changed and `checkResponse` does nothing by default.
 
 ## Proxy settings
 
@@ -642,7 +624,7 @@ environment variables. You can modify this when creating your `Manager`:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -664,7 +646,7 @@ You can also modify the proxy settings per-request:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import qualified Data.ByteString.Lazy.Char8 as L8
 import           Network.HTTP.Client
@@ -698,7 +680,7 @@ connections to a single server at once.
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 {-# LANGUAGE OverloadedStrings #-}
 import           Control.Concurrent.Async  (Concurrently (..))
 import qualified Data.ByteString.Char8     as S8
@@ -743,7 +725,7 @@ lower-level streaming API:
 
 ```haskell
 #!/usr/bin/env stack
--- stack script --resolver lts-8.22
+-- stack script --resolver lts-12.21
 import qualified Data.ByteString           as S
 import           Network.HTTP.Client
 import           Network.HTTP.Client.TLS   (tlsManagerSettings)
@@ -769,3 +751,15 @@ main = do
                         loop
         loop
 ```
+
+## Exercise
+
+Check all of the URLs in a file to ensure they return non-error status
+codes. Each line is its own URL.
+
+Bonuses:
+
+* Use conduit to stream the file contents.
+* Do the checking concurrently.
+* Real bonus: check URLs within downloaded HTML pages, using
+  html-conduit to parse.
