@@ -551,6 +551,12 @@ data Request = Request
     -- dealing with implicit global managers, such as in @Network.HTTP.Simple@
     --
     -- @since 0.4.28
+
+    , shouldStripHeaderOnRedirect :: HeaderName -> Bool
+    -- ^ Decide whether a header must be stripped from the request
+    -- when following a redirect. Default: keep all headers intact.
+    --
+    -- @since 0.6.2
     }
     deriving T.Typeable
 
