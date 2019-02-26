@@ -95,6 +95,7 @@ import qualified Data.Aeson.Types as A
 import qualified Data.Aeson as A
 import qualified Data.Traversable as T
 import Control.Exception (throw, throwIO, Exception)
+import Data.Monoid
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
 import Data.Conduit (runConduit, (.|), ConduitM)
