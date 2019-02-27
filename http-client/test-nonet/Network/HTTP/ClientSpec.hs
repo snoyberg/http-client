@@ -13,6 +13,7 @@ import           Network.HTTP.Client       hiding (port)
 import qualified Network.HTTP.Client       as NC
 import qualified Network.HTTP.Client.Internal as Internal
 import           Network.HTTP.Types        (status413)
+import           Network.HTTP.Types.Header
 import qualified Network.Socket            as NS
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
@@ -38,21 +39,28 @@ silentIOError a = a `E.catch` \e -> do
   let _ = e :: IOError
   return ()
 
-redirectServer :: (Int -> IO a) -> IO a
-redirectServer inner = bracket
+redirectServer :: Maybe Int
+               -- ^ If Just, stop redirecting after that many hops.
+               -> (Int -> IO a) -> IO a
+redirectServer maxRedirects inner = bracket
     (N.bindRandomPortTCP "*4")
     (NS.close . snd)
     $ \(port, lsocket) -> withAsync
         (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
         (const $ inner port)
   where
+    redirect ad = do
+        N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
+        threadDelay 10000
+        N.appWrite ad "hello\r\n"
+        threadDelay 10000
     app ad = Async.race_
         (silentIOError $ forever (N.appRead ad))
-        (silentIOError $ forever $ do
-            N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: /\r\ncontent-length: 5\r\n\r\n"
-            threadDelay 10000
-            N.appWrite ad "hello\r\n"
-            threadDelay 10000)
+        (silentIOError $ case maxRedirects of
+            Nothing -> forever $ redirect ad
+            Just n ->
+              replicateM_ n (redirect ad) >>
+              N.appWrite ad "HTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n")
 
 redirectCloseServer :: (Int -> IO a) -> IO a
 redirectCloseServer inner = bracket
@@ -158,7 +166,18 @@ spec = describe "Client" $ do
                         _ -> False
                 return ()
         mapM_ test ["http://", "https://", "http://:8000", "https://:8001"]
-    it "redirecting #41" $ redirectServer $ \port -> do
+    it "headers can be stripped on redirect" $ redirectServer (Just 5) $ \port -> do
+        req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+        let req = req' { requestHeaders = [(hAuthorization, "abguvatgbfrrurer")]
+                       , redirectCount = 10
+                       , shouldStripHeaderOnRedirect = (== hAuthorization)
+                       }
+        man <- newManager defaultManagerSettings
+        withResponseHistory req man $ \hr -> do
+          print $ map (requestHeaders . fst) $ hrRedirects hr
+          mapM_ (\r -> requestHeaders r `shouldBe` []) $
+            map fst $ tail $ hrRedirects hr
+    it "redirecting #41" $ redirectServer Nothing $ \port -> do
         req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         let req = req' { redirectCount = 1 }
         man <- newManager defaultManagerSettings
@@ -167,7 +186,7 @@ spec = describe "Client" $ do
                 case e of
                     HttpExceptionRequest _ (TooManyRedirects _) -> True
                     _ -> False
-    it "redirectCount=0" $ redirectServer $ \port -> do
+    it "redirectCount=0" $ redirectServer Nothing $ \port -> do
         req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
         let req = req' { redirectCount = 0 }
         man <- newManager defaultManagerSettings

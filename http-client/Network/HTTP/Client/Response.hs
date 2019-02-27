@@ -53,7 +53,11 @@ getRedirectedRequest req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
         let l = escapeURIString isAllowedInURI (S8.unpack l')
-        req' <- setUriRelative req =<< parseURIReference l
+            stripHeaders r =
+              r{requestHeaders =
+                filter (not . shouldStripHeaderOnRedirect req . fst) $
+                requestHeaders r}
+        req' <- fmap stripHeaders <$> setUriRelative req =<< parseURIReference l
         return $
             if code == 302 || code == 303
                 -- According to the spec, this should *only* be for status code

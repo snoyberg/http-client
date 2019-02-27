@@ -299,6 +299,7 @@ defaultRequest = Request
                 Just (_ :: IOException) -> return ()
                 Nothing -> throwIO se
         , requestManagerOverride = Nothing
+        , shouldStripHeaderOnRedirect = const False
         }
 
 -- | Parses a URL via 'parseRequest_'

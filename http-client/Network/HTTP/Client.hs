@@ -159,6 +159,7 @@ module Network.HTTP.Client
     , applyBasicProxyAuth
     , decompress
     , redirectCount
+    , shouldStripHeaderOnRedirect
     , checkResponse
     , responseTimeout
     , cookieJar

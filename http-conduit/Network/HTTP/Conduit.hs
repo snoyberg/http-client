@@ -158,6 +158,7 @@ module Network.HTTP.Conduit
     , rawBody
     , decompress
     , redirectCount
+    , shouldStripHeaderOnRedirect
     , checkResponse
     , responseTimeout
     , cookieJar
