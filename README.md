@@ -1,12 +1,13 @@
-Status :
-[![Build Status](https://travis-ci.org/snoyberg/http-client.svg?branch=master)](https://travis-ci.org/snoyberg/http-client)
+# http-client megarepo
+
+[![Build Status](https://dev.azure.com/snoyberg/http-client/_apis/build/status/snoyberg.http-client?branchName=master)](https://dev.azure.com/snoyberg/http-client/_build/latest?definitionId=2&branchName=master)
 
 This is a mega-repo for housing the http-client family of packages for Haskell.
 These packages provide a low level HTTP client engine (http-client), different
 backends for providing SSL support (http-client-tls and http-client-openssl),
 and higher-level APIs for user convenience (http-conduit).
 
-Please check out the [tutorial on haskell-lang](https://haskell-lang.org/library/http-client).
+Please check out the [tutorial on haskell.fpcomplete.com](https://haskell.fpcomplete.com/library/http-client).
 
 Due to Haddock pulling the documentation directly from http-client, some "Since"
 notations give the version numbers of the http-client package. For reference,
