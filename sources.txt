@@ -1,4 +1,0 @@
-./http-client
-./http-client-tls
-./http-client-openssl
-./http-conduit
