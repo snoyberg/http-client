@@ -15,6 +15,7 @@ module Network.HTTP.Client.Conduit
     , responseOpen
     , responseClose
     , acquireResponse
+    , httpSource
       -- * Manager helpers
     , defaultManagerSettings
     , newManager
@@ -31,13 +32,14 @@ module Network.HTTP.Client.Conduit
 
 import           Control.Monad                (unless)
 import           Control.Monad.IO.Unlift      (MonadIO, liftIO, MonadUnliftIO, withRunInIO)
-import           Control.Monad.Reader         (MonadReader (..))
+import           Control.Monad.Reader         (MonadReader (..), runReaderT)
+import           Control.Monad.Trans.Resource (MonadResource)
 import           Data.Acquire                 (Acquire, mkAcquire, with)
 import           Data.ByteString              (ByteString)
 import qualified Data.ByteString              as S
 import qualified Data.ByteString.Lazy         as L
-import           Data.Conduit                 (ConduitM, ($$+),
-                                               await, yield, ($$++))
+import           Data.Conduit                 (ConduitM, ($$+), ($$++),
+                                               await, yield, bracketP)
 import           Data.Int                     (Int64)
 import           Data.IORef                   (newIORef, readIORef, writeIORef)
 import           Network.HTTP.Client          hiding (closeManager,
@@ -172,3 +174,19 @@ httpNoBody req = do
     env <- ask
     let man = getHttpManager env
     liftIO $ H.httpNoBody req man
+
+-- | Same as 'Network.HTTP.Simple.httpSource', but uses 'Manager'
+--   from Reader environment instead of the global one.
+--
+--   Since 2.3.6
+httpSource
+  :: (MonadResource m, MonadIO n, MonadReader env m, HasHttpManager env)
+  => Request
+  -> (Response (ConduitM () ByteString n ()) -> ConduitM () r m ())
+  -> ConduitM () r m ()
+httpSource request withRes = do
+  env <- ask
+  bracketP
+    (runReaderT (responseOpen request) env)
+    responseClose
+    withRes

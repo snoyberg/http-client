@@ -1,3 +1,7 @@
+## 2.3.6
+
+* Add `httpSource` to `Network.HTTP.Client.Conduit` [#390](https://github.com/snoyberg/http-client/pull/390).
+
 ## 2.3.5
 
 * Adds `addToRequestQueryString` helper function
