@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP #-}
 {-# LANGUAGE FlexibleContexts  #-}
 {-# LANGUAGE OverloadedStrings #-}
 -- |
@@ -158,7 +159,9 @@ module Network.HTTP.Conduit
     , rawBody
     , decompress
     , redirectCount
+#if MIN_VERSION_http_client(0,6,2)
     , shouldStripHeaderOnRedirect
+#endif
     , checkResponse
     , responseTimeout
     , cookieJar
