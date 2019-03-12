@@ -1,3 +1,9 @@
+# ChangeLog for http-conduit
+
+## 2.3.6.1
+
+* Add back compatibility with older http-client version [#393](https://github.com/snoyberg/http-client/pull/393)
+
 ## 2.3.6
 
 * Add `httpSource` to `Network.HTTP.Client.Conduit` [#390](https://github.com/snoyberg/http-client/pull/390).
