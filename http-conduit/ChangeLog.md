@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.7
+
+* Ignore trailing whitespace on JSON responses [#395](https://github.com/snoyberg/http-client/issues/395)
+
 ## 2.3.6.1
 
 * Add back compatibility with older http-client version [#393](https://github.com/snoyberg/http-client/pull/393)

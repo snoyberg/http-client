@@ -98,6 +98,7 @@ import Control.Exception (throw, throwIO, Exception)
 import Data.Monoid
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
+import qualified Data.Conduit.Combinators as CC
 import Data.Conduit (runConduit, (.|), ConduitM)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Network.HTTP.Types as H
@@ -153,6 +154,12 @@ httpJSONEither req = liftIO $ httpSink req' sink
     req' = addRequestHeader H.hAccept "application/json" req
     sink orig = fmap (\x -> fmap (const x) orig) $ do
         eres1 <- C.sinkParserEither json'
+
+        -- Consume up to 1024 bytes of trailing whitespace so that we
+        -- can reuse connections. See
+        -- https://github.com/snoyberg/http-client/issues/395
+        CC.takeE 1024 .| CC.sinkNull
+
         case eres1 of
             Left e -> return $ Left $ JSONParseException req' orig e
             Right value ->
