@@ -98,7 +98,6 @@ import Control.Exception (throw, throwIO, Exception)
 import Data.Monoid
 import Data.Typeable (Typeable)
 import qualified Data.Conduit as C
-import qualified Data.Conduit.Combinators as CC
 import Data.Conduit (runConduit, (.|), ConduitM)
 import qualified Data.Conduit.Attoparsec as C
 import qualified Network.HTTP.Types as H
@@ -106,6 +105,7 @@ import Data.Int (Int64)
 import Control.Monad.Trans.Resource (MonadResource, MonadThrow)
 import qualified Control.Exception as E (bracket)
 import Data.Void (Void)
+import qualified Data.Attoparsec.ByteString as Atto
 
 -- | Perform an HTTP request and return the body as a @ByteString@.
 --
@@ -153,12 +153,7 @@ httpJSONEither req = liftIO $ httpSink req' sink
   where
     req' = addRequestHeader H.hAccept "application/json" req
     sink orig = fmap (\x -> fmap (const x) orig) $ do
-        eres1 <- C.sinkParserEither json'
-
-        -- Consume up to 1024 bytes of trailing whitespace so that we
-        -- can reuse connections. See
-        -- https://github.com/snoyberg/http-client/issues/395
-        CC.takeE 1024 .| CC.sinkNull
+        eres1 <- C.sinkParserEither (json' <* Atto.endOfInput)
 
         case eres1 of
             Left e -> return $ Left $ JSONParseException req' orig e

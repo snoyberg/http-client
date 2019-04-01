@@ -2,7 +2,7 @@
 
 ## 2.3.7
 
-* Ignore trailing whitespace on JSON responses [#395](https://github.com/snoyberg/http-client/issues/395)
+* Ensure entire JSON response body is consumed [#395](https://github.com/snoyberg/http-client/issues/395)
 
 ## 2.3.6.1
 
