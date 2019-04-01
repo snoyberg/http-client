@@ -8,7 +8,6 @@ module Network.HTTP.Client.Body
     , brConsume
     , brEmpty
     , constBodyReader
-    , brAddCleanup
     , brReadSome
     , brRead
     ) where
@@ -61,12 +60,6 @@ constBodyReader input = do
             [] -> ([], S.empty)
             x:xs -> (xs, x)
 
-brAddCleanup :: IO () -> BodyReader -> BodyReader
-brAddCleanup cleanup brRead' = do
-    bs <- brRead'
-    when (S.null bs) cleanup
-    return bs
-
 -- | Strictly consume all remaining chunks of data from the stream.
 --
 -- Since 0.1.0
@@ -111,16 +104,25 @@ makeGzipReader brRead' = do
             Nothing -> start
             Just popper -> goPopper popper
 
-makeUnlimitedReader :: Connection -> IO BodyReader
-makeUnlimitedReader Connection {..} = do
+makeUnlimitedReader
+  :: IO () -- ^ cleanup
+  -> Connection
+  -> IO BodyReader
+makeUnlimitedReader cleanup Connection {..} = do
     icomplete <- newIORef False
     return $ do
         bs <- connectionRead
-        when (S.null bs) $ writeIORef icomplete True
+        when (S.null bs) $ do
+          writeIORef icomplete True
+          cleanup
         return bs
 
-makeLengthReader :: Int -> Connection -> IO BodyReader
-makeLengthReader count0 Connection {..} = do
+makeLengthReader
+  :: IO () -- ^ cleanup
+  -> Int
+  -> Connection
+  -> IO BodyReader
+makeLengthReader cleanup count0 Connection {..} = do
     icount <- newIORef count0
     return $ do
         count <- readIORef icount
@@ -134,20 +136,27 @@ makeLengthReader count0 Connection {..} = do
                         let (x, y) = S.splitAt count bs
                         connectionUnread y
                         writeIORef icount (-1)
+                        cleanup
                         return x
                     EQ -> do
                         writeIORef icount (-1)
+                        cleanup
                         return bs
                     GT -> do
                         writeIORef icount (count - S.length bs)
                         return bs
 
-makeChunkedReader :: Bool -- ^ raw
-                  -> Connection
-                  -> IO BodyReader
-makeChunkedReader raw conn@Connection {..} = do
+makeChunkedReader
+  :: IO () -- ^ cleanup
+  -> Bool -- ^ raw
+  -> Connection
+  -> IO BodyReader
+makeChunkedReader cleanup raw conn@Connection {..} = do
     icount <- newIORef 0
-    return $ go icount
+    return $ do
+      bs <- go icount
+      when (S.null bs) cleanup
+      pure bs
   where
     go icount = do
         count0 <- readIORef icount

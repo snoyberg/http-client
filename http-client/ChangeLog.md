@@ -1,5 +1,12 @@
 # Changelog for http-client
 
+## 0.6.3
+
+* Detect response body termination before reading an extra null chunk
+  when possible. This allows connections to be reused in some corner
+  cases. See
+  [#395](https://github.com/snoyberg/http-client/issues/395)
+
 ## 0.6.2
 
 * Add `shouldStripHeaderOnRedirect` option to `Request` [#300](https://github.com/snoyberg/http-client/issues/300)
