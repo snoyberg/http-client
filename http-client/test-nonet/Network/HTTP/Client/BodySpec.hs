@@ -22,7 +22,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\nnot consumed"
             ]
-        reader <- makeChunkedReader False conn
+        reader <- makeChunkedReader (return ()) False conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -32,7 +32,7 @@ spec = describe "BodySpec" $ do
     it "chunked, pieces" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "5\r\nhello\r\n6\r\n world\r\n0\r\nnot consumed"
-        reader <- makeChunkedReader False conn
+        reader <- makeChunkedReader (return ()) False conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -43,7 +43,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\nnot consumed"
             ]
-        reader <- makeChunkedReader True conn
+        reader <- makeChunkedReader (return ()) True conn
         body <- brConsume reader
         S.concat body `shouldBe` "5\r\nhello\r\n6\r\n world\r\n0\r\n"
         input' <- input
@@ -53,7 +53,7 @@ spec = describe "BodySpec" $ do
     it "chunked, pieces, raw" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "5\r\nhello\r\n6\r\n world\r\n0\r\nnot consumed"
-        reader <- makeChunkedReader True conn
+        reader <- makeChunkedReader (return ()) True conn
         body <- brConsume reader
         S.concat body `shouldBe` "5\r\nhello\r\n6\r\n world\r\n0\r\n"
         input' <- input
@@ -64,7 +64,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "hello world done"
             ]
-        reader <- makeLengthReader 11 conn
+        reader <- makeLengthReader (return ()) 11 conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -74,7 +74,7 @@ spec = describe "BodySpec" $ do
     it "length, pieces" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "hello world done"
-        reader <- makeLengthReader 11 conn
+        reader <- makeLengthReader (return ()) 11 conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -85,7 +85,7 @@ spec = describe "BodySpec" $ do
         let orig = L.fromChunks $ replicate 5000 "Hello world!"
             origZ = compress orig
         (conn, _, input) <- dummyConnection $ L.toChunks origZ ++ ["ignored"]
-        reader' <- makeLengthReader (fromIntegral $ L.length origZ) conn
+        reader' <- makeLengthReader (return ()) (fromIntegral $ L.length origZ) conn
         reader <- makeGzipReader reader'
         body <- brConsume reader
         L.fromChunks body `shouldBe` orig
