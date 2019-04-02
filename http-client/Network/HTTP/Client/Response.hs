@@ -107,15 +107,14 @@ getResponse timeout' req@(Request {..}) mconn cont = do
             else do
                 body1 <-
                     if isChunked
-                        then makeChunkedReader rawBody conn
+                        then makeChunkedReader (cleanup True) rawBody conn
                         else
                             case mcl of
-                                Just len -> makeLengthReader len conn
-                                Nothing -> makeUnlimitedReader conn
-                body2 <- if needsGunzip req hs
+                                Just len -> makeLengthReader (cleanup True) len conn
+                                Nothing -> makeUnlimitedReader (cleanup True) conn
+                if needsGunzip req hs
                     then makeGzipReader body1
                     else return body1
-                return $ brAddCleanup (cleanup True) body2
 
     return Response
         { responseStatus = s

@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         2.3.6.1
+version:         2.3.7
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -23,6 +23,7 @@ extra-source-files: test/main.hs
 library
     build-depends: base                  >= 4       && < 5
                  , aeson                 >= 0.8
+                 , attoparsec
                  , bytestring            >= 0.9.1.4
                  , transformers          >= 0.2
                  , resourcet             >= 1.1

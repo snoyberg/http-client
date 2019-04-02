@@ -105,6 +105,7 @@ import Data.Int (Int64)
 import Control.Monad.Trans.Resource (MonadResource, MonadThrow)
 import qualified Control.Exception as E (bracket)
 import Data.Void (Void)
+import qualified Data.Attoparsec.ByteString as Atto
 
 -- | Perform an HTTP request and return the body as a @ByteString@.
 --
@@ -152,7 +153,8 @@ httpJSONEither req = liftIO $ httpSink req' sink
   where
     req' = addRequestHeader H.hAccept "application/json" req
     sink orig = fmap (\x -> fmap (const x) orig) $ do
-        eres1 <- C.sinkParserEither json'
+        eres1 <- C.sinkParserEither (json' <* Atto.endOfInput)
+
         case eres1 of
             Left e -> return $ Left $ JSONParseException req' orig e
             Right value ->
