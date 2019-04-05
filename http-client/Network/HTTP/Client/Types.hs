@@ -518,9 +518,9 @@ data Request = Request
     --
     -- @since 0.5.0
     , responseTimeout :: ResponseTimeout
-    -- ^ Number of microseconds to wait for a response. If
-    -- @Nothing@, will wait indefinitely. Default: use
-    -- 'managerResponseTimeout' (which by default is 30 seconds).
+    -- ^ Number of microseconds to wait for a response (see 'ResponseTimeout'
+    -- for more information). Default: use 'managerResponseTimeout' (which by
+    -- default is 30 seconds).
     --
     -- Since 0.1.0
     , cookieJar :: Maybe CookieJar
@@ -565,8 +565,12 @@ data Request = Request
 -- @since 0.5.0
 data ResponseTimeout
     = ResponseTimeoutMicro !Int
+    -- ^ Wait the given number of microseconds and then throw an exception
     | ResponseTimeoutNone
+    -- ^ Wait indefinitely
     | ResponseTimeoutDefault
+    -- ^ Fall back to the manager setting ('managerResponseTimeout') or, in its
+    -- absence, Wait 30 seconds and then throw an exception.
     deriving (Eq, Show)
 
 instance Show Request where
