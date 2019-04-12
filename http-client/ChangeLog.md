@@ -1,5 +1,11 @@
 # Changelog for http-client
 
+## 0.6.4
+
+* Avoid throwing an exception when a malformed HTTP header is received,
+  to be as robust as commonly used HTTP clients.
+  See [#398](https://github.com/snoyberg/http-client/issues/398)
+
 ## 0.6.3
 
 * Detect response body termination before reading an extra null chunk
