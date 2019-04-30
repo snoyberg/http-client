@@ -463,9 +463,13 @@ main = do
             res <- I.readIORef ref
             res `shouldBe` qs
 
-    describe "Simple" $ do
-        it "JSON" $ jsonApp $ \port -> do
+    describe "Simple.JSON" $ do
+        it "normal" $ jsonApp $ \port -> do
             req <- parseUrlThrow $ "http://localhost:" ++ show port
+            value <- Simple.httpJSON req
+            responseBody value `shouldBe` jsonValue
+        it "trailing whitespace" $ jsonApp $ \port -> do
+            req <- parseUrlThrow $ "http://localhost:" ++ show port ++ "/trailing"
             value <- Simple.httpJSON req
             responseBody value `shouldBe` jsonValue
 
@@ -607,11 +611,14 @@ rawApp bs =
     src = yield bs
 
 jsonApp :: (Int -> IO ()) -> IO ()
-jsonApp = withApp $ \_req -> return $ responseLBS
+jsonApp = withApp $ \req -> return $ responseLBS
     status200
     [ ("Content-Type", "application/json")
-    ]
-    (A.encode jsonValue)
+    ] $
+    case pathInfo req of
+      [] -> A.encode jsonValue
+      ["trailing"] -> A.encode jsonValue <> "   \n\r\n\t  "
+      x -> error $ "unsupported: " ++ show x
 
 jsonValue :: A.Value
 jsonValue = A.object

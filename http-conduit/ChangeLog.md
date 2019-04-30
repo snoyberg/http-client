@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.7.1
+
+* Properly skip whitespace after JSON body [#401](https://github.com/snoyberg/http-client/issues/401)
+
 ## 2.3.7
 
 * Ensure entire JSON response body is consumed [#395](https://github.com/snoyberg/http-client/issues/395)
