@@ -617,7 +617,7 @@ jsonApp = withApp $ \req -> return $ responseLBS
     ] $
     case pathInfo req of
       [] -> A.encode jsonValue
-      ["trailing"] -> A.encode jsonValue <> "   \n\r\n\t  "
+      ["trailing"] -> L.append (A.encode jsonValue) "   \n\r\n\t  "
       x -> error $ "unsupported: " ++ show x
 
 jsonValue :: A.Value
