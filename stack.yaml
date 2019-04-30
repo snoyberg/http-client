@@ -1,6 +1,8 @@
-resolver: lts-13.7
+resolver: lts-13.19
 packages:
 - http-client
 - http-client-tls
 - http-client-openssl
 - http-conduit
+extra-deps:
+- network-bsd-2.8.0.0

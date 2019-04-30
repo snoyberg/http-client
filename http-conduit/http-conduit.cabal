@@ -66,6 +66,7 @@ test-suite test
                  , case-insensitive
                  , unliftio
                  , network
+                 , network-bsd
                  , wai >= 3.0 && < 3.3
                  , warp >= 3.0.0.2 && < 3.3
                  , wai-conduit
