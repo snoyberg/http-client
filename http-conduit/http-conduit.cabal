@@ -65,8 +65,6 @@ test-suite test
                  , utf8-string
                  , case-insensitive
                  , unliftio
-                 , network
-                 , network-bsd
                  , wai >= 3.0 && < 3.3
                  , warp >= 3.0.0.2 && < 3.3
                  , wai-conduit
@@ -79,6 +77,15 @@ test-suite test
                  , aeson
                  , temporary
                  , resourcet
+  if flag(network3)
+    build-depends: network >= 3, network-bsd
+  else
+    build-depends: network < 3
+
+flag network3
+  default: False
+  manual: False
+  description: Use network 3 or higher
 
 source-repository head
   type:     git
