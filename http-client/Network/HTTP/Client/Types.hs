@@ -695,6 +695,9 @@ data ManagerSettings = ManagerSettings
     , managerModifyRequest :: Request -> IO Request
     -- ^ Perform the given modification to a @Request@ before performing it.
     --
+    -- This function may be called more than once during request processing.
+    -- see https://github.com/snoyberg/http-client/issues/350
+    --
     -- Default: no modification
     --
     -- Since 0.4.4
