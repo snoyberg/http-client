@@ -101,15 +101,12 @@ getResponse timeout' req@(Request {..}) mconn cont = do
 
     body <-
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
-        if hasNoBody method (W.statusCode s) || (mcl == Just 0 && not isChunked)
+        -- If the transfer-encoding is chunked then we need to consume the empty
+        -- chunk header or it will linger in the connection buffer and mess up
+        -- the next request in proxied keep-alive connections.
+        -- See https://github.com/snoyberg/http-client/pull/408
+        if not isChunked && (hasNoBody method (W.statusCode s) || mcl == Just 0)
             then do
-                when isChunked $ do
-                    -- if chunked encoding we need to consume the empty chunk's
-                    -- header or it'll linger if the connection is kept alive on
-                    -- the connection buffer and mess up the next request
-                    -- See https://github.com/snoyberg/http-client/pull/408
-                    bs <- connectionRead conn
-                    unless ( bs == "0\r\n") $ throwHttp InvalidChunkHeaders
                 cleanup True
                 return brEmpty
             else do
