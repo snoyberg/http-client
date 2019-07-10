@@ -102,7 +102,7 @@ getResponse timeout' req@(Request {..}) mconn cont = do
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
         if hasNoBody method (W.statusCode s) || (mcl == Just 0 && not isChunked)
             then do
-                cleanup False -- The body hasn't actually been consumed
+                cleanup True
                 return brEmpty
             else do
                 body1 <-
