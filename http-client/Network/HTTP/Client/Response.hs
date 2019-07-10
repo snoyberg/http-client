@@ -11,6 +11,7 @@ import qualified Data.ByteString.Char8 as S8
 import qualified Data.ByteString.Lazy as L
 import qualified Data.CaseInsensitive as CI
 import Control.Arrow (second)
+import Control.Monad (when, unless)
 
 import Data.Monoid (mempty)
 
@@ -102,6 +103,13 @@ getResponse timeout' req@(Request {..}) mconn cont = do
         -- RFC 2616 section 4.4_1 defines responses that must not include a body
         if hasNoBody method (W.statusCode s) || (mcl == Just 0 && not isChunked)
             then do
+                when isChunked $ do
+                    -- if chunked encoding we need to consume the empty chunk's
+                    -- header or it'll linger if the connection is kept alive on
+                    -- the connection buffer and mess up the next request
+                    -- See https://github.com/snoyberg/http-client/pull/408
+                    bs <- connectionRead conn
+                    unless ( bs == "0\r\n") $ throwHttp InvalidChunkHeaders
                 cleanup True
                 return brEmpty
             else do
