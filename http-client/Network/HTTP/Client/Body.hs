@@ -22,7 +22,7 @@ import qualified Data.ByteString.Lazy as L
 import Control.Monad (unless, when)
 import qualified Data.Streaming.Zlib as Z
 
--- ^ Get a single chunk of data from the response body, or an empty
+-- | Get a single chunk of data from the response body, or an empty
 -- bytestring if no more data is available.
 --
 -- Note that in order to consume the entire request body, you will need to
