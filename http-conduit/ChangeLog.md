@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.7.2
+
+* Add the `network3` flag
+
 ## 2.3.7.1
 
 * Properly skip whitespace after JSON body [#401](https://github.com/snoyberg/http-client/issues/401)
