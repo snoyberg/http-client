@@ -77,15 +77,7 @@ test-suite test
                  , aeson
                  , temporary
                  , resourcet
-  if flag(network3)
-    build-depends: network >= 3, network-bsd
-  else
-    build-depends: network < 3
-
-flag network3
-  default: False
-  manual: False
-  description: Use network 3 or higher
+                 , network
 
 source-repository head
   type:     git

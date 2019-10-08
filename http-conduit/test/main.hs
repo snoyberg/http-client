@@ -21,7 +21,6 @@ import UnliftIO.Exception (try, SomeException, bracket, onException, IOException
 import qualified Data.IORef as I
 import qualified Control.Exception as E (catch)
 import qualified Network.Socket as NS
-import qualified Network.BSD
 import CookieTest (cookieTest)
 #if MIN_VERSION_conduit(1,1,0)
 import Data.Conduit.Network (runTCPServer, serverSettings, appSink, appSource, ServerSettings)
@@ -406,9 +405,8 @@ main = do
 
     describe "hostAddress" $ do
         it "overrides host" $ withApp app $ \port -> do
-            entry <- Network.BSD.getHostByName "127.0.0.1"
             req' <- parseUrlThrow $ "http://example.com:" ++ show port
-            let req = req' { hostAddress = Just $ Network.BSD.hostAddress entry }
+            let req = req' { hostAddress = Just 0x0100007f } -- 127.0.0.1
             manager <- newManager tlsManagerSettings
             res <- httpLbs req manager
             responseBody res @?= "homepage for example.com"
