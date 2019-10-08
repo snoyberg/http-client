@@ -1,0 +1,9 @@
+resolver: lts-14.7
+packages:
+- http-client
+- http-client-tls
+- http-client-openssl
+- http-conduit
+
+extra-deps:
+- network-3.1.1.0@sha256:c60e754c878bf769476c8f717ca36dfa54a5151d8aa058778decf92680ed3841,4268
