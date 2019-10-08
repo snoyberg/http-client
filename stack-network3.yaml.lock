@@ -10,7 +10,21 @@ packages:
       size: 3297
       sha256: aff9e181eb0db8aba669789f384f036d9cc436d47447fe6a45738ee019011683
   original:
-    hackage: network-3.1.1.0@sha256:c60e754c878bf769476c8f717ca36dfa54a5151d8aa058778decf92680ed3841,4268
+    hackage: network-3.1.1.0
+- completed:
+    hackage: warp-3.3.3@sha256:7f283dfdad1edff64ac527abfcdd8a7ccbc1c652347d8c923570c5b2a544000b,10720
+    pantry-tree:
+      size: 3898
+      sha256: e7eb0488675ffe2ad9405f9811001c636f013685e1b62fe16779a65640cfb659
+  original:
+    hackage: warp-3.3.3
+- completed:
+    hackage: http2-2.0.3@sha256:c08885f0fd26ae035b169029b782cc693cc30e4d7a3b6f21a61de31085e8cfae,17644
+    pantry-tree:
+      size: 44789
+      sha256: 954622417a3d9a33975c5ab7e68d3218b0bc383c9f7ee192ee3ac849a63d2613
+  original:
+    hackage: http2-2.0.3
 snapshots:
 - completed:
     size: 523700
