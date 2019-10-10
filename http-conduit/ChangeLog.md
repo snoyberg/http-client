@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.7.3
+
+* Relax test suite version bounds
+
 ## 2.3.7.2
 
 * Add the `network3` flag
