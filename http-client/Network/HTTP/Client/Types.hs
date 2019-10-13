@@ -560,12 +560,13 @@ data Request = Request
     }
     deriving T.Typeable
 
--- | How to deal with timing out a response
+-- | How to deal with timing out on retrieval of response headers.
 --
 -- @since 0.5.0
 data ResponseTimeout
     = ResponseTimeoutMicro !Int
-    -- ^ Wait the given number of microseconds and then throw an exception
+    -- ^ Wait the given number of microseconds for response headers to
+    -- load, then throw an exception
     | ResponseTimeoutNone
     -- ^ Wait indefinitely
     | ResponseTimeoutDefault
