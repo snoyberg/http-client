@@ -1,0 +1,9 @@
+resolver: nightly-2019-10-15
+packages:
+- http-client
+- http-client-tls
+- http-client-openssl
+- http-conduit
+
+extra-deps:
+- tls-1.5.2
