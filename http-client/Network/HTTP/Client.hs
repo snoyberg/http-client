@@ -352,7 +352,8 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 -- >   print $ responseBody response
 --
 
--- | Specify a response timeout in microseconds
+-- | Specify maximum time in microseconds the retrieval of response
+-- headers is allowed to take
 --
 -- @since 0.5.0
 responseTimeoutMicro :: Int -> ResponseTimeout
