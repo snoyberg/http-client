@@ -26,18 +26,12 @@ packages:
   original:
     hackage: http2-2.0.3
 - completed:
-    size: 190352
-    subdir: core
-    url: https://github.com/vincenthz/hs-tls/archive/187ea9c3015b1ce5d335ca9eb243409ae79cf781.tar.gz
-    name: tls
-    version: 1.5.1
-    sha256: 375f6ff413b10787a1c7903610e66382c871814f6eda71c506f2b74f83df55d4
+    hackage: tls-1.5.2@sha256:61e403d59c860fe9df2ff15bf2aa73a75fa1fb53f7ac27a62d1f40f23d30f26c,6753
     pantry-tree:
       size: 4687
-      sha256: 945df3fbbf1c2733d93f6bc942949779b43cc42949e7e6ce97b0caf93fb93c6e
+      sha256: 2c84a361b59e247bf68e586da9eb1af97d01f27d2873a63c115b10a08ff75951
   original:
-    subdir: core
-    url: https://github.com/vincenthz/hs-tls/archive/187ea9c3015b1ce5d335ca9eb243409ae79cf781.tar.gz
+    hackage: tls-1.5.2
 snapshots:
 - completed:
     size: 523700
