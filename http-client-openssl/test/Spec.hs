@@ -13,6 +13,26 @@ main = withOpenSSL $ hspec $ do
         withResponse (parseRequest_ "HEAD https://s3.amazonaws.com/hackage.fpcomplete.com/01-index.tar.gz") manager $ \res -> do
             responseStatus res `shouldBe` status200
             lookup "content-type" (responseHeaders res) `shouldBe` Just "application/x-gzip"
+
+    it "BadSSL: expired" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let action = withResponse "https://expired.badssl.com/" manager (const (return ()))
+        action `shouldThrow` anyException
+
+    it "BadSSL: self-signed" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let action = withResponse "https://self-signed.badssl.com/" manager (const (return ()))
+        action `shouldThrow` anyException
+
+    it "BadSSL: wrong.host" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        let action = withResponse "https://wrong.host.badssl.com/" manager (const (return ()))
+        action `shouldThrow` anyException
+
+    it "BadSSL: we do have case-insensitivity though" $ do
+        manager <- newManager $ opensslManagerSettings SSL.context
+        withResponse "https://BADSSL.COM" manager $ \res ->
+            responseStatus res `shouldBe` status200
 #ifdef USE_PROXY
     it "make a TLS connection with proxy" $ do
         manager <- newManager $ opensslManagerSettings SSL.context
@@ -30,3 +50,4 @@ main = withOpenSSL $ hspec $ do
           lbsResponse res
         (responseBody v) `shouldBe` (responseBody v_org)
 #endif
+
