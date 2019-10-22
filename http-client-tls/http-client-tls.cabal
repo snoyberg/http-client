@@ -16,7 +16,7 @@ extra-source-files:  README.md
 library
   exposed-modules:     Network.HTTP.Client.TLS
   other-extensions:    ScopedTypeVariables
-  build-depends:       base >= 4 && < 5
+  build-depends:       base >= 4.10 && < 5
                      , data-default-class
                      , http-client >= 0.5.0
                      , connection >= 0.2.5
