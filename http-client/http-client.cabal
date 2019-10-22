@@ -37,7 +37,7 @@ library
                        Network.PublicSuffixList.Serialize
                        Network.PublicSuffixList.DataStructure
                        Data.KeyedPool
-  build-depends:       base              >= 4.6    && < 5
+  build-depends:       base              >= 4.10   && < 5
                      , bytestring        >= 0.10
                      , text              >= 0.11
                      , http-types        >= 0.8
