@@ -16,7 +16,7 @@ The API documentation can be found at:
 To help motivate learning, keep in mind the following exercise while reading through the tutorial, 
 and try to implement a solution. Write a program that takes an
 input file with one URL per line, and ensures that making a request to each URL
-returns a non-error status code. 
+returns a non-error status code.
 
 ## Basic usage
 
