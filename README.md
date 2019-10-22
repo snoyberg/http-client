@@ -7,7 +7,7 @@ These packages provide a low level HTTP client engine (http-client), different
 backends for providing SSL support (http-client-tls and http-client-openssl),
 and higher-level APIs for user convenience (http-conduit).
 
-Please check out the [tutorial on haskell.fpcomplete.com](https://haskell.fpcomplete.com/library/http-client).
+Please check out the [tutorial](TUTORIAL.md).
 
 Due to Haddock pulling the documentation directly from http-client, some "Since"
 notations give the version numbers of the http-client package. For reference,
