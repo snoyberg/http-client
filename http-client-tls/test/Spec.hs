@@ -70,4 +70,3 @@ main = hspec $ do
         request <- parseRequest "https://httpbin.org"
         response <- httpNoBody request manager
         responseStatus response `shouldBe` status200
-
