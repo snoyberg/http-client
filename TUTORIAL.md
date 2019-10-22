@@ -13,10 +13,10 @@ The API documentation can be found at:
 
 ## Tutorial exercise
 
-To help motivate learning, keep in mind this exercise while reading through the
-content below, and try to implement a solution. Write a program that takes an
+To help motivate learning, keep in mind the following exercise while reading through the tutorial, 
+and try to implement a solution. Write a program that takes an
 input file with one URL per line, and ensures that making a request to each URL
-returns a non-error status code.
+returns a non-error status code. 
 
 ## Basic usage
 
@@ -759,6 +759,7 @@ codes. Each line is its own URL.
 
 Bonuses:
 
+* Support both `http://...` and `https://...` URLs.
 * Use conduit to stream the file contents.
 * Do the checking concurrently.
 * Real bonus: check URLs within downloaded HTML pages, using
