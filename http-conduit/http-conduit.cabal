@@ -26,15 +26,20 @@ library
                  , attoparsec
                  , bytestring            >= 0.9.1.4
                  , transformers          >= 0.2
-                 , resourcet             >= 1.1
                  , conduit               >= 1.2
                  , conduit-extra         >= 1.1
                  , http-types            >= 0.7
                  , http-client           >= 0.5.13  && < 0.7
                  , http-client-tls       >= 0.3     && < 0.4
                  , mtl
-                 , unliftio-core
-
+    if impl(ghc < 8.0)
+      build-depends:
+          resourcet     < 1.2
+        , unliftio-core < 0.2
+    else
+      build-depends:
+        , resourcet     >= 1.2.3
+        , unliftio-core >= 0.2
     if !impl(ghc>=7.9)
       build-depends:   void >= 0.5.5
     exposed-modules: Network.HTTP.Conduit
@@ -65,7 +70,6 @@ test-suite test
                  , conduit >= 1.1
                  , utf8-string
                  , case-insensitive
-                 , unliftio
                  , wai >= 3.0 && < 3.3
                  , warp >= 3.0.0.2 && < 3.4
                  , wai-conduit
@@ -77,8 +81,16 @@ test-suite test
                  , streaming-commons
                  , aeson
                  , temporary
-                 , resourcet
                  , network
+    if impl(ghc < 8.0)
+      build-depends:
+          resourcet     < 1.2
+        , unliftio-core < 0.2
+    else
+      build-depends:
+          resourcet     >= 1.2.3
+        , unliftio-core >= 0.2
+
 
 source-repository head
   type:     git
