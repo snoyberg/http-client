@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.6.4.1
+
+* Win32 2.8 support [#430](https://github.com/snoyberg/http-client/pull/430)
+
 ## 0.6.4
 
 * Avoid throwing an exception when a malformed HTTP header is received,
