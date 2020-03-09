@@ -175,7 +175,7 @@ registryProxyString = catch
     enable <- toBool . maybe 0 id A.<$> regQueryValueDWORD hkey "ProxyEnable"
     if enable
         then do
-#if MIN_VERSION_Win32(2, 6, 0)
+#if MIN_VERSION_Win32(2, 6, 0) && !MIN_VERSION_Win32(2, 8, 0)
             server <- regQueryValue hkey "ProxyServer"
             exceptions <- try $ regQueryValue hkey "ProxyOverride" :: IO (Either IOException String)
 #else
