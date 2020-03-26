@@ -21,6 +21,7 @@ library
   exposed-modules:     Network.HTTP.Client
                        Network.HTTP.Client.MultipartFormData
                        Network.HTTP.Client.Internal
+                       Network.HTTP.Client.Types
   other-modules:       Network.HTTP.Client.Body
                        Network.HTTP.Client.Connection
                        Network.HTTP.Client.Cookies
@@ -29,7 +30,6 @@ library
                        Network.HTTP.Client.Manager
                        Network.HTTP.Client.Request
                        Network.HTTP.Client.Response
-                       Network.HTTP.Client.Types
                        Network.HTTP.Client.Util
                        Network.HTTP.Proxy
                        Network.PublicSuffixList.Lookup
