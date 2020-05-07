@@ -48,7 +48,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                         (N.close sock)
     , managerTlsProxyConnection = do
         ctx <- mkContext
-        return $ \connstr checkConn _serverName _ha host' port' -> do
+        return $ \connstr checkConn serverName _ha host' port' -> do
             -- Copied/modified from openssl-streams
             let hints      = N.defaultHints
                                 { N.addrFlags      = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
@@ -72,7 +72,7 @@ opensslManagerSettings mkContext = defaultManagerSettings
                     connectionWrite conn connstr
                     checkConn conn
                     ssl <- SSL.connection ctx sock
-                    SSL.setTlsextHostName ssl host'
+                    SSL.setTlsextHostName ssl serverName
                     SSL.connect ssl
                     makeConnection
                         (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> return S.empty)
