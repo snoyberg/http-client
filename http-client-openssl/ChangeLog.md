@@ -1,3 +1,8 @@
+## 0.3.1.0
+* Fix a bug with http-proxy that would cause SNI to be set incorrectly; (would
+  use the domain of the proxy, instead of the server we're trying to reach
+  _through_ the proxy)
+
 ## 0.3.0.0
 
 * Wrap HsOpenSSL specific exceptions into http-clients own `HttpExceptionRequest`. This is a breaking change and might need adjustment with respect to exception handling in user code.
