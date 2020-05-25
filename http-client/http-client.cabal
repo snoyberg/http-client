@@ -125,6 +125,7 @@ test-suite spec-nonet
                      , hspec
                      , monad-control
                      , bytestring
+                     , cookie
                      , text
                      , http-types
                      , blaze-builder

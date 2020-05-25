@@ -17,7 +17,7 @@ spec = describe "CookieSpec" $ do
       now <- getCurrentTime
       let cookie1 = Cookie "test" "value" now "doMain.Org" "/" now now False False False False
           cookie2 = Cookie "test" "value" now "DOMAIn.ORg" "/" now now False False False False
-      cookie1 `shouldBe` cookie2
+      cookie1 `shouldSatisfy` (equivCookie cookie2)
 
     it "domainMatches - case insensitive" $ do
       domainMatches "www.org" "www.org" `shouldBe` True

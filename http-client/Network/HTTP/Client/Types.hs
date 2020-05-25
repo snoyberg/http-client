@@ -42,7 +42,6 @@ module Network.HTTP.Client.Types
 import qualified Data.Typeable as T (Typeable)
 import Network.HTTP.Types
 import Control.Exception (Exception, SomeException, throwIO)
-import Data.Function (on)
 import Data.Word (Word64)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L

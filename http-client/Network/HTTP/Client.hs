@@ -216,7 +216,6 @@ import Network.HTTP.Client.Types
 import Data.IORef (newIORef, writeIORef, readIORef, modifyIORef)
 import qualified Data.ByteString.Lazy as L
 import Data.Foldable (Foldable)
-import Data.Monoid
 import Data.Traversable (Traversable)
 import Network.HTTP.Types (statusCode)
 import GHC.Generics (Generic)
