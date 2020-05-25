@@ -274,7 +274,7 @@ newtype CookieJar = CJ { expose :: [Cookie] }
 -- should work, it was removed for clarity, and replaced by 'equal' and 'equiv'.  'equal'
 -- gives you equality of all fields of the 'Cookie' record.
 --
--- @since 0.6.5
+-- @since 0.7.0
 equalCookie :: Cookie -> Cookie -> Bool
 equalCookie a b = and
   [ cookie_name a == cookie_name b
@@ -293,7 +293,7 @@ equalCookie a b = and
 -- | Equality of name, domain, path only.  This corresponds to step 11 of the algorithm
 -- described in Section 5.3 \"Storage Model\".  See also: 'equal'.
 --
--- @since 0.6.5
+-- @since 0.7.0
 equivCookie :: Cookie -> Cookie -> Bool
 equivCookie a b = name_matches && domain_matches && path_matches
   where name_matches = cookie_name a == cookie_name b
@@ -302,7 +302,7 @@ equivCookie a b = name_matches && domain_matches && path_matches
 
 -- | Instead of @instance Ord Cookie@.  See 'equalCookie', 'equivCookie'.
 --
--- @since 0.6.5
+-- @since 0.7.0
 compareCookies :: Cookie -> Cookie -> Ordering
 compareCookies c1 c2
     | S.length (cookie_path c1) > S.length (cookie_path c2) = LT
@@ -312,13 +312,13 @@ compareCookies c1 c2
 
 -- | See 'equalCookie'.
 --
--- @since 0.6.5
+-- @since 0.7.0
 equalCookieJar :: CookieJar -> CookieJar -> Bool
 equalCookieJar (CJ cj1) (CJ cj2) = and $ zipWith equalCookie cj1 cj2
 
 -- | See 'equalCookieJar', 'equalCookie'.
 --
--- @since 0.6.5
+-- @since 0.7.0
 equivCookieJar :: CookieJar -> CookieJar -> Bool
 equivCookieJar cj1 cj2 = and $
   zipWith equivCookie (DL.sortBy compareCookies $ expose cj1) (DL.sortBy compareCookies $ expose cj2)
@@ -676,7 +676,7 @@ data Response body = Response
     deriving (Show, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
 
 -- Purposely not providing this instance.  It used to use 'equivCookieJar'
--- semantics before 0.6.5, but should, if anything, use 'equalCookieJar'
+-- semantics before 0.7.0, but should, if anything, use 'equalCookieJar'
 -- semantics.
 --
 -- instance Exception Eq
