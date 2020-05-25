@@ -282,7 +282,7 @@ spec = describe "Client" $ do
         Right req -> error $ "Invalid request: " ++ show req
 
     describe "cookies" $ do
-      describe "instance Eq" $ do
+      describe "equal vs. equiv" $ do
         let make :: IO Cookie
             make = do
               now <- DT.getCurrentTime
@@ -292,23 +292,24 @@ spec = describe "Client" $ do
                         "Path=/access; Domain=example.com; HttpOnly; Secure"
               return cky
 
-            modifications :: [(String, Cookie -> Cookie)]
+            modifications :: [(String, Cookie -> Cookie, Bool)]
             modifications
-                = [ ("cookie_name", \cky -> cky { cookie_name = "othername" })
-                  , ("cookie_value", \cky -> cky { cookie_value = "othervalue" })
-                  , ("cookie_expiry_time", \cky -> cky { cookie_expiry_time = DT.addUTCTime 60 $ cookie_expiry_time cky })
-                  , ("cookie_domain", \cky -> cky { cookie_domain = cookie_domain cky <> ".com" })
-                  , ("cookie_path", \cky -> cky { cookie_path = cookie_path cky <> "/sub" })
-                  , ("cookie_creation_time", \cky -> cky { cookie_creation_time = DT.addUTCTime 60 $ cookie_creation_time cky })
-                  , ("cookie_last_access_time", \cky -> cky { cookie_last_access_time = DT.addUTCTime 60 $ cookie_last_access_time cky })
-                  , ("cookie_persistent", \cky -> cky { cookie_persistent = not $ cookie_persistent cky })
-                  , ("cookie_host_only", \cky -> cky { cookie_host_only = not $ cookie_host_only cky })
-                  , ("cookie_secure_only", \cky -> cky { cookie_secure_only = not $ cookie_secure_only cky })
-                  , ("cookie_http_only", \cky -> cky { cookie_http_only = not $ cookie_http_only cky })
+                = [ ("cookie_name", \cky -> cky { cookie_name = "othername" }, True)
+                  , ("cookie_value", \cky -> cky { cookie_value = "othervalue" }, False)
+                  , ("cookie_expiry_time", \cky -> cky { cookie_expiry_time = DT.addUTCTime 60 $ cookie_expiry_time cky }, False)
+                  , ("cookie_domain", \cky -> cky { cookie_domain = cookie_domain cky <> ".com" }, True)
+                  , ("cookie_path", \cky -> cky { cookie_path = cookie_path cky <> "/sub" }, True)
+                  , ("cookie_creation_time", \cky -> cky { cookie_creation_time = DT.addUTCTime 60 $ cookie_creation_time cky }, False)
+                  , ("cookie_last_access_time", \cky -> cky { cookie_last_access_time = DT.addUTCTime 60 $ cookie_last_access_time cky }, False)
+                  , ("cookie_persistent", \cky -> cky { cookie_persistent = not $ cookie_persistent cky }, False)
+                  , ("cookie_host_only", \cky -> cky { cookie_host_only = not $ cookie_host_only cky }, False)
+                  , ("cookie_secure_only", \cky -> cky { cookie_secure_only = not $ cookie_secure_only cky }, False)
+                  , ("cookie_http_only", \cky -> cky { cookie_http_only = not $ cookie_http_only cky }, False)
                   ]
 
-            check (msg, f) = it msg $ do
+            check (msg, f, countsForEquiv) = it msg $ do
               cky <- make
-              cky `shouldNotBe` f cky
+              cky `equal` f cky `shouldBe` False
+              when countsForEquiv $ cky `equiv` f cky `shouldBe` False
 
         check `mapM_` modifications
