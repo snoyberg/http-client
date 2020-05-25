@@ -662,15 +662,11 @@ data Response body = Response
     }
     deriving (Show, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
 
-instance Eq body => Eq (Response body) where
-  resp == resp' = and
-    [ responseStatus resp == responseStatus resp'
-    , responseVersion resp == responseVersion resp'
-    , responseHeaders resp == responseHeaders resp'
-    , responseBody resp == responseBody resp'
-    , responseCookieJar resp `equivCookieJar` responseCookieJar resp'  -- !
-    , responseClose' resp == responseClose' resp'
-    ]
+-- Purposely not providing this instance.  It used to use 'equivCookieJar'
+-- semantics in earlier versions, but should, if anything, use 'equalCookieJar'
+-- semantics.
+--
+-- instance Exception Eq
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving T.Typeable
