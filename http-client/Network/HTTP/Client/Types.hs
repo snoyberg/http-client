@@ -13,7 +13,12 @@ module Network.HTTP.Client.Types
     , throwHttp
     , toHttpException
     , Cookie (..)
+    , equal
+    , equiv
+    , compareCookies
     , CookieJar (..)
+    , equalCookieJar
+    , equivCookieJar
     , Proxy (..)
     , RequestBody (..)
     , Popper
@@ -37,6 +42,7 @@ module Network.HTTP.Client.Types
 import qualified Data.Typeable as T (Typeable)
 import Network.HTTP.Types
 import Control.Exception (Exception, SomeException, throwIO)
+import Data.Function (on)
 import Data.Word (Word64)
 import qualified Data.ByteString as S
 import qualified Data.ByteString.Lazy as L
@@ -263,26 +269,51 @@ data Cookie = Cookie
 newtype CookieJar = CJ { expose :: [Cookie] }
   deriving (Read, Show, T.Typeable)
 
--- This corresponds to step 11 of the algorithm described in Section 5.3 \"Storage Model\"
-instance Eq Cookie where
-  (==) a b = name_matches && domain_matches && path_matches
-    where name_matches = cookie_name a == cookie_name b
-          domain_matches = CI.foldCase (cookie_domain a) == CI.foldCase (cookie_domain b)
-          path_matches = cookie_path a == cookie_path b
+-- | Instead of '(==)'.
+--
+-- Since there was some confusion in the history of this library about how the 'Eq' instance
+-- should work, it was removed for clarity, and replaced by 'equal' and 'equiv'.  'equal'
+-- gives you equality of all fields of the 'Cookie' record.
+equal :: Cookie -> Cookie -> Bool
+equal a b = and
+  [ cookie_name a == cookie_name b
+  , cookie_value a == cookie_value b
+  , cookie_expiry_time a == cookie_expiry_time b
+  , cookie_domain a == cookie_domain b
+  , cookie_path a == cookie_path b
+  , cookie_creation_time a == cookie_creation_time b
+  , cookie_last_access_time a == cookie_last_access_time b
+  , cookie_persistent a == cookie_persistent b
+  , cookie_host_only a == cookie_host_only b
+  , cookie_secure_only a == cookie_secure_only b
+  , cookie_http_only a == cookie_http_only b
+  ]
 
-instance Ord Cookie where
-  compare c1 c2
+-- | Equality of name, domain, path only.  This corresponds to step 11 of the algorithm
+-- described in Section 5.3 \"Storage Model\".  See also: 'equal'.
+equiv :: Cookie -> Cookie -> Bool
+equiv a b = name_matches && domain_matches && path_matches
+  where name_matches = cookie_name a == cookie_name b
+        domain_matches = CI.foldCase (cookie_domain a) == CI.foldCase (cookie_domain b)
+        path_matches = cookie_path a == cookie_path b
+
+compareCookies :: Cookie -> Cookie -> Ordering
+compareCookies c1 c2
     | S.length (cookie_path c1) > S.length (cookie_path c2) = LT
     | S.length (cookie_path c1) < S.length (cookie_path c2) = GT
     | cookie_creation_time c1 > cookie_creation_time c2 = GT
     | otherwise = LT
 
-instance Eq CookieJar where
-  (==) cj1 cj2 = (DL.sort $ expose cj1) == (DL.sort $ expose cj2)
+equalCookieJar :: CookieJar -> CookieJar -> Bool
+equalCookieJar (CJ cj1) (CJ cj2) = and $ zipWith equal cj1 cj2
+
+equivCookieJar :: CookieJar -> CookieJar -> Bool
+equivCookieJar cj1 cj2 = and $
+  zipWith equiv (DL.sortBy compareCookies $ expose cj1) (DL.sortBy compareCookies $ expose cj2)
 
 instance Semigroup CookieJar where
-  (CJ a) <> (CJ b) = CJ (DL.nub $ DL.sortBy compare' $ a <> b)
-    where compare' c1 c2 =
+  (CJ a) <> (CJ b) = CJ (DL.nubBy equiv $ DL.sortBy mostRecentFirst $ a <> b)
+    where mostRecentFirst c1 c2 =
             -- inverse so that recent cookies are kept by nub over older
             if cookie_creation_time c1 > cookie_creation_time c2
                 then LT
@@ -630,7 +661,17 @@ data Response body = Response
     --
     -- Since 0.1.0
     }
-    deriving (Show, Eq, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
+    deriving (Show, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
+
+instance Eq body => Eq (Response body) where
+  resp == resp' = and
+    [ responseStatus resp == responseStatus resp'
+    , responseVersion resp == responseVersion resp'
+    , responseHeaders resp == responseHeaders resp'
+    , responseBody resp == responseBody resp'
+    , responseCookieJar resp `equivCookieJar` responseCookieJar resp'  -- !
+    , responseClose' resp == responseClose' resp'
+    ]
 
 newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving T.Typeable

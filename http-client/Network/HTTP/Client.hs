@@ -192,7 +192,12 @@ module Network.HTTP.Client
     , HttpException (..)
     , HttpExceptionContent (..)
     , Cookie (..)
+    , equal
+    , equiv
+    , compareCookies
     , CookieJar
+    , equalCookieJar
+    , equivCookieJar
     , Proxy (..)
     , withConnection
       -- * Cookies
