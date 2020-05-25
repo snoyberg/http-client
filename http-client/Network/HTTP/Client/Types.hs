@@ -13,8 +13,8 @@ module Network.HTTP.Client.Types
     , throwHttp
     , toHttpException
     , Cookie (..)
-    , equal
-    , equiv
+    , equalCookie
+    , equivCookie
     , compareCookies
     , CookieJar (..)
     , equalCookieJar
@@ -274,8 +274,8 @@ newtype CookieJar = CJ { expose :: [Cookie] }
 -- Since there was some confusion in the history of this library about how the 'Eq' instance
 -- should work, it was removed for clarity, and replaced by 'equal' and 'equiv'.  'equal'
 -- gives you equality of all fields of the 'Cookie' record.
-equal :: Cookie -> Cookie -> Bool
-equal a b = and
+equalCookie :: Cookie -> Cookie -> Bool
+equalCookie a b = and
   [ cookie_name a == cookie_name b
   , cookie_value a == cookie_value b
   , cookie_expiry_time a == cookie_expiry_time b
@@ -291,8 +291,8 @@ equal a b = and
 
 -- | Equality of name, domain, path only.  This corresponds to step 11 of the algorithm
 -- described in Section 5.3 \"Storage Model\".  See also: 'equal'.
-equiv :: Cookie -> Cookie -> Bool
-equiv a b = name_matches && domain_matches && path_matches
+equivCookie :: Cookie -> Cookie -> Bool
+equivCookie a b = name_matches && domain_matches && path_matches
   where name_matches = cookie_name a == cookie_name b
         domain_matches = CI.foldCase (cookie_domain a) == CI.foldCase (cookie_domain b)
         path_matches = cookie_path a == cookie_path b
@@ -305,14 +305,14 @@ compareCookies c1 c2
     | otherwise = LT
 
 equalCookieJar :: CookieJar -> CookieJar -> Bool
-equalCookieJar (CJ cj1) (CJ cj2) = and $ zipWith equal cj1 cj2
+equalCookieJar (CJ cj1) (CJ cj2) = and $ zipWith equalCookie cj1 cj2
 
 equivCookieJar :: CookieJar -> CookieJar -> Bool
 equivCookieJar cj1 cj2 = and $
-  zipWith equiv (DL.sortBy compareCookies $ expose cj1) (DL.sortBy compareCookies $ expose cj2)
+  zipWith equivCookie (DL.sortBy compareCookies $ expose cj1) (DL.sortBy compareCookies $ expose cj2)
 
 instance Semigroup CookieJar where
-  (CJ a) <> (CJ b) = CJ (DL.nubBy equiv $ DL.sortBy mostRecentFirst $ a <> b)
+  (CJ a) <> (CJ b) = CJ (DL.nubBy equivCookie $ DL.sortBy mostRecentFirst $ a <> b)
     where mostRecentFirst c1 c2 =
             -- inverse so that recent cookies are kept by nub over older
             if cookie_creation_time c1 > cookie_creation_time c2

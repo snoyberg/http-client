@@ -282,7 +282,7 @@ spec = describe "Client" $ do
         Right req -> error $ "Invalid request: " ++ show req
 
     describe "cookies" $ do
-      describe "equal vs. equiv" $ do
+      describe "equalCookie vs. equivCookie" $ do
         let make :: IO Cookie
             make = do
               now <- DT.getCurrentTime
@@ -309,7 +309,7 @@ spec = describe "Client" $ do
 
             check (msg, f, countsForEquiv) = it msg $ do
               cky <- make
-              cky `equal` f cky `shouldBe` False
-              when countsForEquiv $ cky `equiv` f cky `shouldBe` False
+              cky `equalCookie` f cky `shouldBe` False
+              when countsForEquiv $ cky `equivCookie` f cky `shouldBe` False
 
         check `mapM_` modifications

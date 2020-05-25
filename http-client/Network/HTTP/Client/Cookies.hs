@@ -100,7 +100,7 @@ removeExistingCookieFromCookieJar cookie cookie_jar' = (mc, CJ lc)
   where (mc, lc) = removeExistingCookieFromCookieJarHelper cookie (expose cookie_jar')
         removeExistingCookieFromCookieJarHelper _ [] = (Nothing, [])
         removeExistingCookieFromCookieJarHelper c (c' : cs)
-          | c `equiv` c' = (Just c', cs)
+          | c `equivCookie` c' = (Just c', cs)
           | otherwise = (cookie', c' : cookie_jar'')
           where (cookie', cookie_jar'') = removeExistingCookieFromCookieJarHelper c cs
 

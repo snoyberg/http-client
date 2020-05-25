@@ -192,8 +192,8 @@ module Network.HTTP.Client
     , HttpException (..)
     , HttpExceptionContent (..)
     , Cookie (..)
-    , equal
-    , equiv
+    , equalCookie
+    , equivCookie
     , compareCookies
     , CookieJar
     , equalCookieJar
