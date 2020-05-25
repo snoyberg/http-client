@@ -17,13 +17,11 @@ import           Network.HTTP.Types.Header
 import qualified Network.Socket            as NS
 import           Test.Hspec
 import qualified Data.Streaming.Network    as N
-import qualified Data.Time                 as DT
 import qualified Data.ByteString           as S
 import qualified Data.ByteString.Lazy      as SL
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
 import           Data.IORef
 import           System.Mem                (performGC)
-import qualified Web.Cookie                as WC
 
 -- See: https://github.com/snoyberg/http-client/issues/111#issuecomment-366526660
 notWindows :: Monad m => m () -> m ()
@@ -280,36 +278,3 @@ spec = describe "Client" $ do
       case parseRequest "https://o_O:18446744072699450606" of
         Left _ -> pure () :: IO ()
         Right req -> error $ "Invalid request: " ++ show req
-
-    describe "cookies" $ do
-      describe "equalCookie vs. equivCookie" $ do
-        let make :: IO Cookie
-            make = do
-              now <- DT.getCurrentTime
-              req <- parseRequest "http://www.example.com/path"
-              let Just cky = generateCookie (WC.parseSetCookie raw) req now True
-                  raw = "somename=somevalue.v=1.k=1.d=1590419679.t=u.l=s.u=8b2734ae-9dd1-11ea-bd7f-3bcf5b8d5d2a.r=795e71b5; " <>
-                        "Path=/access; Domain=example.com; HttpOnly; Secure"
-              return cky
-
-            modifications :: [(String, Cookie -> Cookie, Bool)]
-            modifications
-                = [ ("cookie_name", \cky -> cky { cookie_name = "othername" }, True)
-                  , ("cookie_value", \cky -> cky { cookie_value = "othervalue" }, False)
-                  , ("cookie_expiry_time", \cky -> cky { cookie_expiry_time = DT.addUTCTime 60 $ cookie_expiry_time cky }, False)
-                  , ("cookie_domain", \cky -> cky { cookie_domain = cookie_domain cky <> ".com" }, True)
-                  , ("cookie_path", \cky -> cky { cookie_path = cookie_path cky <> "/sub" }, True)
-                  , ("cookie_creation_time", \cky -> cky { cookie_creation_time = DT.addUTCTime 60 $ cookie_creation_time cky }, False)
-                  , ("cookie_last_access_time", \cky -> cky { cookie_last_access_time = DT.addUTCTime 60 $ cookie_last_access_time cky }, False)
-                  , ("cookie_persistent", \cky -> cky { cookie_persistent = not $ cookie_persistent cky }, False)
-                  , ("cookie_host_only", \cky -> cky { cookie_host_only = not $ cookie_host_only cky }, False)
-                  , ("cookie_secure_only", \cky -> cky { cookie_secure_only = not $ cookie_secure_only cky }, False)
-                  , ("cookie_http_only", \cky -> cky { cookie_http_only = not $ cookie_http_only cky }, False)
-                  ]
-
-            check (msg, f, countsForEquiv) = it msg $ do
-              cky <- make
-              cky `equalCookie` f cky `shouldBe` False
-              when countsForEquiv $ cky `equivCookie` f cky `shouldBe` False
-
-        check `mapM_` modifications
