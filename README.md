@@ -1,6 +1,6 @@
 # http-client megarepo
 
-[![Build Status](https://dev.azure.com/snoyberg/http-client/_apis/build/status/snoyberg.http-client?branchName=master)](https://dev.azure.com/snoyberg/http-client/_build/latest?definitionId=2&branchName=master)
+FIXME: Add Github Actions link
 
 This is a mega-repo for housing the http-client family of packages for Haskell.
 These packages provide a low level HTTP client engine (http-client), different
