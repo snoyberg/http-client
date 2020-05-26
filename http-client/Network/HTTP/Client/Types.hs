@@ -685,8 +685,6 @@ newtype ResponseClose = ResponseClose { runResponseClose :: IO () }
     deriving T.Typeable
 instance Show ResponseClose where
     show _ = "ResponseClose"
-instance Eq ResponseClose where
-    _ == _ = True
 
 -- | Settings for a @Manager@. Please use the 'defaultManagerSettings' function and then modify
 -- individual settings. For more information, see <http://www.yesodweb.com/book/settings-types>.
