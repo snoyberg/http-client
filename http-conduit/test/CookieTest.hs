@@ -1,3 +1,5 @@
+{-# OPTIONS_GHC -Wno-orphans #-}
+
 module CookieTest (cookieTest) where
 
 import Prelude hiding (exp)
@@ -12,6 +14,25 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import qualified Data.CaseInsensitive as CI
 import Web.Cookie
+
+-- We use these Eq instances here because they make sense and may be added to the library in
+-- the future.  We do not add them now because they would silently break the old Eq behavior,
+-- which was `equivCookie`.
+instance Eq Cookie where
+  (==) = equalCookie
+
+instance Eq CookieJar where
+  (==) = equalCookieJar
+
+instance Eq body => Eq (Response body) where
+  resp == resp' = and
+    [ responseStatus resp == responseStatus resp'
+    , responseVersion resp == responseVersion resp'
+    , responseHeaders resp == responseHeaders resp'
+    , responseBody resp == responseBody resp'
+    , responseCookieJar resp `equivCookieJar` responseCookieJar resp'  -- !
+    -- , responseClose  -- !
+    ]
 
 default_request :: HC.Request
 default_request = HC.parseRequest_ "http://www.google.com/"
@@ -127,8 +148,8 @@ testCookieEqualitySuccess = assertEqual "The same cookies should be equal"
   where cookie = default_cookie
 
 testCookieEqualityResiliance :: IO ()
-testCookieEqualityResiliance = assertEqual "Cookies should still be equal if extra options are changed"
-  (default_cookie {cookie_persistent = True}) (default_cookie {cookie_host_only = True})
+testCookieEqualityResiliance = assertBool "Cookies should still be equal if extra options are changed" $
+  (default_cookie {cookie_persistent = True}) `equivCookie` (default_cookie {cookie_host_only = True})
 
 testDomainChangesEquality :: IO ()
 testDomainChangesEquality = assertBool "Changing the domain should make cookies not equal" $
@@ -228,8 +249,9 @@ testComputeCookieStringHttpOnly = assertEqual "http-only flag filters properly"
   where cookie_jar = createCookieJar [default_cookie {cookie_http_only = True}]
 
 testComputeCookieStringSort :: IO ()
-testComputeCookieStringSort = assertEqual "Sorting works correctly"
-  (fromString "c1=v1;c3=v3;c4=v4;c2=v2", cookie_jar_out) format_output
+testComputeCookieStringSort = do
+  assertEqual "Sorting works correctly (computed string)" (fst format_output) (fromString "c1=v1;c3=v3;c4=v4;c2=v2")
+  assertBool "Sorting works correctly (remaining jar)" $ (snd format_output) `equivCookieJar` cookie_jar_out
   where now = UTCTime (ModifiedJulianDay 10) (secondsToDiffTime 11)
         cookie_jar = createCookieJar [ default_cookie { cookie_name = fromString "c1"
                                                       , cookie_value = fromString "v1"
@@ -289,8 +311,8 @@ testInsertCookiesIntoRequestWorks = assertEqual "Inserting cookies works"
                                                       fromString "otherkey=otherval")]}
 
 testReceiveSetCookie :: IO ()
-testReceiveSetCookie = assertEqual "Receiving a Set-Cookie"
-  (createCookieJar [default_cookie]) (receiveSetCookie default_set_cookie default_request default_time True $ createCookieJar [])
+testReceiveSetCookie = assertBool "Receiving a Set-Cookie" $
+  (createCookieJar [default_cookie]) `equivCookieJar` (receiveSetCookie default_set_cookie default_request default_time True $ createCookieJar [])
 
 testReceiveSetCookieTrailingDot :: IO ()
 testReceiveSetCookieTrailingDot = assertEqual "Receiving a Set-Cookie with a trailing domain dot"
@@ -298,18 +320,18 @@ testReceiveSetCookieTrailingDot = assertEqual "Receiving a Set-Cookie with a tra
   where set_cookie = default_set_cookie {setCookieDomain = Just $ fromString "www.google.com."}
 
 testReceiveSetCookieLeadingDot :: IO ()
-testReceiveSetCookieLeadingDot = assertEqual "Receiving a Set-Cookie with a leading domain dot"
-  (createCookieJar [default_cookie]) (receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
+testReceiveSetCookieLeadingDot = assertBool "Receiving a Set-Cookie with a leading domain dot" $
+  (createCookieJar [default_cookie]) `equivCookieJar` (receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
   where set_cookie = default_set_cookie {setCookieDomain = Just $ fromString ".www.google.com"}
 
 testReceiveSetCookieNoDomain :: IO ()
-testReceiveSetCookieNoDomain = assertEqual "Receiving cookie without domain"
-  (createCookieJar [default_cookie]) (receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
+testReceiveSetCookieNoDomain = assertBool "Receiving cookie without domain" $
+  (createCookieJar [default_cookie]) `equivCookieJar` (receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
   where set_cookie = default_set_cookie {setCookieDomain = Nothing}
 
 testReceiveSetCookieEmptyDomain :: IO ()
-testReceiveSetCookieEmptyDomain = assertEqual "Receiving cookie with empty domain"
-  (createCookieJar [default_cookie]) (receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
+testReceiveSetCookieEmptyDomain = assertBool "Receiving cookie with empty domain" $
+  (createCookieJar [default_cookie]) `equivCookieJar` (receiveSetCookie set_cookie default_request default_time True $ createCookieJar [])
   where set_cookie = default_set_cookie {setCookieDomain = Just BS.empty}
 
 -- Can't test public suffixes until that module is written
