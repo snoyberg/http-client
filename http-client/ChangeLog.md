@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.0
+
+* Remove Eq instances for Cookie, CookieJar, Response, Ord instance for Cookie [#435](https://github.com/snoyberg/http-client/pull/435)
+
 ## 0.6.4.1
 
 * Win32 2.8 support [#430](https://github.com/snoyberg/http-client/pull/430)
