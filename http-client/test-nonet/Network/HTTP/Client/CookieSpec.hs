@@ -2,6 +2,7 @@
 module Network.HTTP.Client.CookieSpec where
 
 import           Control.Monad (when)
+import           Data.Monoid
 import           Data.Time.Clock
 import           Network.HTTP.Client.Internal
 import           Test.Hspec
