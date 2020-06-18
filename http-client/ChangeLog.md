@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.1
+
+* Remove `AI_ADDRCONFIG` [#400](https://github.com/snoyberg/http-client/issues/400)
+
 ## 0.7.0
 
 * Remove Eq instances for Cookie, CookieJar, Response, Ord instance for Cookie [#435](https://github.com/snoyberg/http-client/pull/435)
