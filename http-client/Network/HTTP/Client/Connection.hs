@@ -145,10 +145,7 @@ openSocketConnectionSize :: (Socket -> IO ())
                          -> Int -- ^ port
                          -> IO Connection
 openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
-    let hints = NS.defaultHints {
-                          NS.addrFlags = [NS.AI_ADDRCONFIG]
-                        , NS.addrSocketType = NS.Stream
-                        }
+    let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
     addrs <- case hostAddress' of
         Nothing ->
             NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
