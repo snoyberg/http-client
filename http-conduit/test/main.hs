@@ -406,7 +406,7 @@ main = do
     describe "hostAddress" $ do
         it "overrides host" $ withApp app $ \port -> do
             req' <- parseUrlThrow $ "http://example.com:" ++ show port
-            let req = req' { hostAddress = Just 0x0100007f } -- 127.0.0.1
+            let req = req' { hostAddress = Just $ NS.tupleToHostAddress (127, 0, 0, 1) }
             manager <- newManager tlsManagerSettings
             res <- httpLbs req manager
             responseBody res @?= "homepage for example.com"
