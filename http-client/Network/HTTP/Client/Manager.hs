@@ -17,6 +17,7 @@ module Network.HTTP.Client.Manager
     , proxyEnvironmentNamed
     , defaultProxy
     , dropProxyAuthSecure
+    , useProxySendRequestMode
     ) where
 
 import qualified Data.ByteString.Char8 as S8
@@ -216,7 +217,7 @@ connKey req =
             | secure req -> simple CKSecure
             | otherwise -> simple CKRaw
         Just p
-            | secure req -> CKProxy
+            | secure req && proxySecureMode req == ProxySecureConnect -> CKProxy
                 (proxyHost p)
                 (proxyPort p)
                 (lookup "Proxy-Authorization" (requestHeaders req))
@@ -285,6 +286,16 @@ noProxy = ProxyOverride $ const $ return $ \req -> req { proxy = Nothing }
 -- Since 0.4.7
 useProxy :: Proxy -> ProxyOverride
 useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
+
+-- | Send secure requests to the proxy in plain text rather than using CONNECT,
+-- regardless of the value in the @Request@.
+--
+-- Since 0.7.2
+useProxySendRequestMode :: ProxyOverride -> ProxyOverride
+useProxySendRequestMode (ProxyOverride existingOverride) = ProxyOverride $
+  \secure -> do
+    f <- existingOverride secure
+    return $ f . (\req -> req { proxySecureMode = ProxySecureSendRequest })
 
 -- | Get the proxy settings from the default environment variable (@http_proxy@
 -- for insecure, @https_proxy@ for secure). If no variable is set, then fall

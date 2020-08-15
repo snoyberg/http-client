@@ -36,6 +36,7 @@ module Network.HTTP.Client.Request
     , observedStreamFile
     , extractBasicAuthInfo
     , throwErrorStatusCodes
+    , addProxySendRequestMode
     ) where
 
 import Data.Int (Int64)
@@ -300,6 +301,7 @@ defaultRequest = Request
                 Nothing -> throwIO se
         , requestManagerOverride = Nothing
         , shouldStripHeaderOnRedirect = const False
+        , proxySecureMode = ProxySecureConnect
         }
 
 -- | Parses a URL via 'parseRequest_'
@@ -349,6 +351,13 @@ applyBasicAuth user passwd req =
 addProxy :: S.ByteString -> Int -> Request -> Request
 addProxy hst prt req =
     req { proxy = Just $ Proxy hst prt }
+
+
+-- | Send secure requests to the proxy in plain text rather than using CONNECT.
+--
+-- Since 0.7.2
+addProxySendRequestMode :: Request -> Request
+addProxySendRequestMode req = req { proxySecureMode = ProxySecureSendRequest }
 
 -- | Add a Proxy-Authorization header (with the specified username and
 -- password) to the given 'Request'. Ignore error handling:
@@ -466,7 +475,8 @@ requestBuilder req Connection {..} = do
         | otherwise  = fromByteString "http://"
 
     requestHostname
-        | isJust (proxy req) && not (secure req)
+        | isJust (proxy req) && (
+            proxySecureMode req == ProxySecureSendRequest || not (secure req))
             = requestProtocol <> fromByteString hh
         | otherwise          = mempty
 

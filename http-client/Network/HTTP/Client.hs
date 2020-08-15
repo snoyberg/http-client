@@ -116,6 +116,7 @@ module Network.HTTP.Client
     , proxyFromRequest
     , noProxy
     , useProxy
+    , useProxySendRequestMode
     , proxyEnvironment
     , proxyEnvironmentNamed
     , defaultProxy
