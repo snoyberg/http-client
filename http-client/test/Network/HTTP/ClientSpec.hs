@@ -35,13 +35,13 @@ spec = describe "Client" $ do
             responseStatus res `shouldBe` status405
 
     describe "redirects" $ do
-        it "follows redirects" $ do
+        xit "follows redirects" $ do
             req <- parseRequest "http://httpbin.org/redirect-to?url=http://httpbin.org"
             man <- newManager defaultManagerSettings
             res <- httpLbs req man
             responseStatus res `shouldBe` status200
 
-        it "allows to disable redirect following" $ do
+        xit "allows to disable redirect following" $ do
             req <- (\ r -> r{ redirectCount = 0 }) <$>
               parseRequest "http://httpbin.org/redirect-to?url=http://httpbin.org"
             man <- newManager defaultManagerSettings
@@ -88,7 +88,7 @@ spec = describe "Client" $ do
             man <- newManager settings
             httpLbs "http://httpbin.org" man `shouldThrow` anyException
 
-        it "redirectCount" $ do
+        xit "redirectCount" $ do
             let modify req = return req { redirectCount = 0 }
                 settings = defaultManagerSettings { managerModifyRequest = modify }
             man <- newManager settings
