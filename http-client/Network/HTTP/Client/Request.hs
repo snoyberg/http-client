@@ -36,7 +36,7 @@ module Network.HTTP.Client.Request
     , observedStreamFile
     , extractBasicAuthInfo
     , throwErrorStatusCodes
-    , addProxyPlainTextNoCONNECTMode
+    , addProxySecureWithoutConnect
     ) where
 
 import Data.Int (Int64)
@@ -356,8 +356,8 @@ addProxy hst prt req =
 -- | Send secure requests to the proxy in plain text rather than using CONNECT.
 --
 -- @since 0.7.2
-addProxyPlainTextNoCONNECTMode :: Request -> Request
-addProxyPlainTextNoCONNECTMode req = req { proxySecureMode = ProxySecureWithoutConnect }
+addProxySecureWithoutConnect :: Request -> Request
+addProxySecureWithoutConnect req = req { proxySecureMode = ProxySecureWithoutConnect }
 
 -- | Add a Proxy-Authorization header (with the specified username and
 -- password) to the given 'Request'. Ignore error handling:
