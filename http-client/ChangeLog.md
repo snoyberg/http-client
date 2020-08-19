@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.2
+
+* Add a new proxy mode, proxySecureWithoutConnect, for sending HTTPS requests in plain text to a proxy without using the CONNECT method.
+
 ## 0.7.1
 
 * Remove `AI_ADDRCONFIG` [#400](https://github.com/snoyberg/http-client/issues/400)

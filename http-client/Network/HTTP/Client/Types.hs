@@ -349,9 +349,9 @@ data Proxy = Proxy
 
 -- | Define how to make secure connections using a proxy server.
 data ProxySecureMode =
-  ProxySecureConnect
+  ProxySecureWithConnect
   -- ^ Use the HTTP CONNECT verb to forward a secure connection through the proxy.
-  | ProxySecureSendRequest
+  | ProxySecureWithoutConnect
   -- ^ Send the request directly to the proxy with an https URL. This mode can be
   -- used to offload TLS handling to a trusted local proxy.
   deriving (Show, Read, Eq, Ord, T.Typeable)

@@ -36,11 +36,11 @@ module Network.HTTP.Client.Request
     , observedStreamFile
     , extractBasicAuthInfo
     , throwErrorStatusCodes
-    , addProxySendRequestMode
+    , addProxyPlainTextNoCONNECTMode
     ) where
 
 import Data.Int (Int64)
-import Data.Maybe (fromMaybe, isJust, isNothing)
+import Data.Maybe (fromMaybe, isNothing)
 import Data.Monoid (mempty, mappend, (<>))
 import Data.String (IsString(..))
 import Data.Char (toLower)
@@ -301,7 +301,7 @@ defaultRequest = Request
                 Nothing -> throwIO se
         , requestManagerOverride = Nothing
         , shouldStripHeaderOnRedirect = const False
-        , proxySecureMode = ProxySecureConnect
+        , proxySecureMode = ProxySecureWithConnect
         }
 
 -- | Parses a URL via 'parseRequest_'
@@ -355,9 +355,9 @@ addProxy hst prt req =
 
 -- | Send secure requests to the proxy in plain text rather than using CONNECT.
 --
--- Since 0.7.2
-addProxySendRequestMode :: Request -> Request
-addProxySendRequestMode req = req { proxySecureMode = ProxySecureSendRequest }
+-- @since 0.7.2
+addProxyPlainTextNoCONNECTMode :: Request -> Request
+addProxyPlainTextNoCONNECTMode req = req { proxySecureMode = ProxySecureWithoutConnect }
 
 -- | Add a Proxy-Authorization header (with the specified username and
 -- password) to the given 'Request'. Ignore error handling:
@@ -474,11 +474,17 @@ requestBuilder req Connection {..} = do
         | secure req = fromByteString "https://"
         | otherwise  = fromByteString "http://"
 
-    requestHostname
-        | isJust (proxy req) && (
-            proxySecureMode req == ProxySecureSendRequest || not (secure req))
-            = requestProtocol <> fromByteString hh
-        | otherwise          = mempty
+    requestHostname (Request { proxy = Nothing }) = mempty
+    requestHostname (Request { proxy = Just _,
+                               secure = False }) =
+            requestProtocol <> fromByteString hh
+    requestHostname (Request { proxy = Just _,
+                               secure = True,
+                               proxySecureMode = ProxySecureWithConnect }) = mempty
+    requestHostname (Request { proxy = Just _,
+                               secure = True,
+                               proxySecureMode = ProxySecureWithoutConnect }) =
+            requestProtocol <> fromByteString hh
 
     contentLengthHeader (Just contentLength') =
             if method req `elem` ["GET", "HEAD"] && contentLength' == 0
@@ -508,7 +514,7 @@ requestBuilder req Connection {..} = do
     builder contentLength =
             fromByteString (method req)
             <> fromByteString " "
-            <> requestHostname
+            <> requestHostname req
             <> (case S8.uncons $ path req of
                     Just ('/', _) -> fromByteString $ path req
                     _ -> fromChar '/' <> fromByteString (path req))

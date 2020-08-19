@@ -17,7 +17,7 @@ module Network.HTTP.Client.Manager
     , proxyEnvironmentNamed
     , defaultProxy
     , dropProxyAuthSecure
-    , useProxySendRequestMode
+    , useProxySecureWithoutConnect
     ) where
 
 import qualified Data.ByteString.Char8 as S8
@@ -211,21 +211,23 @@ getConn req m
     connkey = connKey req
 
 connKey :: Request -> ConnKey
-connKey req =
-    case proxy req of
-        Nothing
-            | secure req -> simple CKSecure
-            | otherwise -> simple CKRaw
-        Just p
-            | secure req && proxySecureMode req == ProxySecureConnect -> CKProxy
-                (proxyHost p)
-                (proxyPort p)
-                (lookup "Proxy-Authorization" (requestHeaders req))
-                (host req)
-                (port req)
-            | otherwise -> CKRaw Nothing (proxyHost p) (proxyPort p)
-  where
-    simple con = con (hostAddress req) (host req) (port req)
+connKey req@Request { proxy = Nothing, secure = False } =
+  CKRaw (hostAddress req) (host req) (port req)
+connKey req@Request { proxy = Nothing, secure = True  } =
+  CKSecure (hostAddress req) (host req) (port req)
+connKey Request { proxy = Just p, secure = False } =
+  CKRaw Nothing (proxyHost p) (proxyPort p)
+connKey req@Request { proxy = Just p, secure = True,
+                      proxySecureMode = ProxySecureWithConnect  } =
+  CKProxy
+    (proxyHost p)
+    (proxyPort p)
+    (lookup "Proxy-Authorization" (requestHeaders req))
+    (host req)
+    (port req)
+connKey Request { proxy = Just p, secure = True,
+                  proxySecureMode = ProxySecureWithoutConnect  } =
+  CKRaw Nothing (proxyHost p) (proxyPort p)
 
 mkCreateConnection :: ManagerSettings -> IO (ConnKey -> IO Connection)
 mkCreateConnection ms = do
@@ -290,12 +292,11 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 -- | Send secure requests to the proxy in plain text rather than using CONNECT,
 -- regardless of the value in the @Request@.
 --
--- Since 0.7.2
-useProxySendRequestMode :: ProxyOverride -> ProxyOverride
-useProxySendRequestMode (ProxyOverride existingOverride) = ProxyOverride $
-  \secure -> do
-    f <- existingOverride secure
-    return $ f . (\req -> req { proxySecureMode = ProxySecureSendRequest })
+-- @since 0.7.2
+useProxySecureWithoutConnect :: Proxy -> ProxyOverride
+useProxySecureWithoutConnect p = ProxyOverride $
+  const $ return $ \req -> req { proxy = Just p,
+                                 proxySecureMode = ProxySecureWithConnect }
 
 -- | Get the proxy settings from the default environment variable (@http_proxy@
 -- for insecure, @https_proxy@ for secure). If no variable is set, then fall
