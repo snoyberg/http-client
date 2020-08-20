@@ -37,6 +37,7 @@ module Network.HTTP.Client.Types
     , ProxyOverride (..)
     , StreamFileStatus (..)
     , ResponseTimeout (..)
+    , ProxySecureMode (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -346,6 +347,15 @@ data Proxy = Proxy
     }
     deriving (Show, Read, Eq, Ord, T.Typeable)
 
+-- | Define how to make secure connections using a proxy server.
+data ProxySecureMode =
+  ProxySecureWithConnect
+  -- ^ Use the HTTP CONNECT verb to forward a secure connection through the proxy.
+  | ProxySecureWithoutConnect
+  -- ^ Send the request directly to the proxy with an https URL. This mode can be
+  -- used to offload TLS handling to a trusted local proxy.
+  deriving (Show, Read, Eq, Ord, T.Typeable)
+
 -- | When using one of the 'RequestBodyStream' \/ 'RequestBodyStreamChunked'
 -- constructors, you must ensure that the 'GivesPopper' can be called multiple
 -- times.  Usually this is not a problem.
@@ -600,6 +610,13 @@ data Request = Request
     -- when following a redirect. Default: keep all headers intact.
     --
     -- @since 0.6.2
+
+    , proxySecureMode :: ProxySecureMode
+    -- ^ How to proxy an HTTPS request.
+    --
+    -- Default: Use HTTP CONNECT.
+    --
+    -- @since 0.7.2
     }
     deriving T.Typeable
 
@@ -633,6 +650,7 @@ instance Show Request where
         , "  redirectCount        = " ++ show (redirectCount x)
         , "  responseTimeout      = " ++ show (responseTimeout x)
         , "  requestVersion       = " ++ show (requestVersion x)
+        , "  proxySecureMode      = " ++ show (proxySecureMode x)
         , "}"
         ]
 

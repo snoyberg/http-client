@@ -12,7 +12,6 @@ import           Control.Monad
 import qualified Data.ByteString                as S
 import qualified Data.ByteString.Char8          as S8
 import qualified Data.CaseInsensitive           as CI
-import           Data.Char (ord)
 import           Data.Maybe (mapMaybe)
 import           Data.Monoid
 import           Network.HTTP.Client.Connection
