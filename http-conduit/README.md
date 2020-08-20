@@ -5,6 +5,6 @@ Provides for making efficient HTTP/HTTPS requests, providing either a simple or
 streaming interface.
 
 Full tutorial docs are available at:
-https://haskell-lang.org/library/http-client
+https://github.com/snoyberg/http-client/blob/master/TUTORIAL.md
 
 The `Network.HTTP.Conduit.Browser` module has been moved to <http://hackage.haskell.org/package/http-conduit-browser/>
