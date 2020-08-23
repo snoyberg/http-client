@@ -296,7 +296,7 @@ useProxy p = ProxyOverride $ const $ return $ \req -> req { proxy = Just p }
 useProxySecureWithoutConnect :: Proxy -> ProxyOverride
 useProxySecureWithoutConnect p = ProxyOverride $
   const $ return $ \req -> req { proxy = Just p,
-                                 proxySecureMode = ProxySecureWithConnect }
+                                 proxySecureMode = ProxySecureWithoutConnect }
 
 -- | Get the proxy settings from the default environment variable (@http_proxy@
 -- for insecure, @https_proxy@ for secure). If no variable is set, then fall
