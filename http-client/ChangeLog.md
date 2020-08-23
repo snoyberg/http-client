@@ -1,8 +1,8 @@
 # Changelog for http-client
 
-## 0.7.3
+## 0.7.2.1
 
-* Fix bug in useProxySecureWithoutConnect.
+* Fix bug in `useProxySecureWithoutConnect`.
 
 ## 0.7.2
 
