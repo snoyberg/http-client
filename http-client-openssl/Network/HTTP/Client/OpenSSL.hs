@@ -1,3 +1,4 @@
+{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE CPP #-}
 -- | Support for making connections via the OpenSSL library.
@@ -6,6 +7,8 @@ module Network.HTTP.Client.OpenSSL
     , newOpenSSLManager
     , opensslManagerSettings
     , defaultMakeContext
+    , OpenSSLSettings(..)
+    , defaultOpenSSLSettings
     ) where
 
 import Network.HTTP.Client
@@ -19,12 +22,13 @@ import qualified Network.Socket as N
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL (contextLoadSystemCerts)
 
--- | Create a new 'Manager' using 'opensslManagerSettings' and 'defaultMakeContext'.
+-- | Create a new 'Manager' using 'opensslManagerSettings' and 'defaultMakeContext'
+-- with 'defaultOpenSSLSettings'.
 newOpenSSLManager :: MonadIO m => m Manager
 newOpenSSLManager = liftIO $ do
   -- sharing an SSL context between threads (without modifying it) is safe:
   -- https://github.com/openssl/openssl/issues/2165
-  ctx <- defaultMakeContext
+  ctx <- defaultMakeContext defaultOpenSSLSettings
   newManager $ opensslManagerSettings (pure ctx)
 
 -- | Note that it is the caller's responsibility to pass in an appropriate context.
@@ -95,30 +99,43 @@ opensslManagerSettings mkContext = defaultManagerSettings
            (SSL.write ssl)
            (N.close sock)
 
--- | Make a new context that uses the system's trust anchors to verify
--- server certificates. In particular:
+defaultMakeContext :: OpenSSLSettings -> IO SSL.SSLContext
+defaultMakeContext OpenSSLSettings{..} = do
+    ctx <- SSL.context
+    SSL.contextSetVerificationMode ctx osslSettingsVerifyMode
+    SSL.contextSetCiphers ctx osslSettingsCiphers
+    mapM_ (SSL.contextAddOption ctx) osslSettingsOptions
+    osslSettingsLoadCerts ctx
+    return ctx
+
+data OpenSSLSettings = OpenSSLSettings
+    { osslSettingsOptions :: [SSL.SSLOption]
+    , osslSettingsVerifyMode :: SSL.VerificationMode
+    , osslSettingsCiphers :: String
+    , osslSettingsLoadCerts :: SSL.SSLContext -> IO ()
+    }
+
+-- | Default OpenSSL settings. In particular:
 --
 --  * SSLv2 and SSLv3 are disabled
---  * Server Name Indication
 --  * Hostname validation
 --  * @DEFAULT@ cipher list
+--  * Certificates loaded from OS-specific store
 --
 -- Note that these settings might change in the future.
-defaultMakeContext :: IO SSL.SSLContext
-defaultMakeContext = do
-    ctx <- SSL.context
-    SSL.contextSetVerificationMode ctx
-        SSL.VerifyPeer
-          -- vpFailIfNoPeerCert and vpClientOnce are only relevant for servers
-          { SSL.vpFailIfNoPeerCert = False
-          , SSL.vpClientOnce = False
-          , SSL.vpCallback = Nothing
-          }
-    SSL.contextSetDefaultCiphers ctx
-    mapM_ (SSL.contextAddOption ctx)
+defaultOpenSSLSettings :: OpenSSLSettings
+defaultOpenSSLSettings = OpenSSLSettings
+    { osslSettingsOptions =
         [ SSL.SSL_OP_ALL -- enable bug workarounds
         , SSL.SSL_OP_NO_SSLv2
         , SSL.SSL_OP_NO_SSLv3
         ]
-    SSL.contextLoadSystemCerts ctx
-    return ctx
+    , osslSettingsVerifyMode = SSL.VerifyPeer
+        -- vpFailIfNoPeerCert and vpClientOnce are only relevant for servers
+        { SSL.vpFailIfNoPeerCert = False
+        , SSL.vpClientOnce = False
+        , SSL.vpCallback = Nothing
+        }
+    , osslSettingsCiphers = "DEFAULT"
+    , osslSettingsLoadCerts = SSL.contextLoadSystemCerts
+    }
