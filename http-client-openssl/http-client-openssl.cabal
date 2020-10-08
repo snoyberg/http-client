@@ -23,7 +23,8 @@ library
                      , bytestring
                      , http-client >= 0.2
                      , network
-                     , HsOpenSSL >= 0.11.2.0
+                     , HsOpenSSL >= 0.11.4.20
+                     , HsOpenSSL-x509-system
   default-language:    Haskell2010
 
 test-suite spec
