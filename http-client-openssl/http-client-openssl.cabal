@@ -1,5 +1,5 @@
 name:                http-client-openssl
-version:             0.3.1.0
+version:             0.3.2.0
 synopsis:            http-client backend using the OpenSSL library.
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client
@@ -23,7 +23,8 @@ library
                      , bytestring
                      , http-client >= 0.2
                      , network
-                     , HsOpenSSL >= 0.11.2.0
+                     , HsOpenSSL >= 0.11.4.20
+                     , HsOpenSSL-x509-system
   default-language:    Haskell2010
 
 test-suite spec

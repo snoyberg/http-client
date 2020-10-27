@@ -4,3 +4,6 @@ packages:
 - http-client-tls
 - http-client-openssl
 - http-conduit
+extra-deps:
+- HsOpenSSL-0.11.4.20
+- HsOpenSSL-x509-system-0.1.0.4
