@@ -10,6 +10,7 @@ module Network.HTTP.Client.Connection
     , openSocketConnectionSize
     , makeConnection
     , socketConnection
+    , withSocket
     ) where
 
 import Data.ByteString (ByteString, empty)
@@ -144,7 +145,17 @@ openSocketConnectionSize :: (Socket -> IO ())
                          -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
-openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
+openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
+    withSocket tweakSocket hostAddress' host' port' $ \ sock ->
+        socketConnection sock chunksize
+
+withSocket :: (Socket -> IO ())
+           -> Maybe HostAddress
+           -> String -- ^ host
+           -> Int -- ^ port
+           -> (Socket -> IO a)
+           -> IO a
+withSocket tweakSocket hostAddress' host' port' f = do
     let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
     addrs <- case hostAddress' of
         Nothing ->
@@ -160,16 +171,18 @@ openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' = do
                  , NS.addrCanonName = Nothing
                  }]
 
-    firstSuccessful addrs $ \addr ->
-        E.bracketOnError
-            (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
-                       (NS.addrProtocol addr))
-            NS.close
-            (\sock -> do
-                NS.setSocketOption sock NS.NoDelay 1
-                tweakSocket sock
-                NS.connect sock (NS.addrAddress addr)
-                socketConnection sock chunksize)
+    E.bracketOnError (firstSuccessful addrs $ openSocket tweakSocket) NS.close f
+
+openSocket tweakSocket addr =
+    E.bracketOnError
+        (NS.socket (NS.addrFamily addr) (NS.addrSocketType addr)
+                   (NS.addrProtocol addr))
+        NS.close
+        (\sock -> do
+            NS.setSocketOption sock NS.NoDelay 1
+            tweakSocket sock
+            NS.connect sock (NS.addrAddress addr)
+            return sock)
 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
 firstSuccessful []     _  = error "getAddrInfo returned empty list"
