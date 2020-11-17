@@ -21,6 +21,7 @@ import qualified Data.ByteString as S
 import qualified Network.Socket as N
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL (contextLoadSystemCerts)
+import Foreign.Storable (sizeOf)
 
 -- | Create a new 'Manager' using 'opensslManagerSettings' and 'defaultMakeContext'
 -- with 'defaultOpenSSLSettings'.
@@ -36,15 +37,15 @@ opensslManagerSettings :: IO SSL.SSLContext -> ManagerSettings
 opensslManagerSettings mkContext = defaultManagerSettings
     { managerTlsConnection = do
         ctx <- mkContext
-        return $ \_ha host' port' ->
-            withSocket host' port' $ \sock ->
+        return $ \ha' host' port' ->
+            withSocket (const $ return ()) ha' host' port' $ \sock ->
                 makeSSLConnection ctx sock host'
     , managerTlsProxyConnection = do
         ctx <- mkContext
         return $ \connstr checkConn serverName _ha host' port' ->
-            withSocket host' port' $ \sock -> do
+            withSocket (const $ return ()) Nothing host' port' $ \sock -> do
                 conn <- makeConnection
-                        (recv sock 32752)
+                        (recv sock bufSize)
                         (sendAll sock)
                         (return ())
                 connectionWrite conn connstr
@@ -71,33 +72,22 @@ opensslManagerSettings mkContext = defaultManagerSettings
           handle (throwIO . wrap)
     }
   where
-    withSocket host port use = do
-        -- Copied/modified from openssl-streams
-        let hints      = N.defaultHints
-                            { N.addrFlags      = [N.AI_ADDRCONFIG, N.AI_NUMERICSERV]
-                            , N.addrFamily     = N.AF_INET
-                            , N.addrSocketType = N.Stream
-                            }
-
-        (addrInfo:_) <- N.getAddrInfo (Just hints) (Just host) (Just $ show port)
-
-        let family     = N.addrFamily addrInfo
-        let socketType = N.addrSocketType addrInfo
-        let protocol   = N.addrProtocol addrInfo
-        let address    = N.addrAddress addrInfo
-
-        bracketOnError (N.socket family socketType protocol) (N.close) $
-            \sock -> N.connect sock address *> use sock
-
     makeSSLConnection ctx sock host = do
         ssl <- SSL.connection ctx sock
         SSL.setTlsextHostName ssl host
         SSL.enableHostnameValidation ssl host
         SSL.connect ssl
         makeConnection
-           (SSL.read ssl 32752 `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> return S.empty)
+           (SSL.read ssl bufSize `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> return S.empty)
+           -- Handling SSL.ConnectionAbruptlyTerminated as a stream end
+           -- (some sites terminate SSL connection right after returning the data).
            (SSL.write ssl)
            (N.close sock)
+
+-- same as Data.ByteString.Lazy.Internal.defaultChunkSize
+bufSize :: Int
+bufSize = 32 * 1024 - overhead
+    where overhead = 2 * sizeOf (undefined :: Int)
 
 defaultMakeContext :: OpenSSLSettings -> IO SSL.SSLContext
 defaultMakeContext OpenSSLSettings{..} = do
