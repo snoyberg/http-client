@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.3
+
+* Added `withSocket` to `Network.HTTP.Client.Connection`.
+
 ## 0.7.2.1
 
 * Fix bug in `useProxySecureWithoutConnect`.

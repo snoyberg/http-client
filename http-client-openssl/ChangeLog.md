@@ -1,3 +1,7 @@
+## 0.3.3
+
+* Use `hostAddress` from `Request`.
+
 ## 0.3.2.0
 
 * http-client-openssl: added reasonable OpenSSL default settings
