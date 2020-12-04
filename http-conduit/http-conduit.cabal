@@ -1,3 +1,4 @@
+cabal-version:   >= 1.10
 name:            http-conduit
 version:         2.3.7.4
 license:         BSD3
@@ -8,7 +9,6 @@ synopsis:        HTTP client package with conduit interface and HTTPS support.
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-conduit>.
 category:        Web, Conduit
 stability:       Stable
-cabal-version:   >= 1.8
 build-type:      Simple
 homepage:        http://www.yesodweb.com/book/http-conduit
 extra-source-files: test/main.hs
@@ -26,6 +26,7 @@ flag aeson
   default: True
 
 library
+    default-language: Haskell2010
     build-depends: base                  >= 4.10    && < 5
                  , attoparsec
                  , bytestring            >= 0.9.1.4
@@ -50,6 +51,7 @@ library
     ghc-options:     -Wall
 
 test-suite test
+    default-language: Haskell2010
     main-is: main.hs
     other-modules: CookieTest
     type: exitcode-stdio-1.0
