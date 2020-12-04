@@ -1,5 +1,5 @@
 name:            http-conduit
-version:         2.3.7.3
+version:         2.3.7.4
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>
@@ -20,9 +20,13 @@ extra-source-files: test/main.hs
                   , README.md
                   , ChangeLog.md
 
+flag aeson
+  manual: True
+  description: Enable the dependency on aeson
+  default: True
+
 library
     build-depends: base                  >= 4.10    && < 5
-                 , aeson                 >= 0.8
                  , attoparsec
                  , bytestring            >= 0.9.1.4
                  , transformers          >= 0.2
@@ -34,6 +38,9 @@ library
                  , http-client-tls       >= 0.3     && < 0.4
                  , mtl
                  , unliftio-core
+
+    if flag(aeson)
+      build-depends: aeson                 >= 0.8
 
     if !impl(ghc>=7.9)
       build-depends:   void >= 0.5.5
@@ -75,10 +82,12 @@ test-suite test
                  , http-conduit
                  , conduit-extra
                  , streaming-commons
-                 , aeson
                  , temporary
                  , resourcet
                  , network
+
+    if flag(aeson)
+      build-depends: aeson
 
 source-repository head
   type:     git

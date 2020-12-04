@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.7.4
+
+* Introduces the `aeson` cabal file [#448](https://github.com/snoyberg/http-client/issues/448)
+
 ## 2.3.7.3
 
 * Relax test suite version bounds

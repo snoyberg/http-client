@@ -1,3 +1,4 @@
+{-# LANGUAGE CPP                #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RankNTypes         #-}
 {-# LANGUAGE TupleSections      #-}
@@ -22,8 +23,10 @@ module Network.HTTP.Simple
       httpBS
     , httpLBS
     , httpNoBody
+#ifdef VERSION_aeson
     , httpJSON
     , httpJSONEither
+#endif
     , httpSink
     , httpSource
     , withResponse
@@ -35,7 +38,9 @@ module Network.HTTP.Simple
     , H.RequestHeaders
     , H.Response
     , H.ResponseHeaders
+#ifdef VERSION_aeson
     , JSONException (..)
+#endif
     , H.HttpException (..)
     , H.Proxy (..)
       -- * Request constructions
@@ -60,7 +65,9 @@ module Network.HTTP.Simple
     , addToRequestQueryString
       -- ** Request body
     , setRequestBody
+#ifdef VERSION_aeson
     , setRequestBodyJSON
+#endif
     , setRequestBodyLBS
     , setRequestBodySource
     , setRequestBodyFile
@@ -89,10 +96,14 @@ import qualified Network.HTTP.Client.TLS as H
 import Network.HTTP.Client.Conduit (bodyReaderSource)
 import qualified Network.HTTP.Client.Conduit as HC
 import Control.Monad.IO.Unlift (MonadIO, liftIO, MonadUnliftIO, withRunInIO)
+
+#ifdef VERSION_aeson
 import Data.Aeson (FromJSON (..), Value)
 import Data.Aeson.Parser (json')
 import qualified Data.Aeson.Types as A
 import qualified Data.Aeson as A
+#endif
+
 import qualified Data.Traversable as T
 import Control.Exception (throw, throwIO, Exception)
 import Data.Monoid
@@ -136,8 +147,11 @@ httpNoBody req = liftIO $ do
     man <- H.getGlobalManager
     H.httpNoBody req man
 
+#ifdef VERSION_aeson
 -- | Perform an HTTP request and parse the body as JSON. In the event of an
 -- JSON parse errors, a 'JSONException' runtime exception will be thrown.
+--
+-- NOTE: Depends on the @aeson@ cabal flag being enabled
 --
 -- @since 2.1.10
 httpJSON :: (MonadIO m, FromJSON a) => H.Request -> m (H.Response a)
@@ -145,6 +159,8 @@ httpJSON req = liftIO $ httpJSONEither req >>= T.mapM (either throwIO return)
 
 -- | Perform an HTTP request and parse the body as JSON. In the event of an
 -- JSON parse errors, a @Left@ value will be returned.
+--
+-- NOTE: Depends on the @aeson@ cabal flag being enabled
 --
 -- @since 2.1.10
 httpJSONEither :: (MonadIO m, FromJSON a)
@@ -166,12 +182,15 @@ httpJSONEither req = liftIO $ httpSink req' sink
 
 -- | An exception that can occur when parsing JSON
 --
+-- NOTE: Depends on the @aeson@ cabal flag being enabled
+--
 -- @since 2.1.10
 data JSONException
     = JSONParseException H.Request (H.Response ()) C.ParseError
     | JSONConversionException H.Request (H.Response Value) String
   deriving (Show, Typeable)
 instance Exception JSONException
+#endif
 
 -- | Perform an HTTP request and consume the body with the given 'C.Sink'
 --
@@ -370,12 +389,15 @@ addToRequestQueryString additions req = setRequestQueryString q req
 setRequestBody :: H.RequestBody -> H.Request -> H.Request
 setRequestBody x req = req { H.requestBody = x }
 
+#ifdef VERSION_aeson
 -- | Set the request body as a JSON value
 --
 -- /Note/: This will not modify the request method. For that, please use
 -- 'requestMethod'. You likely don't want the default of @GET@.
 --
 -- This also sets the @Content-Type@ to @application/json; charset=utf-8@
+--
+-- NOTE: Depends on the @aeson@ cabal flag being enabled
 --
 -- @since 2.1.10
 setRequestBodyJSON :: A.ToJSON a => a -> H.Request -> H.Request
@@ -385,6 +407,7 @@ setRequestBodyJSON x req =
             : filter (\(y, _) -> y /= H.hContentType) (H.requestHeaders req)
         , H.requestBody = H.RequestBodyLBS $ A.encode x
         }
+#endif
 
 -- | Set the request body as a lazy @ByteString@
 --
