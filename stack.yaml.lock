@@ -3,10 +3,24 @@
 # For more information, please see the documentation at:
 #   https://docs.haskellstack.org/en/stable/lock_files
 
-packages: []
+packages:
+- completed:
+    hackage: HsOpenSSL-0.11.4.20@sha256:b88bd010ef07db2f7109b53bee08476c00c9d5b9d01005f0b44477f7eb3ec74d,6091
+    pantry-tree:
+      size: 3287
+      sha256: 9b403d61ef40e8362e8968db16fb46d597bfac6d7ee7c139ff975af06027b6bd
+  original:
+    hackage: HsOpenSSL-0.11.4.20
+- completed:
+    hackage: HsOpenSSL-x509-system-0.1.0.4@sha256:86be72558de4cee8f4e32f9cb8b63610d7624219910cfc205a23326078658676,1777
+    pantry-tree:
+      size: 508
+      sha256: 98f6b47d27550f29a90a8f5660cf09f72f139d9940fe00cd6b0cffbd5c210a15
+  original:
+    hackage: HsOpenSSL-x509-system-0.1.0.4
 snapshots:
 - completed:
-    size: 524130
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/14/10.yaml
-    sha256: 04841e0397d7ce6364f19359fce89aa45ca8684609d665845db80d398002baa9
-  original: lts-14.10
+    size: 532177
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/20.yaml
+    sha256: 0e14ba5603f01e8496e8984fd84b545a012ca723f51a098c6c9d3694e404dc6d
+  original: lts-16.20
