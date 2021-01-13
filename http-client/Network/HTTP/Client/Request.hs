@@ -63,7 +63,7 @@ import Network.URI (URI (..), URIAuth (..), parseURI, relativeTo, escapeURIStrin
 import Control.Exception (throw, throwIO, IOException)
 import qualified Control.Exception as E
 import qualified Data.CaseInsensitive as CI
-import qualified Data.ByteArray.Encoding as BAE
+import qualified Data.ByteString.Base64 as B64
 
 import Network.HTTP.Client.Body
 import Network.HTTP.Client.Types
@@ -326,7 +326,7 @@ buildBasicAuth ::
     -> S8.ByteString -- ^ Password
     -> S8.ByteString
 buildBasicAuth user passwd =
-    S8.append "Basic " (BAE.convertToBase BAE.Base64 (S8.concat [ user, ":", passwd ]))
+    S8.append "Basic " (B64.encode (S8.concat [ user, ":", passwd ]))
 
 -- | Add a Basic Auth header (with the specified user name and password) to the
 -- given Request. Ignore error handling:
