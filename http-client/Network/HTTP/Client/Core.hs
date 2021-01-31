@@ -110,6 +110,10 @@ httpRaw' req0 m = do
         Left e | managedReused mconn && mRetryableException m e -> do
             managedRelease mconn DontReuse
             httpRaw' req m
+        -- Connection timed out and might have been closed.
+               | mTimeoutException m e -> do
+            managedRelease mconn DontReuse
+            throwIO e
         -- Not reused, or a non-retry, so this is a real exception
         Left e -> throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get

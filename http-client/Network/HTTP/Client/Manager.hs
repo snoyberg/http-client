@@ -81,6 +81,10 @@ defaultManagerSettings = ManagerSettings
                     Just NoResponseDataReceived -> True
                     Just IncompleteHeaders -> True
                     _ -> False
+    , managerTimeoutException = \e ->
+        case fromException e of
+          Just (HttpExceptionRequest _ ConnectionTimeout) -> True
+          _ -> False
     , managerWrapException = \_req ->
         let wrapper se =
                 case fromException se of
@@ -124,6 +128,7 @@ newManager ms = do
             { mConns = keyedPool
             , mResponseTimeout = managerResponseTimeout ms
             , mRetryableException = managerRetryableException ms
+            , mTimeoutException = managerTimeoutException ms
             , mWrapException = managerWrapException ms
             , mModifyRequest = managerModifyRequest ms
             , mModifyResponse = managerModifyResponse ms
