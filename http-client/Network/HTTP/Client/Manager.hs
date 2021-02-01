@@ -84,6 +84,7 @@ defaultManagerSettings = ManagerSettings
     , managerTimeoutException = \e ->
         case fromException e of
           Just (HttpExceptionRequest _ ConnectionTimeout) -> True
+          Just (HttpExceptionRequest _ ResponseTimeout) -> True
           _ -> False
     , managerWrapException = \_req ->
         let wrapper se =
