@@ -25,7 +25,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Text (Text)
 
 import Control.Monad (unless)
-import Control.Exception (throwIO, fromException, IOException, Exception (..), handle)
+import Control.Exception (throwIO, bracketOnError, fromException, IOException, Exception (..), handle)
 
 import qualified Network.Socket as NS
 
@@ -81,11 +81,6 @@ defaultManagerSettings = ManagerSettings
                     Just NoResponseDataReceived -> True
                     Just IncompleteHeaders -> True
                     _ -> False
-    , managerTimeoutException = \e ->
-        case fromException e of
-          Just (HttpExceptionRequest _ ConnectionTimeout) -> True
-          Just (HttpExceptionRequest _ ResponseTimeout) -> True
-          _ -> False
     , managerWrapException = \_req ->
         let wrapper se =
                 case fromException se of
@@ -129,7 +124,6 @@ newManager ms = do
             { mConns = keyedPool
             , mResponseTimeout = managerResponseTimeout ms
             , mRetryableException = managerRetryableException ms
-            , mTimeoutException = managerTimeoutException ms
             , mWrapException = managerWrapException ms
             , mModifyRequest = managerModifyRequest ms
             , mModifyResponse = managerModifyResponse ms
@@ -211,7 +205,13 @@ getConn req m
     -- Stop Mac OS X from getting high:
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
     | S8.null h = throwHttp $ InvalidDestinationHost h
-    | otherwise = takeKeyedPool (mConns m) connkey
+    | otherwise = 
+        -- Release connection in case of connection timeout:
+        -- https://github.com/snoyberg/http-client/pull/454
+        bracketOnError
+            (takeKeyedPool (mConns m) connkey)
+            (\mConn -> managedRelease mConn DontReuse)
+            return
   where
     h = host req
     connkey = connKey req

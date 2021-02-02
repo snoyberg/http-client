@@ -739,10 +739,6 @@ data ManagerSettings = ManagerSettings
     -- new one.
     --
     -- Since 0.1.0
-    , managerTimeoutException :: SomeException -> Bool
-    -- ^ Exceptions for which we should enforce closing the connection.
-    --
-    -- @since 0.7.5
     , managerWrapException :: forall a. Request -> IO a -> IO a
     -- ^ Action wrapped around all attempted @Request@s, usually used to wrap
     -- up exceptions in library-specific types.
@@ -810,8 +806,6 @@ data Manager = Manager
     , mResponseTimeout :: ResponseTimeout
     -- ^ Copied from 'managerResponseTimeout'
     , mRetryableException :: SomeException -> Bool
-    , mTimeoutException :: SomeException -> Bool
-    -- ^ Copied from 'managerTimeoutException'
     , mWrapException :: forall a. Request -> IO a -> IO a
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
