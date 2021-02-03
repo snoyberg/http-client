@@ -205,13 +205,7 @@ getConn req m
     -- Stop Mac OS X from getting high:
     -- https://github.com/snoyberg/http-client/issues/40#issuecomment-39117909
     | S8.null h = throwHttp $ InvalidDestinationHost h
-    | otherwise = 
-        -- Release connection in case of connection timeout:
-        -- https://github.com/snoyberg/http-client/pull/454
-        bracketOnError
-            (takeKeyedPool (mConns m) connkey)
-            (\mConn -> managedRelease mConn DontReuse)
-            return
+    | otherwise = takeKeyedPool (mConns m) connkey
   where
     h = host req
     connkey = connKey req
