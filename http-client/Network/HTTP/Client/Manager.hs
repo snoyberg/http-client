@@ -25,7 +25,7 @@ import qualified Data.ByteString.Char8 as S8
 import Data.Text (Text)
 
 import Control.Monad (unless)
-import Control.Exception (throwIO, bracketOnError, fromException, IOException, Exception (..), handle)
+import Control.Exception (throwIO, fromException, IOException, Exception (..), handle)
 
 import qualified Network.Socket as NS
 
