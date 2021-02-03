@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.5
+
+* Force closing connections in case of exceptions throwing [#454](https://github.com/snoyberg/http-client/pull/454).
+
 ## 0.7.4
 
 * Depend on base64-bytestring instead of memory [#453](https://github.com/snoyberg/http-client/pull/453)
