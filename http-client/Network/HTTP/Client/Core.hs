@@ -126,31 +126,22 @@ httpRaw' req0 m = do
             Nothing -> return (req, res)
   where
     getConnectionWrapper mtimeout f =
-        bracketOnError getConnWithTimeout releaseConnMaybe checkConnDuration
-      where
-        -- If applicable, wait for timeout period to acquire the connection from the pool.
-        getConnWithTimeout = case mtimeout of
+        case mtimeout of
             Nothing -> fmap ((,) Nothing) f
             Just timeout' -> do
                 before <- getCurrentTime
                 mres <- timeout timeout' f
                 case mres of
-                  Nothing -> throwHttp ConnectionTimeout
-                  Just res -> return (Just (before, timeout'), res)
-
-        -- In case of errors in 'checkConnDuration' release connection.
-        releaseConnMaybe (_time, mconn) = managedRelease mconn DontReuse
-
-        -- Check connection duration and raise ConnectionTimeout if it takes too long.
-        checkConnDuration (mtime, mconn) = case mtime of
-            Nothing -> return (Nothing, mconn)
-            Just (before, timeout') -> do
-                now <- getCurrentTime
-                let timeSpentMicro = diffUTCTime now before * 1000000
-                    remainingTime = round $ fromIntegral timeout' - timeSpentMicro
-                if remainingTime <= 0
-                    then throwHttp ConnectionTimeout
-                    else return (Just remainingTime, mconn)
+                     Nothing -> throwHttp ConnectionTimeout
+                     Just mConn -> do
+                         now <- getCurrentTime
+                         let timeSpentMicro = diffUTCTime now before * 1000000
+                             remainingTime = round $ fromIntegral timeout' - timeSpentMicro
+                         if remainingTime <= 0
+                             then do
+                                 managedRelease mConn DontReuse
+                                 throwHttp ConnectionTimeout
+                             else return (Just remainingTime, mConn)
 
     responseTimeout' req =
         case responseTimeout req of
