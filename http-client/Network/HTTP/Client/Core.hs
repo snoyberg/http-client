@@ -111,7 +111,11 @@ httpRaw' req0 m = do
             managedRelease mconn DontReuse
             httpRaw' req m
         -- Not reused, or a non-retry, so this is a real exception
-        Left e -> throwIO e
+        Left e -> do
+          -- Explicitly release connection for all real exceptions:
+          -- https://github.com/snoyberg/http-client/pull/454
+          managedRelease mconn DontReuse
+          throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the response body, just throw them as normal.
         Right res -> case cookieJar req' of
@@ -128,14 +132,16 @@ httpRaw' req0 m = do
                 before <- getCurrentTime
                 mres <- timeout timeout' f
                 case mres of
-                    Nothing -> throwHttp ConnectionTimeout
-                    Just res -> do
-                        now <- getCurrentTime
-                        let timeSpentMicro = diffUTCTime now before * 1000000
-                            remainingTime = round $ fromIntegral timeout' - timeSpentMicro
-                        if remainingTime <= 0
-                            then throwHttp ConnectionTimeout
-                            else return (Just remainingTime, res)
+                     Nothing -> throwHttp ConnectionTimeout
+                     Just mConn -> do
+                         now <- getCurrentTime
+                         let timeSpentMicro = diffUTCTime now before * 1000000
+                             remainingTime = round $ fromIntegral timeout' - timeSpentMicro
+                         if remainingTime <= 0
+                             then do
+                                 managedRelease mConn DontReuse
+                                 throwHttp ConnectionTimeout
+                             else return (Just remainingTime, mConn)
 
     responseTimeout' req =
         case responseTimeout req of
