@@ -2,7 +2,7 @@
 
 ## 0.7.6
 
-* Add `applyBearerAuth` function []()
+* Add `applyBearerAuth` function [#457](https://github.com/snoyberg/http-client/pull/457/files)
 
 ## 0.7.5
 
