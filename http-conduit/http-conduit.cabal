@@ -1,6 +1,6 @@
 cabal-version:   >= 1.10
 name:            http-conduit
-version:         2.3.7.4
+version:         2.3.8
 license:         BSD3
 license-file:    LICENSE
 author:          Michael Snoyman <michael@snoyman.com>

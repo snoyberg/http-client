@@ -33,6 +33,18 @@ spec = describe "Client" $ do
             man <- newManager defaultManagerSettings
             res <- httpLbs req man
             responseStatus res `shouldBe` status405
+    describe "bearer auth" $ do
+        it "success" $ do
+            initialReq <- parseUrlThrow "http://httpbin.org/bearer"
+            let finalReq = applyBearerAuth "token" initialReq
+            man <- newManager defaultManagerSettings
+            res <- httpLbs finalReq man
+            responseStatus res `shouldBe` status200
+        it "failure" $ do
+            req <- parseRequest "http://httpbin.org/bearer"
+            man <- newManager defaultManagerSettings
+            res <- httpLbs req man
+            responseStatus res `shouldBe` status401
 
     describe "redirects" $ do
         xit "follows redirects" $ do
