@@ -23,6 +23,7 @@ module Network.HTTP.Client.Request
     , addProxy
     , applyBasicAuth
     , applyBasicProxyAuth
+    , applyBearerAuth
     , urlEncodedBody
     , needsGunzip
     , requestBuilder
@@ -343,6 +344,22 @@ applyBasicAuth user passwd req =
     req { requestHeaders = authHeader : requestHeaders req }
   where
     authHeader = (CI.mk "Authorization", buildBasicAuth user passwd)
+
+-- | Build a bearer-auth header value
+buildBearerAuth ::
+    S8.ByteString -- ^ Token
+    -> S8.ByteString
+buildBearerAuth token =
+    S8.append "Bearer " token
+
+-- | Add a Bearer Auth header to the given 'Request'
+--
+-- @since 0.7.6
+applyBearerAuth :: S.ByteString -> Request -> Request
+applyBearerAuth bearerToken req =
+    req { requestHeaders = authHeader : requestHeaders req }
+  where
+    authHeader = (CI.mk "Authorization", buildBearerAuth bearerToken)
 
 -- | Add a proxy to the Request so that the Request when executed will use
 -- the provided proxy.

@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.6
+
+* Add `applyBearerAuth` function []()
+
 ## 0.7.5
 
 * Force closing connections in case of exceptions throwing [#454](https://github.com/snoyberg/http-client/pull/454).

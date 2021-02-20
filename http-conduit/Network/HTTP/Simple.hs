@@ -76,6 +76,9 @@ module Network.HTTP.Simple
     , H.setRequestIgnoreStatus
     , H.setRequestCheckStatus
     , setRequestBasicAuth
+#if MIN_VERSION_http_client(0,7,6)
+    , setRequestBearerAuth
+#endif
     , setRequestManager
     , setRequestProxy
       -- * Response lenses
@@ -456,6 +459,16 @@ setRequestBasicAuth :: S.ByteString -- ^ username
                     -> H.Request
                     -> H.Request
 setRequestBasicAuth = H.applyBasicAuth
+
+#if MIN_VERSION_http_client(0,7,6)
+-- | Set bearer auth with the given token
+--
+-- @since 2.3.8
+setRequestBearerAuth :: S.ByteString -- ^ token
+                    -> H.Request
+                    -> H.Request
+setRequestBearerAuth = H.applyBearerAuth
+#endif
 
 -- | Instead of using the default global 'H.Manager', use the supplied
 -- @Manager@.

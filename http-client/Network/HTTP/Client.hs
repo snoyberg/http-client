@@ -138,6 +138,7 @@ module Network.HTTP.Client
     , requestFromURI_
     , defaultRequest
     , applyBasicAuth
+    , applyBearerAuth
     , urlEncodedBody
     , getUri
     , setRequestIgnoreStatus
