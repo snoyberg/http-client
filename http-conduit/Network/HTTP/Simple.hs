@@ -81,6 +81,7 @@ module Network.HTTP.Simple
 #endif
     , setRequestManager
     , setRequestProxy
+    , setRequestResponseTimeout
       -- * Response lenses
     , getResponseStatus
     , getResponseStatusCode
@@ -482,6 +483,12 @@ setRequestManager x req = req { HI.requestManagerOverride = Just x }
 -- @since 2.1.10
 setRequestProxy :: Maybe H.Proxy -> H.Request -> H.Request
 setRequestProxy x req = req { H.proxy = x }
+
+-- | Set the maximum time to wait for a response
+--
+-- @since 2.3.8
+setRequestResponseTimeout :: H.ResponseTimeout -> H.Request -> H.Request
+setRequestResponseTimeout x req = req { H.responseTimeout = x }
 
 -- | Get the status of the response
 --
