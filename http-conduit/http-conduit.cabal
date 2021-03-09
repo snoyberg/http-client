@@ -10,7 +10,7 @@ description:         Hackage documentation generation is not reliable. For up to
 category:        Web, Conduit
 stability:       Stable
 build-type:      Simple
-homepage:        http://www.yesodweb.com/book/http-conduit
+homepage:        https://github.com/snoyberg/http-client
 extra-source-files: test/main.hs
                   , test/CookieTest.hs
                   , multipart-example.bin
