@@ -61,3 +61,16 @@ spec = describe "CookieSpec" $ do
             when countsForEquiv $ cky `equivCookie` f cky `shouldBe` False
 
       check `mapM_` modifications
+
+    it "isPotentiallyTrustworthyOrigin" $ do
+      isPotentiallyTrustworthyOrigin True "" `shouldBe` True
+      let untrusty = ["example", "example.", "example.com", "foolocalhost", "1.1.1.1", "::1", "[::2]"]
+          trusty =
+            [ "127.0.0.1", "127.0.0.2", "127.127.127.127"
+            , "[::1]", "[0:0:0:0:0:0:0:1]"
+            , "localhost", "localhost."
+            , "a.b.c.localhost", "a.b.c.localhost."
+            ]
+      or (map (isPotentiallyTrustworthyOrigin False) untrusty) `shouldBe` False
+      and (map (isPotentiallyTrustworthyOrigin False) trusty) `shouldBe` True
+

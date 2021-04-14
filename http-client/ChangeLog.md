@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.7
+
+* Allow secure cookies for localhost without HTTPS [#460](https://github.com/snoyberg/http-client/pull/460)
+
 ## 0.7.6
 
 * Add `applyBearerAuth` function [#457](https://github.com/snoyberg/http-client/pull/457/files)
