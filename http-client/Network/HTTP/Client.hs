@@ -108,6 +108,7 @@ module Network.HTTP.Client
     , managerIdleConnectionCount
     , managerModifyRequest
     , managerModifyResponse
+    , managerModifyResponse'
       -- *** Manager proxy settings
     , managerSetProxy
     , managerSetInsecureProxy

@@ -204,9 +204,10 @@ responseOpen inputReq manager' = do
   wrapExc req0 $ mWrapException manager req0 $ do
     (req, res) <- go manager (redirectCount req0) req0
     checkResponse req req res
-    mModifyResponse manager res
-        { responseBody = wrapExc req0 (responseBody res)
-        }
+    res' <- mModifyResponse manager res
+                { responseBody = wrapExc req0 (responseBody res)
+                }
+    mModifyResponse' manager inputReq res'
   where
     wrapExc :: Request -> IO a -> IO a
     wrapExc req0 = handle $ throwIO . toHttpException req0

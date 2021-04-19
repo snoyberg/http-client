@@ -90,6 +90,7 @@ defaultManagerSettings = ManagerSettings
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
     , managerModifyResponse = return
+    , managerModifyResponse' = const return
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
     }
@@ -127,6 +128,7 @@ newManager ms = do
             , mWrapException = managerWrapException ms
             , mModifyRequest = managerModifyRequest ms
             , mModifyResponse = managerModifyResponse ms
+            , mModifyResponse' = managerModifyResponse' ms
             , mSetProxy = \req ->
                 if secure req
                     then httpsProxy req
