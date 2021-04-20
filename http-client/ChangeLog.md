@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.8
+
+* Include the original `Request` in the `Response`. Expose it via `getOriginalRequest`.
+
 ## 0.7.7
 
 * Allow secure cookies for localhost without HTTPS [#460](https://github.com/snoyberg/http-client/pull/460)
