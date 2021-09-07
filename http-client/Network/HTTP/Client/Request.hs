@@ -415,6 +415,19 @@ needsGunzip req hs' =
      && ("content-encoding", "gzip") `elem` hs'
      && decompress req (fromMaybe "" $ lookup "content-type" hs')
 
+data EncapsulatedPopperException = EncapsulatedPopperException E.SomeException
+    deriving (Show)
+instance E.Exception EncapsulatedPopperException
+
+-- | Encapsulate a thrown exception into a custom type
+--
+-- During streamed body sending, both the Popper and the connection may throw IO exceptions;
+-- however, we don't want to route the Popper exceptions through onRequestBodyException.
+-- https://github.com/snoyberg/http-client/issues/469
+encapsulatePopperException :: IO a -> IO a
+encapsulatePopperException action =
+    action `E.catch` (\(ex :: E.SomeException) -> E.throwIO (EncapsulatedPopperException ex))
+
 requestBuilder :: Request -> Connection -> IO (Maybe (IO ()))
 requestBuilder req Connection {..} = do
     (contentLength, sendNow, sendLater) <- toTriple (requestBody req)
@@ -423,7 +436,10 @@ requestBuilder req Connection {..} = do
         else sendNow >> return Nothing
   where
     expectContinue   = Just "100-continue" == lookup "Expect" (requestHeaders req)
-    checkBadSend f   = f `E.catch` onRequestBodyException req
+    checkBadSend f   = f `E.catches` [
+        E.Handler (\(EncapsulatedPopperException ex) -> throwIO ex)
+      , E.Handler (onRequestBodyException req)
+      ]
     writeBuilder     = toByteStringIO connectionWrite
     writeHeadersWith contentLength = writeBuilder . (builder contentLength `Data.Monoid.mappend`)
     flushHeaders contentLength     = writeHeadersWith contentLength flush
@@ -464,7 +480,7 @@ requestBuilder req Connection {..} = do
         withStream (loop 0)
       where
         loop !n stream = do
-            bs <- stream
+            bs <- encapsulatePopperException stream
             if S.null bs
                 then case mlen of
                     -- If stream is chunked, no length argument
