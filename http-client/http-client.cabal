@@ -1,5 +1,5 @@
 name:                http-client
-version:             0.7.8
+version:             0.7.9
 synopsis:            An HTTP client engine
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <http://www.stackage.org/package/http-client>.
 homepage:            https://github.com/snoyberg/http-client

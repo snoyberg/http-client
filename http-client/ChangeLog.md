@@ -1,5 +1,10 @@
 # Changelog for http-client
 
+## 0.7.9
+
+* Exceptions from streamed request body now cause the request to fail. Previously they were
+  routed through onRequestBodyException and, by default, the IOExceptions were discarded.
+
 ## 0.7.8
 
 * Include the original `Request` in the `Response`. Expose it via `getOriginalRequest`.
