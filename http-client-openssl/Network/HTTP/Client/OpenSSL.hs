@@ -105,11 +105,17 @@ defaultMakeContext OpenSSLSettings{..} = do
     osslSettingsLoadCerts ctx
     return ctx
 
+-- | SSL settings as used by 'defaultMakeContext' to set up an 'SSL.SSLContext'.
 data OpenSSLSettings = OpenSSLSettings
     { osslSettingsOptions :: [SSL.SSLOption]
+      -- ^ SSL options, as passed to 'SSL.contextAddOption'
     , osslSettingsVerifyMode :: SSL.VerificationMode
+      -- ^ SSL verification mode, as passed to 'SSL.contextSetVerificationMode'
     , osslSettingsCiphers :: String
+      -- ^ SSL cipher list, as passed to 'SSL.contextSetCiphers'
     , osslSettingsLoadCerts :: SSL.SSLContext -> IO ()
+      -- ^ An action to load certificates into the context, typically using
+      -- 'SSL.contextSetCAFile' or 'SSL.contextSetCaDirectory'.
     }
 
 -- | Default OpenSSL settings. In particular:
