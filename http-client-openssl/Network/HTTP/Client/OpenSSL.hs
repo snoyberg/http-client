@@ -2,12 +2,14 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
-    ( withOpenSSL
-    , newOpenSSLManager
+    ( -- * Settings
+      newOpenSSLManager
     , opensslManagerSettings
     , defaultMakeContext
     , OpenSSLSettings(..)
     , defaultOpenSSLSettings
+      -- * Re-exports from OpenSSL
+    , OpenSSL.withOpenSSL
     ) where
 
 import Network.HTTP.Client
@@ -15,9 +17,9 @@ import Network.HTTP.Client.Internal
 import Control.Exception
 import Control.Monad.IO.Class
 import Network.Socket.ByteString (sendAll, recv)
-import OpenSSL
 import qualified Data.ByteString as S
 import qualified Network.Socket as N
+import qualified OpenSSL
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL (contextLoadSystemCerts)
 import Foreign.Storable (sizeOf)
