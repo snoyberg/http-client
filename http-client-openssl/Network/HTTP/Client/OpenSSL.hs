@@ -85,10 +85,10 @@ opensslManagerSettings mkContext = defaultManagerSettings
            (SSL.write ssl)
            (N.close sock)
 
--- same as Data.ByteString.Lazy.Internal.defaultChunkSize
-bufSize :: Int
-bufSize = 32 * 1024 - overhead
-    where overhead = 2 * sizeOf (undefined :: Int)
+    -- same as Data.ByteString.Lazy.Internal.defaultChunkSize
+    bufSize :: Int
+    bufSize = 32 * 1024 - overhead
+        where overhead = 2 * sizeOf (undefined :: Int)
 
 defaultMakeContext :: OpenSSLSettings -> IO SSL.SSLContext
 defaultMakeContext OpenSSLSettings{..} = do
