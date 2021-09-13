@@ -24,8 +24,9 @@ import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL (contextLoadSystemCerts)
 import Foreign.Storable (sizeOf)
 
--- | Create a new 'Manager' using 'opensslManagerSettings' and 'defaultMakeContext'
--- with 'defaultOpenSSLSettings'.
+-- | Create a new 'Manager' using 'opensslManagerSettings' and
+-- 'defaultOpenSSLSettings'. The 'SSL.SSLContext' is created once
+-- and shared between connections.
 newOpenSSLManager :: MonadIO m => m Manager
 newOpenSSLManager = liftIO $ do
   -- sharing an SSL context between threads (without modifying it) is safe:
@@ -33,7 +34,10 @@ newOpenSSLManager = liftIO $ do
   ctx <- defaultMakeContext defaultOpenSSLSettings
   newManager $ opensslManagerSettings (pure ctx)
 
--- | Note that it is the caller's responsibility to pass in an appropriate context.
+-- | Create a TLS-enabled 'ManagerSettings' using "OpenSSL" that obtains its
+-- 'SSL.SSLContext' from the given action.
+--
+-- Note that 'mkContext' is run whenever a connection is created.
 opensslManagerSettings :: IO SSL.SSLContext -> ManagerSettings
 opensslManagerSettings mkContext = defaultManagerSettings
     { managerTlsConnection = do
@@ -90,6 +94,8 @@ opensslManagerSettings mkContext = defaultManagerSettings
     bufSize = 32 * 1024 - overhead
         where overhead = 2 * sizeOf (undefined :: Int)
 
+-- | Returns an action that sets up a 'SSL.SSLContext' with the given
+-- 'OpenSSLSettings'.
 defaultMakeContext :: OpenSSLSettings -> IO SSL.SSLContext
 defaultMakeContext OpenSSLSettings{..} = do
     ctx <- SSL.context
