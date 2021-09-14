@@ -1,14 +1,15 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE CPP #-}
 -- | Support for making connections via the OpenSSL library.
 module Network.HTTP.Client.OpenSSL
-    ( withOpenSSL
-    , newOpenSSLManager
+    ( -- * Settings
+      newOpenSSLManager
     , opensslManagerSettings
     , defaultMakeContext
     , OpenSSLSettings(..)
     , defaultOpenSSLSettings
+      -- * Re-exports from OpenSSL
+    , OpenSSL.withOpenSSL
     ) where
 
 import Network.HTTP.Client
@@ -16,15 +17,16 @@ import Network.HTTP.Client.Internal
 import Control.Exception
 import Control.Monad.IO.Class
 import Network.Socket.ByteString (sendAll, recv)
-import OpenSSL
 import qualified Data.ByteString as S
 import qualified Network.Socket as N
+import qualified OpenSSL
 import qualified OpenSSL.Session as SSL
 import qualified OpenSSL.X509.SystemStore as SSL (contextLoadSystemCerts)
 import Foreign.Storable (sizeOf)
 
--- | Create a new 'Manager' using 'opensslManagerSettings' and 'defaultMakeContext'
--- with 'defaultOpenSSLSettings'.
+-- | Create a new 'Manager' using 'opensslManagerSettings' and
+-- 'defaultOpenSSLSettings'. The 'SSL.SSLContext' is created once
+-- and shared between connections.
 newOpenSSLManager :: MonadIO m => m Manager
 newOpenSSLManager = liftIO $ do
   -- sharing an SSL context between threads (without modifying it) is safe:
@@ -32,7 +34,10 @@ newOpenSSLManager = liftIO $ do
   ctx <- defaultMakeContext defaultOpenSSLSettings
   newManager $ opensslManagerSettings (pure ctx)
 
--- | Note that it is the caller's responsibility to pass in an appropriate context.
+-- | Create a TLS-enabled 'ManagerSettings' using "OpenSSL" that obtains its
+-- 'SSL.SSLContext' from the given action.
+--
+-- Note that 'mkContext' is run whenever a connection is created.
 opensslManagerSettings :: IO SSL.SSLContext -> ManagerSettings
 opensslManagerSettings mkContext = defaultManagerSettings
     { managerTlsConnection = do
@@ -84,11 +89,13 @@ opensslManagerSettings mkContext = defaultManagerSettings
            (SSL.write ssl)
            (N.close sock)
 
--- same as Data.ByteString.Lazy.Internal.defaultChunkSize
-bufSize :: Int
-bufSize = 32 * 1024 - overhead
-    where overhead = 2 * sizeOf (undefined :: Int)
+    -- same as Data.ByteString.Lazy.Internal.defaultChunkSize
+    bufSize :: Int
+    bufSize = 32 * 1024 - overhead
+        where overhead = 2 * sizeOf (undefined :: Int)
 
+-- | Returns an action that sets up a 'SSL.SSLContext' with the given
+-- 'OpenSSLSettings'.
 defaultMakeContext :: OpenSSLSettings -> IO SSL.SSLContext
 defaultMakeContext OpenSSLSettings{..} = do
     ctx <- SSL.context
@@ -98,11 +105,17 @@ defaultMakeContext OpenSSLSettings{..} = do
     osslSettingsLoadCerts ctx
     return ctx
 
+-- | SSL settings as used by 'defaultMakeContext' to set up an 'SSL.SSLContext'.
 data OpenSSLSettings = OpenSSLSettings
     { osslSettingsOptions :: [SSL.SSLOption]
+      -- ^ SSL options, as passed to 'SSL.contextAddOption'
     , osslSettingsVerifyMode :: SSL.VerificationMode
+      -- ^ SSL verification mode, as passed to 'SSL.contextSetVerificationMode'
     , osslSettingsCiphers :: String
+      -- ^ SSL cipher list, as passed to 'SSL.contextSetCiphers'
     , osslSettingsLoadCerts :: SSL.SSLContext -> IO ()
+      -- ^ An action to load certificates into the context, typically using
+      -- 'SSL.contextSetCAFile' or 'SSL.contextSetCaDirectory'.
     }
 
 -- | Default OpenSSL settings. In particular:
