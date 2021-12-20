@@ -187,7 +187,7 @@ openSocket tweakSocket addr =
             NS.connect sock (NS.addrAddress addr)
             return sock)
 
--- Resolve using an approximation of the happy-eyeballs algorithm:
+-- Pick up an IP using an approximation of the happy-eyeballs algorithm:
 -- https://datatracker.ietf.org/doc/html/rfc8305
 -- 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
@@ -222,7 +222,7 @@ firstSuccessful addresses cb = do
                 z  ->
                     case [ r | Right r <- z ] of
                         []
-                            -- tried all of them, but there's no successful ones
+                            -- tried all of them, but there're no successful ones
                             | length z == totalSize -> 
                                 throwSTM $ head [ e :: E.SomeException | Left e <- z ]
 
