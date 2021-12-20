@@ -59,7 +59,7 @@ library
                      , ghc-prim
                      , stm               >= 2.3
                      , iproute           >= 1.7.5
-                     , async             >= 2.2.2
+                     , async
   if flag(network-uri)
     build-depends: network >= 2.6, network-uri >= 2.6
   else
