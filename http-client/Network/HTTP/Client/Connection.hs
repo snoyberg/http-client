@@ -16,6 +16,9 @@ module Network.HTTP.Client.Connection
 import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Concurrent.Async
 import Network.HTTP.Client.Types
 import Network.Socket (Socket, HostAddress)
 import qualified Network.Socket as NS
@@ -184,10 +187,48 @@ openSocket tweakSocket addr =
             NS.connect sock (NS.addrAddress addr)
             return sock)
 
+-- Resolve using an approximation of the happy-eyeballs algorithm:
+-- https://datatracker.ietf.org/doc/html/rfc8305
+-- 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
-firstSuccessful []     _  = error "getAddrInfo returned empty list"
-firstSuccessful (a:as) cb =
-    cb a `E.catch` \(e :: E.IOException) ->
-        case as of
-            [] -> E.throwIO e
-            _  -> firstSuccessful as cb
+firstSuccessful []        _  = error "getAddrInfo returned empty list"
+firstSuccessful addresses cb = do     
+    results <- newTVarIO []
+    let totalSize = length addresses
+    withAsync (tryAddresses addresses results) $ \_ -> 
+        waitForResult results totalSize   
+  where    
+    tryConnecting addr results = do 
+        r <- E.try $! cb addr                
+        atomically $ modifyTVar' results (r:)
+     
+    -- Try to connect to every address concurrently with a delay.
+    -- Whichever succeeds first wins.
+    tryAddresses adresses results = go adresses []
+      where
+        go []             asyncs = mapM_ waitCatch asyncs 
+        go (addr : addrs) asyncs = 
+            withAsync (tryConnecting addr results) $ \a -> do 
+                -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
+                let connectionAttemptDelay = 250 * 10000
+                threadDelay connectionAttemptDelay
+                go addrs (a : asyncs)
+
+    waitForResult results totalSize = 
+        atomically $ do 
+            rs <- readTVar results
+            case rs of
+                [] -> retry
+                z  ->
+                    case [ r | Right r <- z ] of
+                        []
+                            -- tried all of them, but there's no successful ones
+                            | length z == totalSize -> 
+                                throwSTM $ head [ e :: E.SomeException | Left e <- z ]
+
+                            -- there are still addresses to try
+                            | otherwise -> retry
+
+                        -- at least one connection was successful
+                        as -> pure $ last as  
+                
