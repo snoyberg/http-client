@@ -198,21 +198,31 @@ firstSuccessful addresses cb = do
     withAsync (tryAddresses addresses results) $ \_ -> 
         waitForResult results totalSize   
   where    
-    tryConnecting addr results = do 
-        r <- E.try $! cb addr                
+
+    tryConnecting addr results = do         
+        r <- E.try $! cb addr
         atomically $ modifyTVar' results (r:)
      
     -- Try to connect to every address concurrently with a delay.
     -- Whichever succeeds first wins.
     tryAddresses adresses results = go adresses []
       where
-        go []             asyncs = mapM_ waitCatch asyncs 
+        go [addr] asyncs = do 
+            tryConnecting addr results
+            waitForThem asyncs     
+
         go (addr : addrs) asyncs = 
-            withAsync (tryConnecting addr results) $ \a -> do 
-                -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
-                let connectionAttemptDelay = 250 * 10000
-                threadDelay connectionAttemptDelay
-                go addrs (a : asyncs)
+            withAsync (tryConnecting addr results) $ \a -> do             
+                -- connection attempt delay 
+                -- https://datatracker.ietf.org/doc/html/rfc8305#section-5                
+                threadDelay $ 250 * 10000                
+                
+                rs <- readTVarIO results
+                case [ r | Right r <- rs ] of 
+                    [] -> go addrs (a : asyncs)        
+                    _  -> waitForThem asyncs 
+                
+        waitForThem = mapM_ waitCatch
 
     waitForResult results totalSize = 
         atomically $ do 
