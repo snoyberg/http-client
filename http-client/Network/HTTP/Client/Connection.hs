@@ -192,43 +192,25 @@ openSocket tweakSocket addr =
 -- 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
 firstSuccessful []        _  = error "getAddrInfo returned empty list"
-firstSuccessful addresses cb = do     
-    results <- newTVarIO []
-    let totalSize = length addresses
-    withAsync (tryAddresses addresses results) $ \_ -> 
-        waitForResult results totalSize   
-  where    
-    tryConnecting addr results = do 
-        r <- E.try $! cb addr                
-        atomically $ modifyTVar' results (r:)
-     
-    -- Try to connect to every address concurrently with a delay.
-    -- Whichever succeeds first wins.
-    tryAddresses adresses results = go adresses []
-      where
-        go []             asyncs = mapM_ waitCatch asyncs 
-        go (addr : addrs) asyncs = 
-            withAsync (tryConnecting addr results) $ \a -> do 
-                -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
-                let connectionAttemptDelay = 250 * 10000
-                threadDelay connectionAttemptDelay
-                go addrs (a : asyncs)
+firstSuccessful addresses cb = do             
+    lastResult <- newTVarIO Nothing
 
-    waitForResult results totalSize = 
-        atomically $ do 
-            rs <- readTVar results
-            case rs of
-                [] -> retry
-                z  ->
-                    case [ r | Right r <- z ] of
-                        []
-                            -- tried all of them, but there're no successful ones
-                            | length z == totalSize -> 
-                                throwSTM $ head [ e :: E.SomeException | Left e <- z ]
+    result <- withAsync (tryAddresses lastResult) $ \_ -> 
+                atomically $ maybe retry pure =<< readTVar lastResult                        
 
-                            -- there are still addresses to try
-                            | otherwise -> retry
+    either E.throwIO pure result    
+  where
+    -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
+    connectionAttemptDelay = 250 * 1000    
 
-                        -- at least one connection was successful
-                        as -> pure $ last as  
-                
+    tryAddresses lastResult = 
+          forConcurrently_ (zip addresses [0..]) $ \(addr, n) -> do
+            when (n > 0) $ threadDelay $ n * connectionAttemptDelay        
+            r :: Either E.IOException a <- E.try $ cb addr            
+            atomically $ do                   
+                previous <- readTVar lastResult 
+                case (previous, r) of 
+                    (Nothing,        _) -> writeTVar lastResult (Just r)
+                    (Just (Left  _), _) -> writeTVar lastResult (Just r)
+                    (Just (Right _), _) -> pure ()
+
