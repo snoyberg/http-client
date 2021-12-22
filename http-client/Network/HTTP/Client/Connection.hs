@@ -213,4 +213,3 @@ firstSuccessful addresses cb = do
                     (Nothing,        _) -> writeTVar lastResult (Just r)
                     (Just (Left  _), _) -> writeTVar lastResult (Just r)
                     (Just (Right _), _) -> pure ()
-
