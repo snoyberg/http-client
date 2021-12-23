@@ -17,7 +17,6 @@ import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
 import Control.Concurrent
-import Control.Concurrent.STM
 import Control.Concurrent.Async
 import Network.HTTP.Client.Types
 import Network.Socket (Socket, HostAddress)
@@ -25,8 +24,11 @@ import qualified Network.Socket as NS
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.Word (Word8)
+import Data.Either (isLeft)
+import Data.Foldable (for_)
 import Data.Function (fix)
+import Data.Word (Word8)
+
 
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
@@ -186,30 +188,28 @@ openSocket tweakSocket addr =
             tweakSocket sock
             NS.connect sock (NS.addrAddress addr)
             return sock)
-
+        
 -- Pick up an IP using an approximation of the happy-eyeballs algorithm:
 -- https://datatracker.ietf.org/doc/html/rfc8305
 -- 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
 firstSuccessful []        _  = error "getAddrInfo returned empty list"
 firstSuccessful addresses cb = do             
-    lastResult <- newTVarIO Nothing
-
-    result <- withAsync (tryAddresses lastResult) $ \_ -> 
-                atomically $ maybe retry pure =<< readTVar lastResult                        
-
-    either E.throwIO pure result    
+    result <- newEmptyMVar
+    either E.throwIO pure =<< 
+        withAsync (tryAddresses result) 
+            (\_ -> takeMVar result)    
   where
     -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
     connectionAttemptDelay = 250 * 1000    
 
-    tryAddresses lastResult = 
-          forConcurrently_ (zip addresses [0..]) $ \(addr, n) -> do
-            when (n > 0) $ threadDelay $ n * connectionAttemptDelay        
-            r :: Either E.IOException a <- E.try $ cb addr            
-            atomically $ do                   
-                previous <- readTVar lastResult 
-                case (previous, r) of 
-                    (Nothing,        _) -> writeTVar lastResult (Just r)
-                    (Just (Left  _), _) -> writeTVar lastResult (Just r)
-                    (Just (Right _), _) -> pure ()
+    tryAddresses lastResult = do         
+        z <- forConcurrently (zip addresses [0..]) $ \(addr, n) -> do
+                when (n > 0) $ threadDelay $ n * connectionAttemptDelay        
+                r :: Either E.IOException a <- E.try $ cb addr            
+                for_ r $ \_ -> tryPutMVar lastResult r
+                pure r
+
+        let lastException = take 1 $ reverse $ filter isLeft z
+        for_ lastException $ tryPutMVar lastResult        
+
