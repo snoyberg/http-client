@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.10
+
+* Search for reachable IP addresses asynchronously (RFC 6555) after calling `getAddrInfo` to reduce latency [#462](https://github.com/snoyberg/http-client/pull/472).
+
 ## 0.7.9
 
 * Exceptions from streamed request body now cause the request to fail. Previously they were
