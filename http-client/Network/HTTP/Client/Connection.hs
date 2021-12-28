@@ -188,28 +188,32 @@ openSocket tweakSocket addr =
             tweakSocket sock
             NS.connect sock (NS.addrAddress addr)
             return sock)
-        
+
 -- Pick up an IP using an approximation of the happy-eyeballs algorithm:
 -- https://datatracker.ietf.org/doc/html/rfc8305
 -- 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
 firstSuccessful []        _  = error "getAddrInfo returned empty list"
-firstSuccessful addresses cb = do             
+firstSuccessful addresses cb = do
     result <- newEmptyMVar
-    either E.throwIO pure =<< 
-        withAsync (tryAddresses result) 
-            (\_ -> takeMVar result)    
+    either E.throwIO pure =<<
+        withAsync (tryAddresses result)
+            (\_ -> takeMVar result)
   where
     -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
-    connectionAttemptDelay = 250 * 1000    
+    connectionAttemptDelay = 250 * 1000
 
-    tryAddresses lastResult = do         
-        z <- forConcurrently (zip addresses [0..]) $ \(addr, n) -> do
-                when (n > 0) $ threadDelay $ n * connectionAttemptDelay        
-                r :: Either E.IOException a <- E.try $ cb addr            
-                for_ r $ \_ -> tryPutMVar lastResult r
-                pure r
+    tryAddresses result = do
+        lastException <- take 1 . filter isLeft <$> go addresses []
+        for_ lastException $ tryPutMVar result
+      where
+        go []             asyncs = mapM wait asyncs
+        go (addr : addrs) asyncs =
+            withAsync (tryAddress addr) $ \a -> do
+                unless (null addrs) $ threadDelay connectionAttemptDelay
+                go addrs $ a : asyncs
 
-        let lastException = take 1 $ reverse $ filter isLeft z
-        for_ lastException $ tryPutMVar lastResult        
-
+        tryAddress addr = do
+            r :: Either E.IOException a <- E.try $ cb addr
+            for_ r $ \_ -> tryPutMVar result r
+            pure r
