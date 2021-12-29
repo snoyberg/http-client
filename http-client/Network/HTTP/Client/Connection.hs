@@ -209,11 +209,11 @@ firstSuccessful addresses cb = do
       where
         go []             asyncs = mapM wait asyncs
         go (addr : addrs) asyncs =
-            withAsync (tryAddress addr) $ \a -> do
+            withAsync (E.evaluate =<< tryAddress addr) $ \a -> do
                 unless (null addrs) $ threadDelay connectionAttemptDelay
                 go addrs $ a : asyncs
 
         tryAddress addr = do
-            r :: Either E.IOException a <- E.try $! cb addr
+            r :: Either E.IOException a <- E.try $ cb addr
             for_ r $ \_ -> tryPutMVar result r
             pure r
