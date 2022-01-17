@@ -1,5 +1,10 @@
 # Changelog for http-client
 
+## 0.7.10
+
+* Consume trailers and last CRLF of chunked body. The trailers are not exposed,
+  unless the raw body is requested.
+
 ## 0.7.9
 
 * Exceptions from streamed request body now cause the request to fail. Previously they were
