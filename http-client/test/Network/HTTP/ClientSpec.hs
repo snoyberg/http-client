@@ -6,6 +6,7 @@ import           Network.HTTP.Client
 import           Network.HTTP.Client.Internal
 import           Network.HTTP.Types        (status200, found302, status405)
 import           Network.HTTP.Types.Status
+import qualified Network.Socket               as NS
 import           Test.Hspec
 import           Control.Applicative       ((<$>))
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
@@ -106,3 +107,22 @@ spec = describe "Client" $ do
             man <- newManager settings
             response <- httpLbs "http://httpbin.org/redirect-to?url=foo" man
             responseStatus response `shouldBe` found302
+
+    describe "raw IPV6 address as hostname" $ do
+        it "works" $ do
+            -- We rely on example.com serving a web page over IPv6.
+            -- The request (currently) actually ends up as 404 due to
+            -- virtual hosting, but we just care that the networking
+            -- side works.
+            (addr:_) <- NS.getAddrInfo
+                (Just NS.defaultHints { NS.addrFamily = NS.AF_INET6 })
+                (Just "example.com")
+                (Just "http")
+            -- ipv6Port will be of the form [::1]:80, which is good enough
+            -- for our purposes; ideally we'd easily get just the ::1.
+            let ipv6Port = show $ NS.addrAddress addr
+            ipv6Port `shouldStartWith` "["
+            req <- parseUrlThrow $ "http://" ++ ipv6Port
+            man <- newManager defaultManagerSettings
+            _ <- httpLbs (setRequestIgnoreStatus req) man
+            return ()
