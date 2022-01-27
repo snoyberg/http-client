@@ -31,6 +31,7 @@ import Data.Monoid
 import Control.Monad (void)
 import System.Timeout (timeout)
 import Data.KeyedPool
+import GHC.IO.Exception (IOException(..), IOErrorType(..))
 
 -- | Perform a @Request@ using a connection acquired from the given @Manager@,
 -- and then provide the @Response@ to the given function. This function is
@@ -241,6 +242,8 @@ handleClosedRead se
     | Just ConnectionClosed <- fmap unHttpExceptionContentWrapper (fromException se)
         = return L.empty
     | Just (HttpExceptionRequest _ ConnectionClosed) <- fromException se
+        = return L.empty
+    | Just (IOError _ ResourceVanished _ _ _ _) <- fromException se
         = return L.empty
     | otherwise
         = throwIO se
