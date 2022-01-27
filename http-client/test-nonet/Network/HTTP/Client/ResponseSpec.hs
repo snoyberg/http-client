@@ -59,7 +59,7 @@ spec = describe "ResponseSpec" $ do
             , "Transfer-encoding: chunked\r\n\r\n"
             , "5\r\nHello\r"
             , "\n2\r\n W"
-            , "\r\n4  ignored\r\norld\r\n0\r\nHTTP/1.1"
+            , "\r\n4  ignored\r\norld\r\n0\r\n\r\nHTTP/1.1"
             ]
         Response {..} <- getResponse' conn
         responseStatus `shouldBe` status200

@@ -1,5 +1,6 @@
 {-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE MultiWayIf #-}
 module Network.HTTP.Client.Body
     ( makeChunkedReader
     , makeLengthReader
@@ -166,8 +167,11 @@ makeChunkedReader cleanup raw conn@Connection {..} = do
                 else return (empty, count0)
         if count <= 0
             then do
+                -- count == -1 indicates that all chunks have been consumed
                 writeIORef icount (-1)
-                return $ if count /= (-1) && raw then rawCount else empty
+                if | count /= -1 && raw -> S.append rawCount <$> readTrailersRaw
+                   | count /= -1        -> consumeTrailers *> pure empty
+                   | otherwise          -> pure empty
             else do
                 (bs, count') <- readChunk count
                 writeIORef icount count'
@@ -222,3 +226,11 @@ makeChunkedReader cleanup raw conn@Connection {..} = do
         | 65 <= w && w <= 70  = Just $ fromIntegral w - 55
         | 97 <= w && w <= 102 = Just $ fromIntegral w - 87
         | otherwise = Nothing
+
+    readTrailersRaw = do
+        bs <- connectionReadLine conn
+        if S.null bs
+        then pure "\r\n"
+        else (bs `S.append` "\r\n" `S.append`) <$> readTrailersRaw
+
+    consumeTrailers = connectionDropTillBlankLine conn

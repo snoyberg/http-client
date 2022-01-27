@@ -1,8 +1,13 @@
 # Changelog for http-client
 
-## 0.7.10
+## 0.7.11
 
 * Search for reachable IP addresses asynchronously (RFC 6555, 8305) after calling `getAddrInfo` to reduce latency [#472](https://github.com/snoyberg/http-client/pull/472).
+
+## 0.7.10
+
+* Consume trailers and last CRLF of chunked body. The trailers are not exposed,
+  unless the raw body is requested.
 
 ## 0.7.9
 
