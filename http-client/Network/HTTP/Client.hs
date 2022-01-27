@@ -203,12 +203,13 @@ module Network.HTTP.Client
     , equivCookieJar
     , Proxy (..)
     , withConnection
+    , strippedHostName
       -- * Cookies
     , module Network.HTTP.Client.Cookies
     ) where
 
 import Network.HTTP.Client.Body
-import Network.HTTP.Client.Connection (makeConnection, socketConnection)
+import Network.HTTP.Client.Connection (makeConnection, socketConnection, strippedHostName)
 import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Core
 import Network.HTTP.Client.Manager

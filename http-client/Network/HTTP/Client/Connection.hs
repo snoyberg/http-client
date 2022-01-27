@@ -11,6 +11,7 @@ module Network.HTTP.Client.Connection
     , makeConnection
     , socketConnection
     , withSocket
+    , strippedHostName
     ) where
 
 import Data.ByteString (ByteString, empty)
@@ -148,6 +149,24 @@ openSocketConnectionSize :: (Socket -> IO ())
 openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
     withSocket tweakSocket hostAddress' host' port' $ \ sock ->
         socketConnection sock chunksize
+
+-- | strippedHostName takes a URI host name, as extracted
+-- by 'Network.URI.regName', and strips square brackets
+-- around IPv6 addresses.
+--
+-- The result is suitable for passing to services such as
+-- name resolution ('Network.Socket.getAddr').
+--
+-- @since
+strippedHostName :: String -> String
+strippedHostName hostName =
+    case hostName of
+        '[':'v':_ -> hostName -- IPvFuture, no obvious way to deal with this
+        '[':rest ->
+            case break (== ']') rest of
+                (ipv6, "]") -> ipv6
+                _ -> hostName -- invalid host name
+        _ -> hostName
 
 withSocket :: (Socket -> IO ())
            -> Maybe HostAddress
