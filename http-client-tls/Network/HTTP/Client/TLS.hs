@@ -116,12 +116,12 @@ tlsManagerSettings = mkManagerSettings def Nothing
 getTlsConnection :: Maybe NC.ConnectionContext
                  -> Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings
-                 -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
+                 -> IO (Maybe HostAddress -> URIHostName String -> Int -> IO Connection)
 getTlsConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \_ha host port -> bracketOnError
         (NC.connectTo context NC.ConnectionParams
-            { NC.connectionHostname = host
+            { NC.connectionHostname = unURIHostName host
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = tls
             , NC.connectionUseSocks = sock
@@ -133,18 +133,18 @@ getTlsProxyConnection
     :: Maybe NC.ConnectionContext
     -> NC.TLSSettings
     -> Maybe NC.SockSettings
-    -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
+    -> IO (S.ByteString -> (Connection -> IO ()) -> URIHostName String -> Maybe HostAddress -> URIHostName String -> Int -> IO Connection)
 getTlsProxyConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \connstr checkConn serverName _ha host port -> bracketOnError
         (NC.connectTo context NC.ConnectionParams
-            { NC.connectionHostname = serverName
+            { NC.connectionHostname = unURIHostName serverName
             , NC.connectionPort = fromIntegral port
             , NC.connectionUseSecure = Nothing
             , NC.connectionUseSocks =
                 case sock of
                     Just _ -> error "Cannot use SOCKS and TLS proxying together"
-                    Nothing -> Just $ NC.OtherProxy host $ fromIntegral port
+                    Nothing -> Just $ NC.OtherProxy (unURIHostName host) $ fromIntegral port
             })
         NC.connectionClose
         $ \conn -> do

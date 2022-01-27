@@ -43,14 +43,14 @@ import Data.Maybe (isJust)
 --
 -- Since 0.3.8
 rawConnectionModifySocket :: (NS.Socket -> IO ())
-                          -> IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
+                          -> IO (Maybe NS.HostAddress -> URIHostName String -> Int -> IO Connection)
 rawConnectionModifySocket = return . openSocketConnection
 
 -- | Same as @rawConnectionModifySocket@, but also takes in a chunk size.
 --
 -- @since 0.5.2
 rawConnectionModifySocketSize :: (NS.Socket -> IO ())
-                              -> IO (Int -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
+                              -> IO (Int -> Maybe NS.HostAddress -> URIHostName String -> Int -> IO Connection)
 rawConnectionModifySocketSize = return . openSocketConnectionSize
 
 
@@ -207,7 +207,7 @@ getConn req m
     | S8.null h = throwHttp $ InvalidDestinationHost h
     | otherwise = takeKeyedPool (mConns m) connkey
   where
-    h = host req
+    h = unURIHostName $ host req
     connkey = connKey req
 
 connKey :: Request -> ConnKey
@@ -237,18 +237,18 @@ mkCreateConnection ms = do
 
     return $ \ck -> wrapConnectExc $ case ck of
         CKRaw connaddr connhost connport ->
-            rawConnection connaddr (S8.unpack connhost) connport
+            rawConnection connaddr (S8.unpack <$> connhost) connport
         CKSecure connaddr connhost connport ->
-            tlsConnection connaddr (S8.unpack connhost) connport
+            tlsConnection connaddr (S8.unpack <$> connhost) connport
         CKProxy connhost connport mProxyAuthHeader ultHost ultPort ->
             let proxyAuthorizationHeader = maybe
                     ""
                     (\h' -> S8.concat ["Proxy-Authorization: ", h', "\r\n"])
                     mProxyAuthHeader
-                hostHeader = S8.concat ["Host: ", ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
+                hostHeader = S8.concat ["Host: ", unURIHostName ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
                 connstr = S8.concat
                     [ "CONNECT "
-                    , ultHost
+                    , unURIHostName ultHost
                     , ":"
                     , S8.pack $ show ultPort
                     , " HTTP/1.1\r\n"
@@ -263,9 +263,9 @@ mkCreateConnection ms = do
                 in tlsProxyConnection
                         connstr
                         parse
-                        (S8.unpack ultHost)
+                        (S8.unpack <$> ultHost)
                         Nothing -- we never have a HostAddress we can use
-                        (S8.unpack connhost)
+                        (S8.unpack <$> connhost)
                         connport
   where
     wrapConnectExc = handle $ \e ->

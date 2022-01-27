@@ -69,7 +69,7 @@ import           Network.HTTP.Client.Request (applyBasicProxyAuth,
                                               extractBasicAuthInfo)
 import           Network.HTTP.Client.Types   (HttpExceptionContent (..),
                                               Proxy (..), Request (..),
-                                              throwHttp)
+                                              throwHttp, URIHostName (..))
 import qualified Network.URI                 as U
 import           System.Environment          (getEnvironment)
 
@@ -89,7 +89,7 @@ import           System.Win32.Types          (DWORD, HKEY)
 #endif
 
 type EnvName     = T.Text
-type HostAddress = S8.ByteString
+type HostAddress = URIHostName S8.ByteString
 type UserName    = S8.ByteString
 type Password    = S8.ByteString
 
@@ -367,9 +367,9 @@ envHelper name = do
                               _             -> Nothing
                       _ -> Nothing
 
-              Just (Proxy (S8.pack $ U.uriRegName auth) port', extractBasicAuthInfo uri)
+              Just (Proxy (URIHostName $ S8.pack $ U.uriRegName auth) port', extractBasicAuthInfo uri)
           return $ \hostRequest ->
-              if hostRequest `hasDomainSuffixIn` noProxyDomains
+              if unURIHostName hostRequest `hasDomainSuffixIn` noProxyDomains
               then Nothing
               else Just $ ProxySettings p muserpass
   where prefixed s | S8.head s == '.' = s

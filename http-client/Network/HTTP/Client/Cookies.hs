@@ -53,10 +53,10 @@ isIpAddress =
 
 -- | This corresponds to the subcomponent algorithm entitled \"Domain Matching\" detailed
 -- in section 5.1.3
-domainMatches :: BS.ByteString -- ^ Domain to test
-              -> BS.ByteString -- ^ Domain from a cookie
+domainMatches :: URIHostName BS.ByteString -- ^ Domain to test
+              -> URIHostName BS.ByteString -- ^ Domain from a cookie
               -> Bool
-domainMatches string' domainString'
+domainMatches (URIHostName string') (URIHostName domainString')
   | string == domainString = True
   | BS.length string < BS.length domainString + 1 = False
   | domainString `BS.isSuffixOf` string && BS.singleton (BS.last difference) == "." && not (isIpAddress string) = True
@@ -121,9 +121,9 @@ isPublicSuffix = PSL.isSuffix . decodeUtf8With lenientDecode
 -- See:
 -- https://w3c.github.io/webappsec-secure-contexts/#is-origin-trustworthy
 isPotentiallyTrustworthyOrigin :: Bool          -- ^ True if HTTPS
-                               -> BS.ByteString -- ^ Host
+                               -> URIHostName BS.ByteString -- ^ Host
                                -> Bool          -- ^ Whether or not the origin is potentially trustworthy
-isPotentiallyTrustworthyOrigin secure host
+isPotentiallyTrustworthyOrigin secure (URIHostName host)
   | secure = True             -- step 3
   | isLoopbackAddr4 = True    -- step 4, part 1
   | isLoopbackAddr6 = True    -- step 4, part 2
@@ -247,7 +247,7 @@ generateCookie set_cookie request now is_http_api = do
           return $ Cookie { cookie_name = setCookieName set_cookie
                           , cookie_value = setCookieValue set_cookie
                           , cookie_expiry_time = getExpiryTime (setCookieExpires set_cookie) (setCookieMaxAge set_cookie)
-                          , cookie_domain = domain_final
+                          , cookie_domain = URIHostName domain_final
                           , cookie_path = getPath $ setCookiePath set_cookie
                           , cookie_creation_time = now
                           , cookie_last_access_time = now
@@ -256,7 +256,8 @@ generateCookie set_cookie request now is_http_api = do
                           , cookie_secure_only = setCookieSecure set_cookie
                           , cookie_http_only = http_only'
                           }
-  where sanitizeDomain domain'
+  where URIHostName reqHost = Req.host request
+        sanitizeDomain domain'
           | has_a_character && BS.singleton (BS.last domain') == "." = Nothing
           | has_a_character && BS.singleton (BS.head domain') == "." = Just $ BS.tail domain'
           | otherwise = Just $ domain'
@@ -264,15 +265,16 @@ generateCookie set_cookie request now is_http_api = do
         step4 (Just set_cookie_domain) = set_cookie_domain
         step4 Nothing = BS.empty
         step5 domain'
-          | firstCondition && domain' == (Req.host request) = return BS.empty
+          | firstCondition && domain' == reqHost = return BS.empty
           | firstCondition = Nothing
           | otherwise = return domain'
           where firstCondition = rejectPublicSuffixes && has_a_character && isPublicSuffix domain'
                 has_a_character = not (BS.null domain')
+        step6 :: BS.ByteString -> Maybe (BS.ByteString, Bool)
         step6 domain'
-          | firstCondition && not (domainMatches (Req.host request) domain') = Nothing
+          | firstCondition && not (domainMatches (Req.host request) (URIHostName domain')) = Nothing
           | firstCondition = return (domain', False)
-          | otherwise = return (Req.host request, True)
+          | otherwise = return (reqHost, True)
           where firstCondition = not $ BS.null domain'
         step10
           | not is_http_api && setCookieHttpOnly set_cookie = Nothing

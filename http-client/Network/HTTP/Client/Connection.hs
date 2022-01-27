@@ -134,7 +134,7 @@ socketConnection socket chunksize = makeConnection
 
 openSocketConnection :: (Socket -> IO ())
                      -> Maybe HostAddress
-                     -> String -- ^ host
+                     -> URIHostName String
                      -> Int -- ^ port
                      -> IO Connection
 openSocketConnection f = openSocketConnectionSize f 8192
@@ -142,7 +142,7 @@ openSocketConnection f = openSocketConnectionSize f 8192
 openSocketConnectionSize :: (Socket -> IO ())
                          -> Int -- ^ chunk size
                          -> Maybe HostAddress
-                         -> String -- ^ host
+                         -> URIHostName String
                          -> Int -- ^ port
                          -> IO Connection
 openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
@@ -151,7 +151,7 @@ openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
 
 withSocket :: (Socket -> IO ())
            -> Maybe HostAddress
-           -> String -- ^ host
+           -> URIHostName String
            -> Int -- ^ port
            -> (Socket -> IO a)
            -> IO a
@@ -159,7 +159,7 @@ withSocket tweakSocket hostAddress' host' port' f = do
     let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
     addrs <- case hostAddress' of
         Nothing ->
-            NS.getAddrInfo (Just hints) (Just host') (Just $ show port')
+            NS.getAddrInfo (Just hints) (Just $ unURIHostName host') (Just $ show port')
         Just ha ->
             return
                 [NS.AddrInfo

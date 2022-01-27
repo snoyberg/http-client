@@ -74,8 +74,8 @@ opensslManagerSettings mkContext = defaultManagerSettings
   where
     makeSSLConnection ctx sock host = do
         ssl <- SSL.connection ctx sock
-        SSL.setTlsextHostName ssl host
-        SSL.enableHostnameValidation ssl host
+        SSL.setTlsextHostName ssl (unURIHostName host)
+        SSL.enableHostnameValidation ssl (unURIHostName host)
         SSL.connect ssl
         makeConnection
            (SSL.read ssl bufSize `catch` \(_ :: SSL.ConnectionAbruptlyTerminated) -> return S.empty)
