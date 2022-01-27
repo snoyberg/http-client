@@ -369,7 +369,7 @@ envHelper name = do
 
               Just (Proxy (URIHostName $ S8.pack $ U.uriRegName auth) port', extractBasicAuthInfo uri)
           return $ \hostRequest ->
-              if unURIHostName hostRequest `hasDomainSuffixIn` noProxyDomains
+              if fullHostName hostRequest `hasDomainSuffixIn` noProxyDomains
               then Nothing
               else Just $ ProxySettings p muserpass
   where prefixed s | S8.head s == '.' = s

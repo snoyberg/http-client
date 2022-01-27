@@ -66,7 +66,7 @@ import Data.Streaming.Zlib (ZlibException)
 import Data.CaseInsensitive as CI
 import Data.KeyedPool (KeyedPool)
 
-newtype URIHostName a = URIHostName { unURIHostName :: a }
+newtype URIHostName a = URIHostName { fullHostName :: a }
   deriving (Eq, Show, Read, Ord, T.Typeable, FoldCase, Functor)
 
 -- | An @IO@ action that represents an incoming response body coming from the

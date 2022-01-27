@@ -194,7 +194,7 @@ getUri req = URI
                     else "http:"
     , uriAuthority = Just URIAuth
         { uriUserInfo = ""
-        , uriRegName = S8.unpack $ unURIHostName $ host req
+        , uriRegName = S8.unpack $ fullHostName $ host req
         , uriPort = port'
         }
     , uriPath = S8.unpack $ path req
@@ -499,9 +499,9 @@ requestBuilder req Connection {..} = do
                     loop (n + (S.length bs)) stream
 
     hh
-        | port req == 80 && not (secure req) = unURIHostName $ host req
-        | port req == 443 && secure req = unURIHostName $ host req
-        | otherwise = (unURIHostName $ host req) <> S8.pack (':' : show (port req))
+        | port req == 80 && not (secure req) = fullHostName $ host req
+        | port req == 443 && secure req = fullHostName $ host req
+        | otherwise = (fullHostName $ host req) <> S8.pack (':' : show (port req))
 
     requestProtocol
         | secure req = fromByteString "https://"

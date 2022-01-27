@@ -178,7 +178,7 @@ withSocket tweakSocket hostAddress' host' port' f = do
     let hints = NS.defaultHints { NS.addrSocketType = NS.Stream }
     addrs <- case hostAddress' of
         Nothing ->
-            NS.getAddrInfo (Just hints) (Just $ unURIHostName host') (Just $ show port')
+            NS.getAddrInfo (Just hints) (Just $ strippedHostName host') (Just $ show port')
         Just ha ->
             return
                 [NS.AddrInfo

@@ -207,7 +207,7 @@ getConn req m
     | S8.null h = throwHttp $ InvalidDestinationHost h
     | otherwise = takeKeyedPool (mConns m) connkey
   where
-    h = unURIHostName $ host req
+    h = fullHostName $ host req
     connkey = connKey req
 
 connKey :: Request -> ConnKey
@@ -245,10 +245,10 @@ mkCreateConnection ms = do
                     ""
                     (\h' -> S8.concat ["Proxy-Authorization: ", h', "\r\n"])
                     mProxyAuthHeader
-                hostHeader = S8.concat ["Host: ", unURIHostName ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
+                hostHeader = S8.concat ["Host: ", fullHostName ultHost, ":", (S8.pack $ show ultPort), "\r\n"]
                 connstr = S8.concat
                     [ "CONNECT "
-                    , unURIHostName ultHost
+                    , fullHostName ultHost
                     , ":"
                     , S8.pack $ show ultPort
                     , " HTTP/1.1\r\n"

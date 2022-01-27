@@ -44,7 +44,7 @@ spec = describe "CookieSpec" $ do
               = [ ("cookie_name", \cky -> cky { cookie_name = "othername" }, True)
                 , ("cookie_value", \cky -> cky { cookie_value = "othervalue" }, False)
                 , ("cookie_expiry_time", \cky -> cky { cookie_expiry_time = DT.addUTCTime 60 $ cookie_expiry_time cky }, False)
-                , ("cookie_domain", \cky -> cky { cookie_domain = URIHostName $ unURIHostName (cookie_domain cky) <> ".com" }, True)
+                , ("cookie_domain", \cky -> cky { cookie_domain = URIHostName $ fullHostName (cookie_domain cky) <> ".com" }, True)
                 , ("cookie_path", \cky -> cky { cookie_path = cookie_path cky <> "/sub" }, True)
                 , ("cookie_creation_time", \cky -> cky { cookie_creation_time = DT.addUTCTime 60 $ cookie_creation_time cky }, False)
                 , ("cookie_last_access_time", \cky -> cky { cookie_last_access_time = DT.addUTCTime 60 $ cookie_last_access_time cky }, False)
