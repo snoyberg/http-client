@@ -204,16 +204,14 @@ firstSuccessful addresses cb = do
     connectionAttemptDelay = 250 * 1000
 
     tryAddresses result = do
-        lastException <- take 1 . filter isLeft <$> go addresses []
+        z <- forConcurrently (zip addresses [0..]) $ \(addr, n) -> do
+            when (n > 0) $ threadDelay $ n * connectionAttemptDelay
+            tryAddress addr
+        
+        let lastException = take 1 $ reverse $ filter isLeft z
         for_ lastException $ tryPutMVar result
       where
-        go []             asyncs = mapM wait asyncs
-        go (addr : addrs) asyncs =
-            withAsync (tryAddress addr) $ \a -> do
-                unless (null addrs) $ threadDelay connectionAttemptDelay
-                go addrs $ a : asyncs
-
         tryAddress addr = do
-            r :: Either E.IOException a <- E.try $ cb addr
+            r :: Either E.IOException a <- E.try $! cb addr
             for_ r $ \_ -> tryPutMVar result r
-            pure $! r
+            pure r             
