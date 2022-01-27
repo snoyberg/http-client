@@ -12,6 +12,7 @@ module Network.HTTP.Client.Core
     , httpRedirect
     , httpRedirect'
     , withConnection
+    , handleClosedRead
     ) where
 
 import Network.HTTP.Types
@@ -235,6 +236,15 @@ httpRedirect count0 http0 req0 = fmap snd $ httpRedirect' count0 http' req0
         (res, mbReq) <- http0 req'
         return (res, fromMaybe req0 mbReq, isJust mbReq)
 
+handleClosedRead :: SomeException -> IO L.ByteString
+handleClosedRead se
+    | Just ConnectionClosed <- fmap unHttpExceptionContentWrapper (fromException se)
+        = return L.empty
+    | Just (HttpExceptionRequest _ ConnectionClosed) <- fromException se
+        = return L.empty
+    | otherwise
+        = throwIO se
+
 -- | Redirect loop.
 --
 -- This extended version of 'httpRaw' also returns the Request potentially modified by @managerModifyRequest@.
@@ -258,15 +268,7 @@ httpRedirect' count0 http' req0 = go count0 req0 []
                 -- The connection may already be closed, e.g.
                 -- when using withResponseHistory. See
                 -- https://github.com/snoyberg/http-client/issues/169
-                `Control.Exception.catch` \se ->
-                    case () of
-                      ()
-                        | Just ConnectionClosed <-
-                            fmap unHttpExceptionContentWrapper
-                            (fromException se) -> return L.empty
-                        | Just (HttpExceptionRequest _ ConnectionClosed) <-
-                            fromException se -> return L.empty
-                      _ -> throwIO se
+                `Control.Exception.catch` handleClosedRead
             responseClose res
 
             -- And now perform the actual redirect
