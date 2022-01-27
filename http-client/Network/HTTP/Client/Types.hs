@@ -1,7 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.Client.Types
@@ -39,7 +38,6 @@ module Network.HTTP.Client.Types
     , StreamFileStatus (..)
     , ResponseTimeout (..)
     , ProxySecureMode (..)
-    , URIHostName (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -65,9 +63,6 @@ import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
 import Data.CaseInsensitive as CI
 import Data.KeyedPool (KeyedPool)
-
-newtype URIHostName a = URIHostName { fullHostName :: a }
-  deriving (Eq, Show, Read, Ord, T.Typeable, FoldCase, Functor)
 
 -- | An @IO@ action that represents an incoming response body coming from the
 -- server. Data provided by this action has already been gunzipped and
@@ -189,7 +184,7 @@ data HttpExceptionContent
                    -- failing socket action or a TLS exception.
                    --
                    -- @since 0.5.0
-                   | ProxyConnectException (URIHostName S.ByteString) Int Status
+                   | ProxyConnectException S.ByteString Int Status
                    -- ^ A non-200 status code was returned when trying to
                    -- connect to the proxy server on the given host and port.
                    --
@@ -260,7 +255,7 @@ data Cookie = Cookie
   { cookie_name :: S.ByteString
   , cookie_value :: S.ByteString
   , cookie_expiry_time :: UTCTime
-  , cookie_domain :: URIHostName S.ByteString
+  , cookie_domain :: S.ByteString
   , cookie_path :: S.ByteString
   , cookie_creation_time :: UTCTime
   , cookie_last_access_time :: UTCTime
@@ -347,7 +342,7 @@ instance Data.Monoid.Monoid CookieJar where
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
 data Proxy = Proxy
-    { proxyHost :: URIHostName S.ByteString -- ^ The host name of the HTTP proxy.
+    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
     deriving (Show, Read, Eq, Ord, T.Typeable)
@@ -495,7 +490,7 @@ data Request = Request
     -- ^ Whether to use HTTPS (ie, SSL).
     --
     -- Since 0.1.0
-    , host :: URIHostName S.ByteString
+    , host :: S.ByteString
     -- ^ Requested host name, used for both the IP address to connect to and
     -- the @host@ request header.
     --
@@ -724,15 +719,15 @@ data ManagerSettings = ManagerSettings
       -- ^ Number of connections to a single host to keep alive. Default: 10.
       --
       -- Since 0.1.0
-    , managerRawConnection :: IO (Maybe NS.HostAddress -> URIHostName String -> Int -> IO Connection)
+    , managerRawConnection :: IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create an insecure connection.
       --
       -- Since 0.1.0
-    , managerTlsConnection :: IO (Maybe NS.HostAddress -> URIHostName String -> Int -> IO Connection)
+    , managerTlsConnection :: IO (Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create a TLS connection. Default behavior: throw an exception that TLS is not supported.
       --
       -- Since 0.1.0
-    , managerTlsProxyConnection :: IO (S.ByteString -> (Connection -> IO ()) -> URIHostName String -> Maybe NS.HostAddress -> URIHostName String -> Int -> IO Connection)
+    , managerTlsProxyConnection :: IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe NS.HostAddress -> String -> Int -> IO Connection)
       -- ^ Create a TLS proxy connection. Default behavior: throw an exception that TLS is not supported.
       --
       -- Since 0.2.2
@@ -848,17 +843,17 @@ data ConnHost =
 -- | @ConnKey@ consists of a hostname, a port and a @Bool@
 -- specifying whether to use SSL.
 data ConnKey
-    = CKRaw (Maybe HostAddress) !(URIHostName S.ByteString) !Int
-    | CKSecure (Maybe HostAddress) !(URIHostName S.ByteString) !Int
+    = CKRaw (Maybe HostAddress) {-# UNPACK #-} !S.ByteString !Int
+    | CKSecure (Maybe HostAddress) {-# UNPACK #-} !S.ByteString !Int
     | CKProxy
-        !(URIHostName S.ByteString)
+        {-# UNPACK #-} !S.ByteString
         !Int
 
         -- Proxy-Authorization request header
         (Maybe S.ByteString)
 
         -- ultimate host
-        !(URIHostName S.ByteString)
+        {-# UNPACK #-} !S.ByteString
 
         -- ultimate port
         !Int

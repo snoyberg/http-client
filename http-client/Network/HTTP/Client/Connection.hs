@@ -135,7 +135,7 @@ socketConnection socket chunksize = makeConnection
 
 openSocketConnection :: (Socket -> IO ())
                      -> Maybe HostAddress
-                     -> URIHostName String
+                     -> String -- ^ host
                      -> Int -- ^ port
                      -> IO Connection
 openSocketConnection f = openSocketConnectionSize f 8192
@@ -143,7 +143,7 @@ openSocketConnection f = openSocketConnectionSize f 8192
 openSocketConnectionSize :: (Socket -> IO ())
                          -> Int -- ^ chunk size
                          -> Maybe HostAddress
-                         -> URIHostName String
+                         -> String -- ^ host
                          -> Int -- ^ port
                          -> IO Connection
 openSocketConnectionSize tweakSocket chunksize hostAddress' host' port' =
@@ -170,7 +170,7 @@ strippedHostName hostName =
 
 withSocket :: (Socket -> IO ())
            -> Maybe HostAddress
-           -> URIHostName String
+           -> String -- ^ host
            -> Int -- ^ port
            -> (Socket -> IO a)
            -> IO a

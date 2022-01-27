@@ -116,7 +116,7 @@ tlsManagerSettings = mkManagerSettings def Nothing
 getTlsConnection :: Maybe NC.ConnectionContext
                  -> Maybe NC.TLSSettings
                  -> Maybe NC.SockSettings
-                 -> IO (Maybe HostAddress -> URIHostName String -> Int -> IO Connection)
+                 -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \_ha host port -> bracketOnError
@@ -133,7 +133,7 @@ getTlsProxyConnection
     :: Maybe NC.ConnectionContext
     -> NC.TLSSettings
     -> Maybe NC.SockSettings
-    -> IO (S.ByteString -> (Connection -> IO ()) -> URIHostName String -> Maybe HostAddress -> URIHostName String -> Int -> IO Connection)
+    -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsProxyConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
     return $ \connstr checkConn serverName _ha host port -> bracketOnError

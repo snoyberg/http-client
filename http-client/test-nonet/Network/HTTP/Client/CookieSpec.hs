@@ -16,18 +16,18 @@ spec :: Spec
 spec = describe "CookieSpec" $ do
     it "cookie equality - case insensitive Eq" $ do
       now <- getCurrentTime
-      let cookie1 = Cookie "test" "value" now (URIHostName "doMain.Org") "/" now now False False False False
-          cookie2 = Cookie "test" "value" now (URIHostName "DOMAIn.ORg") "/" now now False False False False
+      let cookie1 = Cookie "test" "value" now "doMain.Org" "/" now now False False False False
+          cookie2 = Cookie "test" "value" now "DOMAIn.ORg" "/" now now False False False False
       cookie1 `shouldSatisfy` (equivCookie cookie2)
 
     it "domainMatches - case insensitive" $ do
-      domainMatches (URIHostName "www.org") (URIHostName "www.org") `shouldBe` True
-      domainMatches (URIHostName "wWw.OrG") (URIHostName "Www.oRG") `shouldBe` True
-      domainMatches (URIHostName "wxw.OrG") (URIHostName "Www.oRG") `shouldBe` False
+      domainMatches "www.org" "www.org" `shouldBe` True
+      domainMatches "wWw.OrG" "Www.oRG" `shouldBe` True
+      domainMatches "wxw.OrG" "Www.oRG" `shouldBe` False
 
     it "domainMatches - case insensitive, partial" $ do
-      domainMatches (URIHostName "www.org") (URIHostName "xxx.www.org") `shouldBe` False
-      domainMatches (URIHostName "xxx.www.org") (URIHostName "WWW.ORG") `shouldBe` True
+      domainMatches "www.org" "xxx.www.org" `shouldBe` False
+      domainMatches "xxx.www.org" "WWW.ORG" `shouldBe` True
 
     describe "equalCookie vs. equivCookie" $ do
       let make :: IO Cookie
@@ -44,7 +44,7 @@ spec = describe "CookieSpec" $ do
               = [ ("cookie_name", \cky -> cky { cookie_name = "othername" }, True)
                 , ("cookie_value", \cky -> cky { cookie_value = "othervalue" }, False)
                 , ("cookie_expiry_time", \cky -> cky { cookie_expiry_time = DT.addUTCTime 60 $ cookie_expiry_time cky }, False)
-                , ("cookie_domain", \cky -> cky { cookie_domain = URIHostName $ fullHostName (cookie_domain cky) <> ".com" }, True)
+                , ("cookie_domain", \cky -> cky { cookie_domain = cookie_domain cky <> ".com" }, True)
                 , ("cookie_path", \cky -> cky { cookie_path = cookie_path cky <> "/sub" }, True)
                 , ("cookie_creation_time", \cky -> cky { cookie_creation_time = DT.addUTCTime 60 $ cookie_creation_time cky }, False)
                 , ("cookie_last_access_time", \cky -> cky { cookie_last_access_time = DT.addUTCTime 60 $ cookie_last_access_time cky }, False)
@@ -63,9 +63,9 @@ spec = describe "CookieSpec" $ do
       check `mapM_` modifications
 
     it "isPotentiallyTrustworthyOrigin" $ do
-      isPotentiallyTrustworthyOrigin True (URIHostName "") `shouldBe` True
-      let untrusty = map URIHostName ["example", "example.", "example.com", "foolocalhost", "1.1.1.1", "::1", "[::2]"]
-          trusty = map URIHostName
+      isPotentiallyTrustworthyOrigin True "" `shouldBe` True
+      let untrusty = ["example", "example.", "example.com", "foolocalhost", "1.1.1.1", "::1", "[::2]"]
+          trusty =
             [ "127.0.0.1", "127.0.0.2", "127.127.127.127"
             , "[::1]", "[0:0:0:0:0:0:0:1]"
             , "localhost", "localhost."

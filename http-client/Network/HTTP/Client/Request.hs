@@ -194,7 +194,7 @@ getUri req = URI
                     else "http:"
     , uriAuthority = Just URIAuth
         { uriUserInfo = ""
-        , uriRegName = S8.unpack $ fullHostName $ host req
+        , uriRegName = S8.unpack $ host req
         , uriPort = port'
         }
     , uriPath = S8.unpack $ path req
@@ -243,7 +243,7 @@ setUriEither req uri = do
     auth <- maybe (Left "URL must be absolute") return $ uriAuthority uri
     port' <- parsePort sec auth
     return $ applyAnyUriBasedAuth uri req
-        { host = URIHostName $ S8.pack $ uriRegName auth
+        { host = S8.pack $ uriRegName auth
         , port = port'
         , secure = sec
         , path = S8.pack $
@@ -279,7 +279,7 @@ setUriEither req uri = do
 -- @since 0.4.30
 defaultRequest :: Request
 defaultRequest = Request
-        { host = URIHostName "localhost"
+        { host = "localhost"
         , port = 80
         , secure = False
         , requestHeaders = []
@@ -365,7 +365,7 @@ applyBearerAuth bearerToken req =
 -- the provided proxy.
 --
 -- Since 0.1.0
-addProxy :: URIHostName S.ByteString -> Int -> Request -> Request
+addProxy :: S.ByteString -> Int -> Request -> Request
 addProxy hst prt req =
     req { proxy = Just $ Proxy hst prt }
 
@@ -499,9 +499,9 @@ requestBuilder req Connection {..} = do
                     loop (n + (S.length bs)) stream
 
     hh
-        | port req == 80 && not (secure req) = fullHostName $ host req
-        | port req == 443 && secure req = fullHostName $ host req
-        | otherwise = (fullHostName $ host req) <> S8.pack (':' : show (port req))
+        | port req == 80 && not (secure req) = host req
+        | port req == 443 && secure req = host req
+        | otherwise = host req <> S8.pack (':' : show (port req))
 
     requestProtocol
         | secure req = fromByteString "https://"
