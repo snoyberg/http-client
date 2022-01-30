@@ -342,7 +342,7 @@ instance Data.Monoid.Monoid CookieJar where
 -- | Define a HTTP proxy, consisting of a hostname and port number.
 
 data Proxy = Proxy
-    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy.
+    { proxyHost :: S.ByteString -- ^ The host name of the HTTP proxy in URI format. IPv6 addresses in square brackets.
     , proxyPort :: Int -- ^ The port number of the HTTP proxy.
     }
     deriving (Show, Read, Eq, Ord, T.Typeable)
@@ -493,6 +493,9 @@ data Request = Request
     , host :: S.ByteString
     -- ^ Requested host name, used for both the IP address to connect to and
     -- the @host@ request header.
+    --
+    -- This is in URI format, with raw IPv6 addresses enclosed in square brackets.
+    -- Use 'strippedHostName' when making network connections.
     --
     -- Since 0.1.0
     , port :: Int
