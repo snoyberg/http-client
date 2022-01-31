@@ -24,9 +24,9 @@ import qualified Network.Socket as NS
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.Either (isLeft)
 import Data.Foldable (for_)
 import Data.Function (fix)
+import Data.Maybe (listToMaybe)
 import Data.Word (Word8)
 
 
@@ -208,8 +208,9 @@ firstSuccessful addresses cb = do
             when (n > 0) $ threadDelay $ n * connectionAttemptDelay
             tryAddress addr
         
-        let lastException = take 1 $ reverse $ filter isLeft z
-        for_ lastException $ tryPutMVar result
+        case listToMaybe (reverse z) of 
+            Just e@(Left _) -> tryPutMVar result e        
+            _               -> error $ "tryAddresses invariant violated: " <> show addresses
       where
         tryAddress addr = do
             r :: Either E.IOException a <- E.try $! cb addr
