@@ -2,6 +2,7 @@
 
 ## 0.7.11
 
+* Allow making requests to raw IPv6 hosts [#477](https://github.com/snoyberg/http-client/pull/477)
 * Catch "resource vanished" exception on initial response read [#480](https://github.com/snoyberg/http-client/pull/480)
 
 ## 0.7.10
