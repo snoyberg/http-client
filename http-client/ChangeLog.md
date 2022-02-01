@@ -4,7 +4,7 @@
 
 * Allow making requests to raw IPv6 hosts [#477](https://github.com/snoyberg/http-client/pull/477)
 * Catch "resource vanished" exception on initial response read [#480](https://github.com/snoyberg/http-client/pull/480)
-* Search for reachable IP addresses asynchronously (RFC 6555, 8305) after calling `getAddrInfo` to reduce latency [#472](https://github.com/snoyberg/http-client/pull/472).
+* * Search for reachable IP addresses asynchronously (RFC 6555, 8305) after calling `getAddrInfo` to reduce latency [#472](https://github.com/snoyberg/http-client/pull/472).
 
 ## 0.7.10
 
