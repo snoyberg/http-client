@@ -12,6 +12,8 @@ module Network.HTTP.Client.Core
     , httpRedirect
     , httpRedirect'
     , withConnection
+    , createConnection
+    , disposeConnection
     , handleClosedRead
     ) where
 
@@ -298,3 +300,19 @@ withConnection origReq man action = do
     mHttpConn <- getConn (mSetProxy man origReq) man
     action (managedResource mHttpConn) <* keepAlive mHttpConn
         `finally` managedRelease mHttpConn DontReuse
+
+-- | Create a @Connection@ acquired from the given @Manager@.
+--
+-- You should use this only when you have to read and write interactively
+-- through the connection (e.g. connection by the WebSocket protocol), and you need
+-- to use a bracket-style combinator and @disposeConnection@
+--
+-- @since 0.7.17
+createConnection :: Request -> Manager -> IO (Managed Connection, Connection, IO ())
+createConnection origReq man = do
+  mHttpConn <- getConn (mSetProxy man origReq) man
+  return (mHttpConn, managedResource mHttpConn, keepAlive mHttpConn)
+
+-- | Dispose of a @Connection@ acquired from @createConnection@.
+disposeConnection :: Managed Connection -> IO ()
+disposeConnection = flip managedRelease DontReuse
