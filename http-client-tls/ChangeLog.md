@@ -1,3 +1,9 @@
+# Changelog for http-client-tls
+
+## 0.3.6
+
+* Allow making requests to raw IPv6 hosts [#477](https://github.com/snoyberg/http-client/pull/477)
+
 ## 0.3.5.3
 
 * Fix `newTlsManager` [#325](https://github.com/snoyberg/http-client/issues/325)
