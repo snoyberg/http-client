@@ -17,14 +17,19 @@ module Network.HTTP.Client.Connection
 import Data.ByteString (ByteString, empty)
 import Data.IORef
 import Control.Monad
+import Control.Concurrent
+import Control.Concurrent.Async
 import Network.HTTP.Client.Types
 import Network.Socket (Socket, HostAddress)
 import qualified Network.Socket as NS
 import Network.Socket.ByteString (sendAll, recv)
 import qualified Control.Exception as E
 import qualified Data.ByteString as S
-import Data.Word (Word8)
+import Data.Foldable (for_)
 import Data.Function (fix)
+import Data.Maybe (listToMaybe)
+import Data.Word (Word8)
+
 
 connectionReadLine :: Connection -> IO ByteString
 connectionReadLine conn = do
@@ -203,10 +208,30 @@ openSocket tweakSocket addr =
             NS.connect sock (NS.addrAddress addr)
             return sock)
 
+-- Pick up an IP using an approximation of the happy-eyeballs algorithm:
+-- https://datatracker.ietf.org/doc/html/rfc8305
+-- 
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
-firstSuccessful []     _  = error "getAddrInfo returned empty list"
-firstSuccessful (a:as) cb =
-    cb a `E.catch` \(e :: E.IOException) ->
-        case as of
-            [] -> E.throwIO e
-            _  -> firstSuccessful as cb
+firstSuccessful []        _  = error "getAddrInfo returned empty list"
+firstSuccessful addresses cb = do
+    result <- newEmptyMVar
+    either E.throwIO pure =<<
+        withAsync (tryAddresses result)
+            (\_ -> takeMVar result)
+  where
+    -- https://datatracker.ietf.org/doc/html/rfc8305#section-5
+    connectionAttemptDelay = 250 * 1000
+
+    tryAddresses result = do
+        z <- forConcurrently (zip addresses [0..]) $ \(addr, n) -> do
+            when (n > 0) $ threadDelay $ n * connectionAttemptDelay
+            tryAddress addr
+        
+        case listToMaybe (reverse z) of 
+            Just e@(Left _) -> tryPutMVar result e        
+            _               -> error $ "tryAddresses invariant violated: " <> show addresses
+      where
+        tryAddress addr = do
+            r :: Either E.IOException a <- E.try $! cb addr
+            for_ r $ \_ -> tryPutMVar result r
+            pure r             
