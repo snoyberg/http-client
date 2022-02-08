@@ -1,5 +1,5 @@
 name:                http-client-tls
-version:             0.3.6
+version:             0.3.6.1
 synopsis:            http-client backend using the connection package and tls library
 description:         Hackage documentation generation is not reliable. For up to date documentation, please see: <https://www.stackage.org/package/http-client-tls>.
 homepage:            https://github.com/snoyberg/http-client
@@ -18,7 +18,7 @@ library
   other-extensions:    ScopedTypeVariables
   build-depends:       base >= 4.10 && < 5
                      , data-default-class
-                     , http-client >= 0.5.0
+                     , http-client >= 0.7.11
                      , connection >= 0.2.5
                      , network
                      , tls >= 1.2

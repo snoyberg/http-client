@@ -1,5 +1,10 @@
 # Changelog for http-client-tls
 
+## 0.3.6.1
+
+* [#482](https://github.com/snoyberg/http-client/issues/482):
+  Raise lower bound on `http-client` to fix build.
+
 ## 0.3.6
 
 * Allow making requests to raw IPv6 hosts [#477](https://github.com/snoyberg/http-client/pull/477)
