@@ -210,7 +210,7 @@ openSocket tweakSocket addr =
 
 -- Pick up an IP using an approximation of the happy-eyeballs algorithm:
 -- https://datatracker.ietf.org/doc/html/rfc8305
--- 
+--
 firstSuccessful :: [NS.AddrInfo] -> (NS.AddrInfo -> IO a) -> IO a
 firstSuccessful []        _  = error "getAddrInfo returned empty list"
 firstSuccessful addresses cb = do
@@ -226,12 +226,12 @@ firstSuccessful addresses cb = do
         z <- forConcurrently (zip addresses [0..]) $ \(addr, n) -> do
             when (n > 0) $ threadDelay $ n * connectionAttemptDelay
             tryAddress addr
-        
-        case listToMaybe (reverse z) of 
-            Just e@(Left _) -> tryPutMVar result e        
-            _               -> error $ "tryAddresses invariant violated: " <> show addresses
+
+        case listToMaybe (reverse z) of
+            Just e@(Left _) -> tryPutMVar result e
+            _               -> error $ "tryAddresses invariant violated: " ++ show addresses
       where
         tryAddress addr = do
             r :: Either E.IOException a <- E.try $! cb addr
             for_ r $ \_ -> tryPutMVar result r
-            pure r             
+            pure r
