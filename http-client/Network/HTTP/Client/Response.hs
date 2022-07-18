@@ -4,7 +4,6 @@ module Network.HTTP.Client.Response
     ( getRedirectedRequest
     , getResponse
     , lbsResponse
-    , getOriginalRequest
     ) where
 
 import Data.ByteString (ByteString)
@@ -161,7 +160,6 @@ getResponse mhl timeout' req@(Request {..}) mconn cont = do
         , responseBody = body
         , responseCookieJar = Data.Monoid.mempty
         , responseClose' = ResponseClose (cleanup False)
-        , responseOriginalRequest = req {requestBody = ""}
         }
 
 -- | Does this response have no body?
@@ -172,11 +170,3 @@ hasNoBody "HEAD" _ = True
 hasNoBody _ 204 = True
 hasNoBody _ 304 = True
 hasNoBody _ i = 100 <= i && i < 200
-
--- | Retrieve the orignal 'Request' from a 'Response'
---
--- Note that the 'requestBody' is not available and always set to empty.
---
--- @since 0.7.8
-getOriginalRequest :: Response a -> Request
-getOriginalRequest = responseOriginalRequest

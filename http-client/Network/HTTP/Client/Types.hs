@@ -709,12 +709,6 @@ data Response body = Response
     -- be impossible.
     --
     -- Since 0.1.0
-    , responseOriginalRequest :: Request
-    -- ^ Holds original @Request@ related to this @Response@ (with an empty body).
-    -- This field is intentionally not exported directly, but made available
-    -- via @getOriginalRequest@ instead.
-    --
-    -- Since 0.7.8
     }
     deriving (Show, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
 
@@ -792,8 +786,11 @@ data ManagerSettings = ManagerSettings
     -- Default: no modification
     --
     -- Since 0.4.4
-    , managerModifyResponse :: Response BodyReader -> IO (Response BodyReader)
+    , managerModifyResponse :: Request -> Response BodyReader -> IO (Response BodyReader)
     -- ^ Perform the given modification to a @Response@ after receiving it.
+    --
+    -- The Request is the corresponding original request (before any redirects)
+    -- but its body is always discarded.
     --
     -- Default: no modification
     --
@@ -835,7 +832,7 @@ data Manager = Manager
     , mWrapException :: forall a. Request -> IO a -> IO a
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
-    , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
+    , mModifyResponse :: Request -> Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
     , mMaxHeaderLength :: Maybe MaxHeaderLength
     }

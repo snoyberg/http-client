@@ -89,7 +89,7 @@ defaultManagerSettings = ManagerSettings
          in handle wrapper
     , managerIdleConnectionCount = 512
     , managerModifyRequest = return
-    , managerModifyResponse = return
+    , managerModifyResponse = const return
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
     , managerMaxHeaderLength = Just $ MaxHeaderLength 4096
