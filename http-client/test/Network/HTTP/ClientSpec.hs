@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 module Network.HTTP.ClientSpec where
 
+import           Control.Concurrent (threadDelay)
 import qualified Data.ByteString.Char8        as BS
 import           Network.HTTP.Client
 import           Network.HTTP.Client.Internal
@@ -10,6 +11,7 @@ import qualified Network.Socket               as NS
 import           Test.Hspec
 import           Control.Applicative       ((<$>))
 import           Data.ByteString.Lazy.Char8 () -- orphan instance
+import           System.Mem (performGC)
 
 main :: IO ()
 main = hspec spec
@@ -21,6 +23,31 @@ spec = describe "Client" $ do
         man <- newManager defaultManagerSettings
         res <- httpLbs req man
         responseStatus res `shouldBe` status200
+
+    -- Test the failure condition described in https://github.com/snoyberg/http-client/issues/489
+    it "keeps connection alive long enough" $ do
+        req <- parseUrlThrow "http://httpbin.org/"
+        man <- newManager defaultManagerSettings
+        res <- responseOpen req man
+        responseStatus res `shouldBe` status200
+        let
+            getChunk = responseBody res
+            drainAll = do
+                chunk <- getChunk
+                if BS.null chunk then pure () else drainAll
+
+        -- The returned `BodyReader` used to not contain a reference to the `Managed Connection`,
+        -- only to the extracted connection and to the release action. Therefore, triggering a GC
+        -- would close the connection even though we were not done reading.
+        performGC
+        -- Not ideal, but weak finalizers run on a separate thread, so it's racing with our drain
+        -- call
+        threadDelay 500000
+
+        drainAll
+        -- Calling `responseClose res` here prevents the early collection from happening in this
+        -- test, but in a larger production application that did involve a `responseClose`, it still
+        -- occurred.
 
     describe "method in URL" $ do
         it "success" $ do
