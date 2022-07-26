@@ -97,7 +97,14 @@ getResponse timeout' req@(Request {..}) mconn cont = do
 
         -- should we put this connection back into the connection manager?
         toPut = Just "close" /= lookup "connection" hs && version > W.HttpVersion 1 0
-        cleanup bodyConsumed = managedRelease mconn $ if toPut && bodyConsumed then Reuse else DontReuse
+        cleanup bodyConsumed = do
+            managedRelease mconn $ if toPut && bodyConsumed then Reuse else DontReuse
+            -- Keep alive the `Managed Connection` until we're done with it, to prevent an early
+            -- collection.
+            -- Reasoning: as long as someone holds a reference to the explicit cleanup,
+            -- we shouldn't perform an implicit cleanup.
+            keepAlive mconn
+
 
     body <-
         -- RFC 2616 section 4.4_1 defines responses that must not include a body

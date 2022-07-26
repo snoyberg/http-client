@@ -620,6 +620,11 @@ data Request = Request
     -- Default: Use HTTP CONNECT.
     --
     -- @since 0.7.2
+
+    , redactHeaders :: [HeaderName]
+    -- ^ List of header values being redacted in case we show Request.
+    --
+    -- @since 0.7.11.1
     }
     deriving T.Typeable
 
@@ -643,7 +648,7 @@ instance Show Request where
         , "  host                 = " ++ show (host x)
         , "  port                 = " ++ show (port x)
         , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (DL.map redactSensitiveHeader (requestHeaders x))
+        , "  requestHeaders       = " ++ show (DL.map (redactSensitiveHeader $ redactHeaders x) (requestHeaders x))
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
         --, "  requestBody          = " ++ show (requestBody x)
@@ -657,9 +662,11 @@ instance Show Request where
         , "}"
         ]
 
-redactSensitiveHeader :: Header -> Header
-redactSensitiveHeader ("Authorization", _) = ("Authorization", "<REDACTED>")
-redactSensitiveHeader h = h
+redactSensitiveHeader :: [HeaderName] -> Header -> Header
+redactSensitiveHeader _ ("Authorization", _) = ("Authorization", "<REDACTED>")
+redactSensitiveHeader toRedact h@(name, _) =
+  if name `elem` toRedact then (name, "<REDACTED>")
+                          else h
 
 -- | A simple representation of the HTTP response.
 --

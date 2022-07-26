@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.12
+
+* Fix premature connection closing due to weak reference lifetimes [#490](https://github.com/snoyberg/http-client/pull/490)
+
 ## 0.7.11
 
 * Allow making requests to raw IPv6 hosts [#477](https://github.com/snoyberg/http-client/pull/477)
