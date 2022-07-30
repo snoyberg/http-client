@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.13
+
+* Create the ability to redact custom header values to censor sensitive information
+
 ## 0.7.12
 
 * Fix premature connection closing due to weak reference lifetimes [#490](https://github.com/snoyberg/http-client/pull/490)

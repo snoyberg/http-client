@@ -49,6 +49,7 @@ import Control.Applicative as A ((<$>))
 import Control.Monad (unless, guard)
 import Control.Monad.IO.Class (MonadIO, liftIO)
 import Numeric (showHex)
+import qualified Data.Set as Set
 
 import Blaze.ByteString.Builder (Builder, fromByteString, fromLazyByteString, toByteStringIO, flush)
 import Blaze.ByteString.Builder.Char8 (fromChar, fromShow)
@@ -303,6 +304,7 @@ defaultRequest = Request
         , requestManagerOverride = Nothing
         , shouldStripHeaderOnRedirect = const False
         , proxySecureMode = ProxySecureWithConnect
+        , redactHeaders = Set.singleton "Authorization"
         }
 
 -- | Parses a URL via 'parseRequest_'
