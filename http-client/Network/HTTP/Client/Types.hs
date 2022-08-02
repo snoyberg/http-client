@@ -59,6 +59,7 @@ import Network.Socket (HostAddress)
 import Data.IORef
 import qualified Network.Socket as NS
 import qualified Data.Map as Map
+import qualified Data.Set as Set
 import Data.Text (Text)
 import Data.Streaming.Zlib (ZlibException)
 import Data.CaseInsensitive as CI
@@ -620,6 +621,11 @@ data Request = Request
     -- Default: Use HTTP CONNECT.
     --
     -- @since 0.7.2
+
+    , redactHeaders :: Set.Set HeaderName
+    -- ^ List of header values being redacted in case we show Request.
+    --
+    -- @since 0.7.13
     }
     deriving T.Typeable
 
@@ -643,7 +649,7 @@ instance Show Request where
         , "  host                 = " ++ show (host x)
         , "  port                 = " ++ show (port x)
         , "  secure               = " ++ show (secure x)
-        , "  requestHeaders       = " ++ show (DL.map redactSensitiveHeader (requestHeaders x))
+        , "  requestHeaders       = " ++ show (DL.map (redactSensitiveHeader $ redactHeaders x) (requestHeaders x))
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
         --, "  requestBody          = " ++ show (requestBody x)
@@ -657,9 +663,11 @@ instance Show Request where
         , "}"
         ]
 
-redactSensitiveHeader :: Header -> Header
-redactSensitiveHeader ("Authorization", _) = ("Authorization", "<REDACTED>")
-redactSensitiveHeader h = h
+redactSensitiveHeader :: Set.Set HeaderName -> Header -> Header
+redactSensitiveHeader toRedact h@(name, _) =
+  if name `Set.member` toRedact
+    then (name, "<REDACTED>")
+    else h
 
 -- | A simple representation of the HTTP response.
 --
