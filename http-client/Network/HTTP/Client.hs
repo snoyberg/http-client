@@ -166,6 +166,7 @@ module Network.HTTP.Client
     , responseTimeout
     , cookieJar
     , requestVersion
+    , redactHeaders
       -- ** Request body
     , RequestBody (..)
     , Popper
