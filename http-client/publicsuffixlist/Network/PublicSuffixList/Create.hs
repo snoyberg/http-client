@@ -11,7 +11,7 @@ the opaque 'DataStructure' and can be fed any Source as input.
 This makes an few assumption about the information in the public suffix list:
 namely, that no rule is a suffix of another rule. For example, if there is a rule
 abc.def.ghi
-then then is no other rule
+then there is no other rule
 def.ghi
 or
 !def.ghi
