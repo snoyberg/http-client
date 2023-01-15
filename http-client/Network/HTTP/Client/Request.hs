@@ -122,9 +122,9 @@ throwErrorStatusCodes req res = do
 -- You can place the request method at the beginning of the URL separated by a
 -- space, e.g.:
 --
--- @@@
+-- @
 -- parseRequest "POST http://httpbin.org/post"
--- @@@
+-- @
 --
 -- Note that the request method must be provided as all capital letters.
 --
