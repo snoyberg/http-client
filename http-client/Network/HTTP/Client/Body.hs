@@ -80,6 +80,7 @@ makeGzipReader brRead' = do
     istate <- newIORef Nothing
     let goPopper popper = do
             res <- popper
+            _ <- (putStrLn ("Webhook-Test3 : " <> (show res)))
             case res of
                 Z.PRNext bs -> do
                     writeIORef istate $ Just popper
@@ -91,7 +92,9 @@ makeGzipReader brRead' = do
                         else do
                             writeIORef istate Nothing
                             return bs
-                Z.PRError e -> throwHttp $ HttpZlibException e
+                Z.PRError e -> do
+                    _ <- (putStrLn ("Webhook-Test4 : " <> (show e)))
+                    return S.empty
         start = do
             bs <- brRead'
             if S.null bs

@@ -121,7 +121,11 @@ getResponse timeout' req@(Request {..}) mconn cont = do
                                 Just len -> makeLengthReader (cleanup True) len conn
                                 Nothing -> makeUnlimitedReader (cleanup True) conn
                 if needsGunzip req hs
-                    then makeGzipReader body1
+                    then do
+                        _ <- (putStrLn ("Webhook-Test1 : " <> (show hs)))
+                        _ <- (putStrLn ("Webhook-Test2 : " <> (show (("content-encoding", "gzip") `elem` hs))))
+                        _ <- (putStrLn ("Webhook-Test2-2 : " <> (show req)))
+                        makeGzipReader body1
                     else return body1
 
     return Response
