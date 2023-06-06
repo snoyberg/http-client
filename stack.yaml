@@ -1,12 +1,12 @@
-resolver: lts-16.20
+resolver: lts-20.24
 packages:
 - http-client
 - http-client-tls
-- http-client-openssl
+#- http-client-openssl
 - http-conduit
 extra-deps:
-- HsOpenSSL-0.11.4.20
-- HsOpenSSL-x509-system-0.1.0.4
+#- HsOpenSSL-0.11.4.20
+#- HsOpenSSL-x509-system-0.1.0.4
 - crypton-0.31
 - crypton-connection-0.3.1
 - crypton-x509-1.7.6
@@ -14,3 +14,7 @@ extra-deps:
 - crypton-x509-system-1.6.7
 - crypton-x509-validation-1.6.12
 - tls-1.7.0
+- warp-3.3.26
+- warp-tls-3.3.7
+- recv-0.1.0
+- http2-4.1.3

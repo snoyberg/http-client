@@ -5,20 +5,6 @@
 
 packages:
 - completed:
-    hackage: HsOpenSSL-0.11.4.20@sha256:b88bd010ef07db2f7109b53bee08476c00c9d5b9d01005f0b44477f7eb3ec74d,6091
-    pantry-tree:
-      sha256: 9b403d61ef40e8362e8968db16fb46d597bfac6d7ee7c139ff975af06027b6bd
-      size: 3287
-  original:
-    hackage: HsOpenSSL-0.11.4.20
-- completed:
-    hackage: HsOpenSSL-x509-system-0.1.0.4@sha256:86be72558de4cee8f4e32f9cb8b63610d7624219910cfc205a23326078658676,1777
-    pantry-tree:
-      sha256: 98f6b47d27550f29a90a8f5660cf09f72f139d9940fe00cd6b0cffbd5c210a15
-      size: 508
-  original:
-    hackage: HsOpenSSL-x509-system-0.1.0.4
-- completed:
     hackage: crypton-0.31@sha256:c0e4aa081bd65d1cb415358ec43e83e7fe703c83b633243a89162bd6eb865850,18286
     pantry-tree:
       sha256: 0d73be1794796e4c87e1a20198109ec7364eee8c54dd6cf6c4d202f1f6ca3ac0
@@ -67,9 +53,37 @@ packages:
       size: 4897
   original:
     hackage: tls-1.7.0
+- completed:
+    hackage: warp-3.3.26@sha256:46cc0e512c325036923e405b574ce330d6f23bbc3abea5cf97bae027bd591a0f,11100
+    pantry-tree:
+      sha256: 3485936c0b0a739a588f2661eb282352896cea8ee8ed1e64e8c28a7bfc58728d
+      size: 3838
+  original:
+    hackage: warp-3.3.26
+- completed:
+    hackage: warp-tls-3.3.7@sha256:2aca78b3384a20267183811ea57246f4a4ab827219e854635a54af8807345c31,1828
+    pantry-tree:
+      sha256: 7b9d52e7e4205c6b2560f96ccbeaedf23366f89004fdd87624acf7ba2ea199ba
+      size: 407
+  original:
+    hackage: warp-tls-3.3.7
+- completed:
+    hackage: recv-0.1.0@sha256:04058c90ed3d2821b92e589dd3428f5a6e9d49ab405296dda3583304cb0b9bb3,1755
+    pantry-tree:
+      sha256: fafd5670d75a0b6ffa717f6f5002beaa85158eb0d2e7cc0c5289ff9281621ffa
+      size: 585
+  original:
+    hackage: recv-0.1.0
+- completed:
+    hackage: http2-4.1.3@sha256:dd232d5785a9e40c5194ec800fb092d00095ab10519e6ddf9a3c348fdee9d367,10460
+    pantry-tree:
+      sha256: b03b9f9c67d82aee51dd40e095f3f5bc3c5ac6790379d0103da2574cebc46604
+      size: 45116
+  original:
+    hackage: http2-4.1.3
 snapshots:
 - completed:
-    sha256: 0e14ba5603f01e8496e8984fd84b545a012ca723f51a098c6c9d3694e404dc6d
-    size: 532177
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/20.yaml
-  original: lts-16.20
+    sha256: e019cd29e3f7f9dbad500225829a3f7a50f73c674614f2f452e21bb8bf5d99ea
+    size: 650253
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/24.yaml
+  original: lts-20.24
