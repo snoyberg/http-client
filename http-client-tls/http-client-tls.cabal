@@ -19,14 +19,14 @@ library
   build-depends:       base >= 4.10 && < 5
                      , data-default-class
                      , http-client >= 0.7.11
-                     , connection >= 0.2.5
+                     , crypton-connection
                      , network
                      , tls >= 1.2
                      , bytestring
                      , case-insensitive
                      , transformers
                      , http-types
-                     , cryptonite
+                     , crypton
                      , memory
                      , exceptions
                      , containers
@@ -41,7 +41,6 @@ test-suite spec
   hs-source-dirs:      test
   default-language:    Haskell2010
   build-depends:       base
-                     , connection
                      , hspec
                      , http-client
                      , http-client-tls
