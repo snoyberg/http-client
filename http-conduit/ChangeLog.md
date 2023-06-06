@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.8.1
+
+* Drop `connection` dependency
+
 ## 2.3.8
 
 * Adds `setRequestBearerAuth` convenience function. Note that this is only available for `http-client` versions 0.7.6 or greater. [#457](https://github.com/snoyberg/http-client/pull/457/files)

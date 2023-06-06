@@ -1,5 +1,9 @@
 # Changelog for http-client-tls
 
+## 0.3.6.2
+
+* Migrate to `crypton`
+
 ## 0.3.6.1
 
 * [#482](https://github.com/snoyberg/http-client/issues/482):
