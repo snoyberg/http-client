@@ -63,6 +63,7 @@ test-suite test
                  , HUnit
                  , hspec >= 1.3
                  , data-default-class
+                 , crypton-connection
                  , warp-tls
                  , tls < 1.5 || >= 1.5.2
                  , time
