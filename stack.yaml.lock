@@ -5,22 +5,85 @@
 
 packages:
 - completed:
-    hackage: HsOpenSSL-0.11.4.20@sha256:b88bd010ef07db2f7109b53bee08476c00c9d5b9d01005f0b44477f7eb3ec74d,6091
+    hackage: crypton-0.31@sha256:c0e4aa081bd65d1cb415358ec43e83e7fe703c83b633243a89162bd6eb865850,18286
     pantry-tree:
-      size: 3287
-      sha256: 9b403d61ef40e8362e8968db16fb46d597bfac6d7ee7c139ff975af06027b6bd
+      sha256: 0d73be1794796e4c87e1a20198109ec7364eee8c54dd6cf6c4d202f1f6ca3ac0
+      size: 23320
   original:
-    hackage: HsOpenSSL-0.11.4.20
+    hackage: crypton-0.31
 - completed:
-    hackage: HsOpenSSL-x509-system-0.1.0.4@sha256:86be72558de4cee8f4e32f9cb8b63610d7624219910cfc205a23326078658676,1777
+    hackage: crypton-connection-0.3.1@sha256:4d0958537197956b536ea91718b1749949757022532f50b8f683290056a19021,1581
     pantry-tree:
-      size: 508
-      sha256: 98f6b47d27550f29a90a8f5660cf09f72f139d9940fe00cd6b0cffbd5c210a15
+      sha256: e35ac3a35611afab9fafac633d0c4e6328b9cce4c8262378671d6c5a739e7e70
+      size: 394
   original:
-    hackage: HsOpenSSL-x509-system-0.1.0.4
+    hackage: crypton-connection-0.3.1
+- completed:
+    hackage: crypton-x509-1.7.6@sha256:c567657a705b6d6521f9dd2de999bf530d618ec00f3b939df76a41fb0fe94281,2339
+    pantry-tree:
+      sha256: 729e7db8dfc0a8b43e08bbd8d1387c9065e39beda6ac39e0fb9f10140810a3eb
+      size: 1080
+  original:
+    hackage: crypton-x509-1.7.6
+- completed:
+    hackage: crypton-x509-store-1.6.9@sha256:422b9b9f87a7382c66385d047615b16fc86a68c08ea22b1e0117c143a2d44050,1750
+    pantry-tree:
+      sha256: 87654d130a7f987ee139c821a1be45736d18df9fa4cb1142c4e054d3802338f3
+      size: 406
+  original:
+    hackage: crypton-x509-store-1.6.9
+- completed:
+    hackage: crypton-x509-system-1.6.7@sha256:023ed573d82983bc473a37a89e0434a085b413be9f68d07e085361056afd4637,1532
+    pantry-tree:
+      sha256: c0ca49e6a9537f3fdb7b47c5cfe93f7d744a369bf9d089f3c668b9c2d97402b7
+      size: 399
+  original:
+    hackage: crypton-x509-system-1.6.7
+- completed:
+    hackage: crypton-x509-validation-1.6.12@sha256:85989721b64be4b90de9f66ef641c26f57575cffed1a50d707065fb60176f386,2227
+    pantry-tree:
+      sha256: d4a0135f11218614fcd912cffaf54de8f749caca8696380e2589cbcfd64cc681
+      size: 639
+  original:
+    hackage: crypton-x509-validation-1.6.12
+- completed:
+    hackage: tls-1.7.0@sha256:fa82e9ca8fd887b66fba8433b3ba1db4e5e047fe7c815707f06209679d04177b,5566
+    pantry-tree:
+      sha256: 7521091021ecbbbf9b46c2fdb08f9e449eddcebf3a3922f76d23baca5db83b4f
+      size: 4897
+  original:
+    hackage: tls-1.7.0
+- completed:
+    hackage: warp-3.3.26@sha256:46cc0e512c325036923e405b574ce330d6f23bbc3abea5cf97bae027bd591a0f,11100
+    pantry-tree:
+      sha256: 3485936c0b0a739a588f2661eb282352896cea8ee8ed1e64e8c28a7bfc58728d
+      size: 3838
+  original:
+    hackage: warp-3.3.26
+- completed:
+    hackage: warp-tls-3.3.7@sha256:2aca78b3384a20267183811ea57246f4a4ab827219e854635a54af8807345c31,1828
+    pantry-tree:
+      sha256: 7b9d52e7e4205c6b2560f96ccbeaedf23366f89004fdd87624acf7ba2ea199ba
+      size: 407
+  original:
+    hackage: warp-tls-3.3.7
+- completed:
+    hackage: recv-0.1.0@sha256:04058c90ed3d2821b92e589dd3428f5a6e9d49ab405296dda3583304cb0b9bb3,1755
+    pantry-tree:
+      sha256: fafd5670d75a0b6ffa717f6f5002beaa85158eb0d2e7cc0c5289ff9281621ffa
+      size: 585
+  original:
+    hackage: recv-0.1.0
+- completed:
+    hackage: http2-4.1.3@sha256:dd232d5785a9e40c5194ec800fb092d00095ab10519e6ddf9a3c348fdee9d367,10460
+    pantry-tree:
+      sha256: b03b9f9c67d82aee51dd40e095f3f5bc3c5ac6790379d0103da2574cebc46604
+      size: 45116
+  original:
+    hackage: http2-4.1.3
 snapshots:
 - completed:
-    size: 532177
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/16/20.yaml
-    sha256: 0e14ba5603f01e8496e8984fd84b545a012ca723f51a098c6c9d3694e404dc6d
-  original: lts-16.20
+    sha256: e019cd29e3f7f9dbad500225829a3f7a50f73c674614f2f452e21bb8bf5d99ea
+    size: 650253
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/24.yaml
+  original: lts-20.24

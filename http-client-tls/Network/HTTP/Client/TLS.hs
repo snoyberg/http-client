@@ -99,10 +99,8 @@ mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
               | Just (_ :: TLS.TLSException)     <- fromException se = se'
               | Just (_ :: TLS.TLSError)         <- fromException se = se'
               | Just (_ :: NC.LineTooLong)       <- fromException se = se'
-#if MIN_VERSION_connection(0,2,7)
               | Just (_ :: NC.HostNotResolved)   <- fromException se = se'
               | Just (_ :: NC.HostCannotConnect) <- fromException se = se'
-#endif
               | otherwise = se
               where
                 se' = toException $ HttpExceptionRequest req $ InternalException se
