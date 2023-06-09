@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.8.2
+
+* Add missing `crypton-connection` dependency
+
 ## 2.3.8.1
 
 * Drop `connection` dependency
