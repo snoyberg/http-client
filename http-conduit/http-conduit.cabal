@@ -42,6 +42,7 @@ library
 
     if flag(aeson)
       build-depends: aeson                 >= 0.8
+                   , attoparsec-aeson      >= 2.2
 
     if !impl(ghc>=7.9)
       build-depends:   void >= 0.5.5
