@@ -703,7 +703,7 @@ data Response body = Response
     -- Since 0.1.0
     , responseOriginalRequest :: Request
     -- ^ Holds original @Request@ related to this @Response@ (with an empty body).
-    -- This field is intentionally not exported directly, but made availble
+    -- This field is intentionally not exported directly, but made available
     -- via @getOriginalRequest@ instead.
     --
     -- Since 0.7.8
