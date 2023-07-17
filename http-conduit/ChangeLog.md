@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.8.3
+
+* aeson 2.2 support [#512](https://github.com/snoyberg/http-client/pull/512)
+
 ## 2.3.8.2
 
 * Add missing `crypton-connection` dependency

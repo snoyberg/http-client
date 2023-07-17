@@ -81,9 +81,16 @@ packages:
       size: 45116
   original:
     hackage: http2-4.1.3
+- completed:
+    hackage: attoparsec-aeson-2.1.0.0@sha256:fa83aba43bfa58490de8f274d19b9d58b6403a207b12cac5f93922102b084c52,1154
+    pantry-tree:
+      sha256: 294c3a8a19a7ddad58097e18c624c6b34894b3c4a4cc490759cb31d842db242a
+      size: 114
+  original:
+    hackage: attoparsec-aeson-2.1.0.0
 snapshots:
 - completed:
-    sha256: e019cd29e3f7f9dbad500225829a3f7a50f73c674614f2f452e21bb8bf5d99ea
-    size: 650253
-    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/24.yaml
-  original: lts-20.24
+    sha256: 5a59b2a405b3aba3c00188453be172b85893cab8ebc352b1ef58b0eae5d248a2
+    size: 650475
+    url: https://raw.githubusercontent.com/commercialhaskell/stackage-snapshots/master/lts/20/26.yaml
+  original: lts-20.26
