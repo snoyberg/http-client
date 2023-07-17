@@ -42,6 +42,7 @@ library
 
     if flag(aeson)
       build-depends: aeson                 >= 0.8
+                   , attoparsec-aeson      >= 2.1
 
     if !impl(ghc>=7.9)
       build-depends:   void >= 0.5.5
@@ -90,6 +91,7 @@ test-suite test
 
     if flag(aeson)
       build-depends: aeson
+                   , attoparsec-aeson      >= 2.1
 
 source-repository head
   type:     git
