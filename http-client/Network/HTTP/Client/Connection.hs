@@ -43,14 +43,14 @@ connectionDropTillBlankLine mhl conn = fix $ \loop -> do
     unless (S.null bs) loop
 
 connectionReadLineWith :: MaxHeaderLength -> Connection -> ByteString -> IO ByteString
-connectionReadLineWith (MaxHeaderLength mhl) conn bs0 =
+connectionReadLineWith mhl conn bs0 =
     go bs0 id 0
   where
     go bs front total =
         case S.break (== charLF) bs of
             (_, "") -> do
                 let total' = total + S.length bs
-                when (total' > mhl) $ throwHttp OverlongHeaders
+                when (total' > unMaxHeaderLength mhl) $ throwHttp OverlongHeaders
                 bs' <- connectionRead conn
                 when (S.null bs') $ throwHttp IncompleteHeaders
                 go bs' (front . (bs:)) total'
