@@ -830,6 +830,7 @@ data Manager = Manager
     , mSetProxy :: Request -> Request
     , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
+    , mMaxHeaderLength :: MaxHeaderLength
     }
     deriving T.Typeable
 

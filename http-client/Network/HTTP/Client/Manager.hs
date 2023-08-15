@@ -132,6 +132,7 @@ newManager ms = do
                 if secure req
                     then httpsProxy req
                     else httpProxy req
+            , mMaxHeaderLength = managerMaxHeaderLength ms
             }
     return manager
 
