@@ -38,6 +38,7 @@ module Network.HTTP.Client.Types
     , StreamFileStatus (..)
     , ResponseTimeout (..)
     , ProxySecureMode (..)
+    , MaxHeaderLength (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -879,3 +880,9 @@ data StreamFileStatus = StreamFileStatus
     , thisChunkSize :: Int
     }
     deriving (Eq, Show, Ord, T.Typeable)
+
+-- | The maximum header size in bytes.
+newtype MaxHeaderLength = MaxHeaderLength
+    { unMaxHeaderLength :: Int
+    }
+    deriving (Eq, Show)

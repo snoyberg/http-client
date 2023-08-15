@@ -31,10 +31,6 @@ import Data.Function (fix)
 import Data.Maybe (listToMaybe)
 import Data.Word (Word8)
 
-newtype MaxHeaderLength
-    = MaxHeaderLength Int
-    deriving (Eq, Show)
-
 connectionReadLine :: MaxHeaderLength -> Connection -> IO ByteString
 connectionReadLine mhl conn = do
     bs <- connectionRead conn
