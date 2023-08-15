@@ -252,13 +252,13 @@ data HistoriedResponse body = HistoriedResponse
 -- response bodies.
 --
 -- Since 0.4.1
-responseOpenHistory :: MaxHeaderLength -> Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory mhl reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
+responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
+responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
     reqRef <- newIORef reqOrig
     historyRef <- newIORef id
     let go req0 = do
             (man, req) <- getModifiedRequestManager man0 req0
-            (req', res') <- httpRaw' mhl req man
+            (req', res') <- httpRaw' req man
             let res = res'
                     { responseBody = handle (throwIO . toHttpException req0)
                                             (responseBody res')
@@ -289,13 +289,12 @@ responseOpenHistory mhl reqOrig man0 = handle (throwIO . toHttpException reqOrig
 -- response bodies.
 --
 -- Since 0.4.1
-withResponseHistory :: MaxHeaderLength
-                    -> Request
+withResponseHistory :: Request
                     -> Manager
                     -> (HistoriedResponse BodyReader -> IO a)
                     -> IO a
-withResponseHistory mhl req man = bracket
-    (responseOpenHistory mhl req man)
+withResponseHistory req man = bracket
+    (responseOpenHistory req man)
     (responseClose . hrFinalResponse)
 
 -- | Set the proxy override value, only for HTTP (insecure) connections.
