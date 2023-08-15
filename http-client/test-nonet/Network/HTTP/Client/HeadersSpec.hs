@@ -20,7 +20,7 @@ spec = describe "HeadersSpec" $ do
                 , "\nignored"
                 ]
         (connection, _, _) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders connection Nothing Nothing
+        statusHeaders <- parseStatusHeaders Nothing connection Nothing Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
             [ ("foo", "bar")
             , ("baz", "bin")
@@ -34,7 +34,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
-        statusHeaders <- parseStatusHeaders conn Nothing (Just sendBody)
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing (Just sendBody)
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
         out >>= (`shouldBe` ["data"])
 
@@ -44,7 +44,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
-        statusHeaders <- parseStatusHeaders conn Nothing (Just sendBody)
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing (Just sendBody)
         statusHeaders `shouldBe` StatusHeaders status417 (HttpVersion 1 1) []
         out >>= (`shouldBe` [])
 
@@ -56,7 +56,7 @@ spec = describe "HeadersSpec" $ do
                 , "result"
                 ]
         (conn, out, inp) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders conn Nothing Nothing
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
         out >>= (`shouldBe` [])
         inp >>= (`shouldBe` ["result"])

@@ -22,7 +22,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\nnot consumed"
             ]
-        reader <- makeChunkedReader (return ()) False conn
+        reader <- makeChunkedReader Nothing (return ()) False conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -33,7 +33,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\ntrailers-are: ignored\r\nbut: consumed\r\n\r\nnot consumed"
             ]
-        reader <- makeChunkedReader (return ()) False conn
+        reader <- makeChunkedReader Nothing (return ()) False conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -43,7 +43,7 @@ spec = describe "BodySpec" $ do
     it "chunked, pieces" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\nnot consumed"
-        reader <- makeChunkedReader (return ()) False conn
+        reader <- makeChunkedReader Nothing (return ()) False conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -53,7 +53,7 @@ spec = describe "BodySpec" $ do
     it "chunked, pieces, with trailers" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "5\r\nhello\r\n6\r\n world\r\n0\r\ntrailers-are: ignored\r\nbut: consumed\r\n\r\nnot consumed"
-        reader <- makeChunkedReader (return ()) False conn
+        reader <- makeChunkedReader Nothing (return ()) False conn
         body <- brConsume reader
         S.concat body `shouldBe` "hello world"
         input' <- input
@@ -64,7 +64,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\nnot consumed"
             ]
-        reader <- makeChunkedReader (return ()) True conn
+        reader <- makeChunkedReader Nothing (return ()) True conn
         body <- brConsume reader
         S.concat body `shouldBe` "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n"
         input' <- input
@@ -75,7 +75,7 @@ spec = describe "BodySpec" $ do
         (conn, _, input) <- dummyConnection
             [ "5\r\nhello\r\n6\r\n world\r\n0\r\ntrailers-are: returned\r\nin-raw: body\r\n\r\nnot consumed"
             ]
-        reader <- makeChunkedReader (return ()) True conn
+        reader <- makeChunkedReader Nothing (return ()) True conn
         body <- brConsume reader
         S.concat body `shouldBe` "5\r\nhello\r\n6\r\n world\r\n0\r\ntrailers-are: returned\r\nin-raw: body\r\n\r\n"
         input' <- input
@@ -85,7 +85,7 @@ spec = describe "BodySpec" $ do
     it "chunked, pieces, raw" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\nnot consumed"
-        reader <- makeChunkedReader (return ()) True conn
+        reader <- makeChunkedReader Nothing (return ()) True conn
         body <- brConsume reader
         S.concat body `shouldBe` "5\r\nhello\r\n6\r\n world\r\n0\r\n\r\n"
         input' <- input
@@ -95,7 +95,7 @@ spec = describe "BodySpec" $ do
     it "chunked, pieces, raw, with trailers" $ do
         (conn, _, input) <- dummyConnection $ map S.singleton $ S.unpack
             "5\r\nhello\r\n6\r\n world\r\n0\r\ntrailers-are: returned\r\nin-raw: body\r\n\r\nnot consumed"
-        reader <- makeChunkedReader (return ()) True conn
+        reader <- makeChunkedReader Nothing (return ()) True conn
         body <- brConsume reader
         S.concat body `shouldBe` "5\r\nhello\r\n6\r\n world\r\n0\r\ntrailers-are: returned\r\nin-raw: body\r\n\r\n"
         input' <- input
