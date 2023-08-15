@@ -20,7 +20,6 @@ import Network.URI (parseURIReference, escapeURIString, isAllowedInURI)
 
 import Network.HTTP.Client.Types
 
-import Network.HTTP.Client.Connection (MaxHeaderLength)
 import Network.HTTP.Client.Request
 import Network.HTTP.Client.Util
 import Network.HTTP.Client.Body

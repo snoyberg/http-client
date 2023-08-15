@@ -2,8 +2,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Connection
-    ( MaxHeaderLength (..)
-    , connectionReadLine
+    ( connectionReadLine
     , connectionReadLineWith
     , connectionDropTillBlankLine
     , dummyConnection

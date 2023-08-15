@@ -210,7 +210,7 @@ module Network.HTTP.Client
     ) where
 
 import Network.HTTP.Client.Body
-import Network.HTTP.Client.Connection (makeConnection, socketConnection, strippedHostName, MaxHeaderLength)
+import Network.HTTP.Client.Connection (makeConnection, socketConnection, strippedHostName)
 import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Core
 import Network.HTTP.Client.Manager
