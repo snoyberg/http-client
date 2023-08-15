@@ -26,7 +26,7 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: MaxHeaderLength -> Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders :: Maybe MaxHeaderLength -> Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
 parseStatusHeaders mhl conn timeout' cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
@@ -51,7 +51,7 @@ parseStatusHeaders mhl conn timeout' cont
             then connectionDropTillBlankLine mhl conn >> return Nothing
             else Just . StatusHeaders s v A.<$> parseHeaders (0 :: Int) id
 
-    nextStatusLine :: MaxHeaderLength -> IO (Status, HttpVersion)
+    nextStatusLine :: Maybe MaxHeaderLength -> IO (Status, HttpVersion)
     nextStatusLine mhl = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
@@ -59,7 +59,7 @@ parseStatusHeaders mhl conn timeout' cont
         when (S.null bs) $ throwHttp NoResponseDataReceived
         connectionReadLineWith mhl conn bs >>= parseStatus mhl 3
 
-    parseStatus :: MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
+    parseStatus :: Maybe MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus mhl i bs | S.null bs && i > 0 = connectionReadLine mhl conn >>= parseStatus mhl (i - 1)
     parseStatus _ _ bs = do
         let (ver, bs2) = S.break (== charSpace) bs

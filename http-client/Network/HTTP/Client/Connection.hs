@@ -30,19 +30,19 @@ import Data.Function (fix)
 import Data.Maybe (listToMaybe)
 import Data.Word (Word8)
 
-connectionReadLine :: MaxHeaderLength -> Connection -> IO ByteString
+connectionReadLine :: Maybe MaxHeaderLength -> Connection -> IO ByteString
 connectionReadLine mhl conn = do
     bs <- connectionRead conn
     when (S.null bs) $ throwHttp IncompleteHeaders
     connectionReadLineWith mhl conn bs
 
 -- | Keep dropping input until a blank line is found.
-connectionDropTillBlankLine :: MaxHeaderLength -> Connection -> IO ()
+connectionDropTillBlankLine :: Maybe MaxHeaderLength -> Connection -> IO ()
 connectionDropTillBlankLine mhl conn = fix $ \loop -> do
     bs <- connectionReadLine mhl conn
     unless (S.null bs) loop
 
-connectionReadLineWith :: MaxHeaderLength -> Connection -> ByteString -> IO ByteString
+connectionReadLineWith :: Maybe MaxHeaderLength -> Connection -> ByteString -> IO ByteString
 connectionReadLineWith mhl conn bs0 =
     go bs0 id 0
   where
@@ -50,7 +50,9 @@ connectionReadLineWith mhl conn bs0 =
         case S.break (== charLF) bs of
             (_, "") -> do
                 let total' = total + S.length bs
-                when (total' > unMaxHeaderLength mhl) $ throwHttp OverlongHeaders
+                case fmap unMaxHeaderLength mhl of
+                    Nothing -> pure ()
+                    Just n -> when (total' > n) $ throwHttp OverlongHeaders
                 bs' <- connectionRead conn
                 when (S.null bs') $ throwHttp IncompleteHeaders
                 go bs' (front . (bs:)) total'

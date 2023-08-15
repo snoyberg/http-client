@@ -803,7 +803,7 @@ data ManagerSettings = ManagerSettings
     -- Default: respect the @proxy@ value on the @Request@ itself.
     --
     -- Since 0.4.7
-    , managerMaxHeaderLength :: MaxHeaderLength
+    , managerMaxHeaderLength :: Maybe MaxHeaderLength
     }
     deriving T.Typeable
 
@@ -830,7 +830,7 @@ data Manager = Manager
     , mSetProxy :: Request -> Request
     , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
-    , mMaxHeaderLength :: MaxHeaderLength
+    , mMaxHeaderLength :: Maybe MaxHeaderLength
     }
     deriving T.Typeable
 
