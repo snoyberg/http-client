@@ -105,14 +105,14 @@ defaultManagerSettings = ManagerSettings
 -- though add-on libraries may provide a recommended replacement.
 --
 -- Since 0.1.0
-newManager :: MaxHeaderLength -> ManagerSettings -> IO Manager
-newManager mhl ms = do
+newManager :: ManagerSettings -> IO Manager
+newManager ms = do
     NS.withSocketsDo $ return ()
 
     httpProxy <- runProxyOverride (managerProxyInsecure ms) False
     httpsProxy <- runProxyOverride (managerProxySecure ms) True
 
-    createConnection <- mkCreateConnection mhl ms
+    createConnection <- mkCreateConnection ms
 
     keyedPool <- createKeyedPool
         createConnection
@@ -183,8 +183,8 @@ closeManager _ = return ()
 -- | Create, use and close a 'Manager'.
 --
 -- Since 0.2.1
-withManager :: MaxHeaderLength -> ManagerSettings -> (Manager -> IO a) -> IO a
-withManager mhl settings f = newManager mhl settings >>= f
+withManager :: ManagerSettings -> (Manager -> IO a) -> IO a
+withManager settings f = newManager settings >>= f
 {-# DEPRECATED withManager "Use newManager instead" #-}
 
 -- | Drop the Proxy-Authorization header from the request if we're using a
@@ -230,8 +230,8 @@ connKey Request { proxy = Just p, secure = True,
                   proxySecureMode = ProxySecureWithoutConnect  } =
   CKRaw Nothing (proxyHost p) (proxyPort p)
 
-mkCreateConnection :: MaxHeaderLength -> ManagerSettings -> IO (ConnKey -> IO Connection)
-mkCreateConnection mhl ms = do
+mkCreateConnection :: ManagerSettings -> IO (ConnKey -> IO Connection)
+mkCreateConnection ms = do
     rawConnection <- managerRawConnection ms
     tlsConnection <- managerTlsConnection ms
     tlsProxyConnection <- managerTlsProxyConnection ms
@@ -258,7 +258,7 @@ mkCreateConnection mhl ms = do
                     , "\r\n"
                     ]
                 parse conn = do
-                    StatusHeaders status _ _ <- parseStatusHeaders mhl conn Nothing Nothing
+                    StatusHeaders status _ _ <- parseStatusHeaders (managerMaxHeaderLength ms) conn Nothing Nothing
                     unless (status == status200) $
                         throwHttp $ ProxyConnectException ultHost ultPort status
                 in tlsProxyConnection
