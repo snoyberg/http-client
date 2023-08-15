@@ -803,6 +803,7 @@ data ManagerSettings = ManagerSettings
     -- Default: respect the @proxy@ value on the @Request@ itself.
     --
     -- Since 0.4.7
+    , managerMaxHeaderLength :: MaxHeaderLength
     }
     deriving T.Typeable
 
