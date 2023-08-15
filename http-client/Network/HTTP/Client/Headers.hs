@@ -26,8 +26,8 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
-parseStatusHeaders conn timeout' cont
+parseStatusHeaders :: MaxHeaderLength -> Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders mhl conn timeout' cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
   where
@@ -46,22 +46,22 @@ parseStatusHeaders conn timeout' cont
             Nothing -> sendBody >> getStatus
 
     nextStatusHeaders = do
-        (s, v) <- nextStatusLine
+        (s, v) <- nextStatusLine mhl
         if statusCode s == 100
-            then connectionDropTillBlankLine conn >> return Nothing
+            then connectionDropTillBlankLine mhl conn >> return Nothing
             else Just . StatusHeaders s v A.<$> parseHeaders (0 :: Int) id
 
-    nextStatusLine :: IO (Status, HttpVersion)
-    nextStatusLine = do
+    nextStatusLine :: MaxHeaderLength -> IO (Status, HttpVersion)
+    nextStatusLine mhl = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
         bs <- connectionRead conn
         when (S.null bs) $ throwHttp NoResponseDataReceived
-        connectionReadLineWith conn bs >>= parseStatus 3
+        connectionReadLineWith mhl conn bs >>= parseStatus mhl 3
 
-    parseStatus :: Int -> S.ByteString -> IO (Status, HttpVersion)
-    parseStatus i bs | S.null bs && i > 0 = connectionReadLine conn >>= parseStatus (i - 1)
-    parseStatus _ bs = do
+    parseStatus :: MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
+    parseStatus mhl i bs | S.null bs && i > 0 = connectionReadLine mhl conn >>= parseStatus mhl (i - 1)
+    parseStatus _ _ bs = do
         let (ver, bs2) = S.break (== charSpace) bs
             (code, bs3) = S.break (== charSpace) $ S.dropWhile (== charSpace) bs2
             msg = S.dropWhile (== charSpace) bs3
@@ -84,7 +84,7 @@ parseStatusHeaders conn timeout' cont
 
     parseHeaders 100 _ = throwHttp OverlongHeaders
     parseHeaders count front = do
-        line <- connectionReadLine conn
+        line <- connectionReadLine mhl conn
         if S.null line
             then return $ front []
             else do

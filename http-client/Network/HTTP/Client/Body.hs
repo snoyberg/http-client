@@ -148,11 +148,12 @@ makeLengthReader cleanup count0 Connection {..} = do
                         return bs
 
 makeChunkedReader
-  :: IO () -- ^ cleanup
+  :: MaxHeaderLength
+  -> IO () -- ^ cleanup
   -> Bool -- ^ raw
   -> Connection
   -> IO BodyReader
-makeChunkedReader cleanup raw conn@Connection {..} = do
+makeChunkedReader mhl cleanup raw conn@Connection {..} = do
     icount <- newIORef 0
     return $ do
       bs <- go icount
@@ -201,11 +202,11 @@ makeChunkedReader cleanup raw conn@Connection {..} = do
           | otherwise = return (x, 0)
 
     requireNewline = do
-        bs <- connectionReadLine conn
+        bs <- connectionReadLine mhl conn
         unless (S.null bs) $ throwHttp InvalidChunkHeaders
 
     readHeader = do
-        bs <- connectionReadLine conn
+        bs <- connectionReadLine mhl conn
         case parseHex bs of
             Nothing -> throwHttp InvalidChunkHeaders
             Just hex -> return (bs `S.append` "\r\n", hex)
@@ -228,9 +229,9 @@ makeChunkedReader cleanup raw conn@Connection {..} = do
         | otherwise = Nothing
 
     readTrailersRaw = do
-        bs <- connectionReadLine conn
+        bs <- connectionReadLine mhl conn
         if S.null bs
         then pure "\r\n"
         else (bs `S.append` "\r\n" `S.append`) <$> readTrailersRaw
 
-    consumeTrailers = connectionDropTillBlankLine conn
+    consumeTrailers = connectionDropTillBlankLine mhl conn

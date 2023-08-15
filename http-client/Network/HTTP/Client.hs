@@ -210,7 +210,7 @@ module Network.HTTP.Client
     ) where
 
 import Network.HTTP.Client.Body
-import Network.HTTP.Client.Connection (makeConnection, socketConnection, strippedHostName)
+import Network.HTTP.Client.Connection (makeConnection, socketConnection, strippedHostName, MaxHeaderLength)
 import Network.HTTP.Client.Cookies
 import Network.HTTP.Client.Core
 import Network.HTTP.Client.Manager
@@ -252,13 +252,13 @@ data HistoriedResponse body = HistoriedResponse
 -- response bodies.
 --
 -- Since 0.4.1
-responseOpenHistory :: Request -> Manager -> IO (HistoriedResponse BodyReader)
-responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
+responseOpenHistory :: MaxHeaderLength -> Request -> Manager -> IO (HistoriedResponse BodyReader)
+responseOpenHistory mhl reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ do
     reqRef <- newIORef reqOrig
     historyRef <- newIORef id
     let go req0 = do
             (man, req) <- getModifiedRequestManager man0 req0
-            (req', res') <- httpRaw' req man
+            (req', res') <- httpRaw' mhl req man
             let res = res'
                     { responseBody = handle (throwIO . toHttpException req0)
                                             (responseBody res')
@@ -289,12 +289,13 @@ responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ 
 -- response bodies.
 --
 -- Since 0.4.1
-withResponseHistory :: Request
+withResponseHistory :: MaxHeaderLength
+                    -> Request
                     -> Manager
                     -> (HistoriedResponse BodyReader -> IO a)
                     -> IO a
-withResponseHistory req man = bracket
-    (responseOpenHistory req man)
+withResponseHistory mhl req man = bracket
+    (responseOpenHistory mhl req man)
     (responseClose . hrFinalResponse)
 
 -- | Set the proxy override value, only for HTTP (insecure) connections.

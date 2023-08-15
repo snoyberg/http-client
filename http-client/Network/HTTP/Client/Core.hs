@@ -32,6 +32,7 @@ import Control.Monad (void)
 import System.Timeout (timeout)
 import Data.KeyedPool
 import GHC.IO.Exception (IOException(..), IOErrorType(..))
+import Network.HTTP.Client.Connection (MaxHeaderLength)
 
 -- | Perform a @Request@ using a connection acquired from the given @Manager@,
 -- and then provide the @Response@ to the given function. This function is
@@ -47,11 +48,12 @@ import GHC.IO.Exception (IOException(..), IOErrorType(..))
 -- body.
 --
 -- Since 0.1.0
-withResponse :: Request
+withResponse :: MaxHeaderLength
+             -> Request
              -> Manager
              -> (Response BodyReader -> IO a)
              -> IO a
-withResponse req man f = bracket (responseOpen req man) responseClose f
+withResponse mhl req man f = bracket (responseOpen mhl req man) responseClose f
 
 -- | A convenience wrapper around 'withResponse' which reads in the entire
 -- response body and immediately closes the connection. Note that this function
@@ -60,8 +62,8 @@ withResponse req man f = bracket (responseOpen req man) responseClose f
 -- are encouraged to use 'withResponse' and 'brRead' instead.
 --
 -- Since 0.1.0
-httpLbs :: Request -> Manager -> IO (Response L.ByteString)
-httpLbs req man = withResponse req man $ \res -> do
+httpLbs :: MaxHeaderLength -> Request -> Manager -> IO (Response L.ByteString)
+httpLbs mhl req man = withResponse mhl req man $ \res -> do
     bss <- brConsume $ responseBody res
     return res { responseBody = L.fromChunks bss }
 
@@ -69,25 +71,27 @@ httpLbs req man = withResponse req man $ \res -> do
 -- body. This is useful, for example, when performing a HEAD request.
 --
 -- Since 0.3.2
-httpNoBody :: Request -> Manager -> IO (Response ())
-httpNoBody req man = withResponse req man $ return . void
+httpNoBody :: MaxHeaderLength -> Request -> Manager -> IO (Response ())
+httpNoBody mhl req man = withResponse mhl req man $ return . void
 
 
 -- | Get a 'Response' without any redirect following.
 httpRaw
-     :: Request
+     :: MaxHeaderLength
+     -> Request
      -> Manager
      -> IO (Response BodyReader)
-httpRaw = fmap (fmap snd) . httpRaw'
+httpRaw mhl = fmap (fmap snd) . httpRaw' mhl
 
 -- | Get a 'Response' without any redirect following.
 --
 -- This extended version of 'httpRaw' also returns the potentially modified Request.
 httpRaw'
-     :: Request
+     :: MaxHeaderLength
+     -> Request
      -> Manager
      -> IO (Request, Response BodyReader)
-httpRaw' req0 m = do
+httpRaw' mhl req0 m = do
     let req' = mSetProxy m req0
     (req, cookie_jar') <- case cookieJar req' of
         Just cj -> do
@@ -105,13 +109,13 @@ httpRaw' req0 m = do
     ex <- try $ do
         cont <- requestBuilder (dropProxyAuthSecure req) (managedResource mconn)
 
-        getResponse timeout' req mconn cont
+        getResponse mhl timeout' req mconn cont
 
     case ex of
         -- Connection was reused, and might have been closed. Try again
         Left e | managedReused mconn && mRetryableException m e -> do
             managedRelease mconn DontReuse
-            httpRaw' req m
+            httpRaw' mhl req m
         -- Not reused, or a non-retry, so this is a real exception
         Left e -> do
           -- Explicitly release connection for all real exceptions:
@@ -197,8 +201,8 @@ getModifiedRequestManager manager0 req0 = do
 -- headers to be relayed.
 --
 -- Since 0.1.0
-responseOpen :: Request -> Manager -> IO (Response BodyReader)
-responseOpen inputReq manager' = do
+responseOpen :: MaxHeaderLength-> Request -> Manager -> IO (Response BodyReader)
+responseOpen mhl inputReq manager' = do
   case validateHeaders (requestHeaders inputReq) of
     GoodHeaders -> return ()
     BadHeaders reason -> throwHttp $ InvalidRequestHeader reason
@@ -217,7 +221,7 @@ responseOpen inputReq manager' = do
       count
       (\req -> do
         (manager, modReq) <- getModifiedRequestManager manager0 req
-        (req'', res) <- httpRaw' modReq manager
+        (req'', res) <- httpRaw' mhl modReq manager
         let mreq = if redirectCount modReq == 0
               then Nothing
               else getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))

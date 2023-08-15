@@ -2,7 +2,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Connection
-    ( connectionReadLine
+    ( MaxHeaderLength (..)
+    , connectionReadLine
     , connectionReadLineWith
     , connectionDropTillBlankLine
     , dummyConnection
@@ -30,28 +31,31 @@ import Data.Function (fix)
 import Data.Maybe (listToMaybe)
 import Data.Word (Word8)
 
+newtype MaxHeaderLength
+    = MaxHeaderLength Int
+    deriving (Eq, Show)
 
-connectionReadLine :: Connection -> IO ByteString
-connectionReadLine conn = do
+connectionReadLine :: MaxHeaderLength -> Connection -> IO ByteString
+connectionReadLine mhl conn = do
     bs <- connectionRead conn
     when (S.null bs) $ throwHttp IncompleteHeaders
-    connectionReadLineWith conn bs
+    connectionReadLineWith mhl conn bs
 
 -- | Keep dropping input until a blank line is found.
-connectionDropTillBlankLine :: Connection -> IO ()
-connectionDropTillBlankLine conn = fix $ \loop -> do
-    bs <- connectionReadLine conn
+connectionDropTillBlankLine :: MaxHeaderLength -> Connection -> IO ()
+connectionDropTillBlankLine mhl conn = fix $ \loop -> do
+    bs <- connectionReadLine mhl conn
     unless (S.null bs) loop
 
-connectionReadLineWith :: Connection -> ByteString -> IO ByteString
-connectionReadLineWith conn bs0 =
+connectionReadLineWith :: MaxHeaderLength -> Connection -> ByteString -> IO ByteString
+connectionReadLineWith (MaxHeaderLength mhl) conn bs0 =
     go bs0 id 0
   where
     go bs front total =
         case S.break (== charLF) bs of
             (_, "") -> do
                 let total' = total + S.length bs
-                when (total' > 4096) $ throwHttp OverlongHeaders
+                when (total' > mhl) $ throwHttp OverlongHeaders
                 bs' <- connectionRead conn
                 when (S.null bs') $ throwHttp IncompleteHeaders
                 go bs' (front . (bs:)) total'
