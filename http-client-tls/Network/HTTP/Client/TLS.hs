@@ -91,13 +91,19 @@ mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
     , managerRetryableException = \e ->
         case () of
             ()
+#if MIN_VERSION_tls(1,8,0)
+                | ((fromException e)::(Maybe TLS.TLSException))==Just (TLS.PostHandshake TLS.Error_EOF) -> True
+#else
                 | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
+#endif
                 | otherwise -> managerRetryableException defaultManagerSettings e
     , managerWrapException = \req ->
         let wrapper se
               | Just (_ :: IOException)          <- fromException se = se'
               | Just (_ :: TLS.TLSException)     <- fromException se = se'
+#if !MIN_VERSION_tls(1,8,0)
               | Just (_ :: TLS.TLSError)         <- fromException se = se'
+#endif
               | Just (_ :: NC.LineTooLong)       <- fromException se = se'
               | Just (_ :: NC.HostNotResolved)   <- fromException se = se'
               | Just (_ :: NC.HostCannotConnect) <- fromException se = se'
