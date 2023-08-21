@@ -884,6 +884,8 @@ data StreamFileStatus = StreamFileStatus
     deriving (Eq, Show, Ord, T.Typeable)
 
 -- | The maximum header size in bytes.
+--
+-- @since 0.7.14
 newtype MaxHeaderLength = MaxHeaderLength
     { unMaxHeaderLength :: Int
     }

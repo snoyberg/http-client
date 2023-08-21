@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.14
+
+* Allow customizing max header length [#514](https://github.com/snoyberg/http-client/pull/514)
+
 ## 0.7.13
 
 * Create the ability to redact custom header values to censor sensitive information
