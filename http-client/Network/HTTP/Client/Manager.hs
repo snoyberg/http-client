@@ -92,6 +92,7 @@ defaultManagerSettings = ManagerSettings
     , managerModifyResponse = return
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
+    , managerMaxHeaderLength = Just $ MaxHeaderLength 4096
     }
 
 -- | Create a 'Manager'. The @Manager@ will be shut down automatically via
@@ -131,6 +132,7 @@ newManager ms = do
                 if secure req
                     then httpsProxy req
                     else httpProxy req
+            , mMaxHeaderLength = managerMaxHeaderLength ms
             }
     return manager
 
@@ -257,7 +259,7 @@ mkCreateConnection ms = do
                     , "\r\n"
                     ]
                 parse conn = do
-                    StatusHeaders status _ _ <- parseStatusHeaders conn Nothing Nothing
+                    StatusHeaders status _ _ <- parseStatusHeaders (managerMaxHeaderLength ms) conn Nothing Nothing
                     unless (status == status200) $
                         throwHttp $ ProxyConnectException ultHost ultPort status
                 in tlsProxyConnection

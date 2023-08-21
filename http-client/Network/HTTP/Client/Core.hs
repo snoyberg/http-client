@@ -105,7 +105,7 @@ httpRaw' req0 m = do
     ex <- try $ do
         cont <- requestBuilder (dropProxyAuthSecure req) (managedResource mconn)
 
-        getResponse timeout' req mconn cont
+        getResponse (mMaxHeaderLength m) timeout' req mconn cont
 
     case ex of
         -- Connection was reused, and might have been closed. Try again

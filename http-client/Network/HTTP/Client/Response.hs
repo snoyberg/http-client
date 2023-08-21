@@ -84,14 +84,15 @@ lbsResponse res = do
         { responseBody = L.fromChunks bss
         }
 
-getResponse :: Maybe Int
+getResponse :: Maybe MaxHeaderLength
+            -> Maybe Int
             -> Request
             -> Managed Connection
             -> Maybe (IO ()) -- ^ Action to run in case of a '100 Continue'.
             -> IO (Response BodyReader)
-getResponse timeout' req@(Request {..}) mconn cont = do
+getResponse mhl timeout' req@(Request {..}) mconn cont = do
     let conn = managedResource mconn
-    StatusHeaders s version hs <- parseStatusHeaders conn timeout' cont
+    StatusHeaders s version hs <- parseStatusHeaders mhl conn timeout' cont
     let mcl = lookup "content-length" hs >>= readPositiveInt . S8.unpack
         isChunked = ("transfer-encoding", CI.mk "chunked") `elem` map (second CI.mk) hs
 
@@ -115,7 +116,7 @@ getResponse timeout' req@(Request {..}) mconn cont = do
             else do
                 body1 <-
                     if isChunked
-                        then makeChunkedReader (cleanup True) rawBody conn
+                        then makeChunkedReader mhl (cleanup True) rawBody conn
                         else
                             case mcl of
                                 Just len -> makeLengthReader (cleanup True) len conn
