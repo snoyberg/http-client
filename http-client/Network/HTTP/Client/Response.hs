@@ -43,21 +43,17 @@ import Data.KeyedPool
 -- >             (\req' -> do
 -- >                res <- http req'{redirectCount=0} man
 -- >                modify (\rqs -> req' : rqs)
--- >                return (res, getRedirectedRequest req' (responseHeaders res) (responseCookieJar res) (W.statusCode (responseStatus res))
+-- >                return (res, getRedirectedRequest req req' (responseHeaders res) (responseCookieJar res) (W.statusCode (responseStatus res))
 -- >                )
 -- >             'lift'
 -- >             req
 -- >    applyCheckStatus (checkStatus req) res
 -- >    return redirectRequests
-getRedirectedRequest :: Request -> W.ResponseHeaders -> CookieJar -> Int -> Maybe Request
-getRedirectedRequest req hs cookie_jar code
+getRedirectedRequest :: Request -> Request -> W.ResponseHeaders -> CookieJar -> Int -> Maybe Request
+getRedirectedRequest prevReq req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
         let l = escapeURIString isAllowedInURI (S8.unpack l')
-            stripHeaders r =
-              r{requestHeaders =
-                filter (not . shouldStripHeaderOnRedirect req . fst) $
-                requestHeaders r}
         req' <- fmap stripHeaders <$> setUriRelative req =<< parseURIReference l
         return $
             if code == 302 || code == 303
@@ -73,7 +69,27 @@ getRedirectedRequest req hs cookie_jar code
                 else req' {cookieJar = cookie_jar'}
     | otherwise = Nothing
   where
+    cookie_jar' :: Maybe CookieJar
     cookie_jar' = fmap (const cookie_jar) $ cookieJar req
+
+    hostDiffer :: Bool
+    hostDiffer = host req /= host prevReq
+
+    shouldStripOnlyIfHostDiffer :: Bool
+    shouldStripOnlyIfHostDiffer = shouldStripHeaderOnRedirectIfOnDifferentHostOnly req
+
+    stripHeaders :: Request -> Request
+    stripHeaders r =
+        case (hostDiffer, shouldStripOnlyIfHostDiffer) of
+            (True, True) -> stripHeaders' r
+            (True, False) -> stripHeaders' r
+            (False, False) -> stripHeaders' r
+            (False, True) -> r
+    
+    stripHeaders' :: Request -> Request
+    stripHeaders' r = r{requestHeaders =
+                        filter (not . shouldStripHeaderOnRedirect req . fst) $
+                        requestHeaders r}
 
 -- | Convert a 'Response' that has a 'Source' body to one with a lazy
 -- 'L.ByteString' body.

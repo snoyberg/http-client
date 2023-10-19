@@ -220,7 +220,7 @@ responseOpen inputReq manager' = do
         (req'', res) <- httpRaw' modReq manager
         let mreq = if redirectCount modReq == 0
               then Nothing
-              else getRedirectedRequest req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
+              else getRedirectedRequest modReq req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
 
