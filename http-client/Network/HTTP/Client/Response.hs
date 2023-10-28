@@ -14,6 +14,7 @@ import qualified Data.CaseInsensitive as CI
 import Control.Arrow (second)
 
 import Data.Monoid (mempty)
+import Data.List (nubBy)
 
 import qualified Network.HTTP.Types as W
 import Network.URI (parseURIReference, escapeURIString, isAllowedInURI)
@@ -50,7 +51,7 @@ import Data.KeyedPool
 -- >    applyCheckStatus (checkStatus req) res
 -- >    return redirectRequests
 getRedirectedRequest :: Request -> Request -> W.ResponseHeaders -> CookieJar -> Int -> Maybe Request
-getRedirectedRequest prevReq req hs cookie_jar code
+getRedirectedRequest origReq req hs cookie_jar code
     | 300 <= code && code < 400 = do
         l' <- lookup "location" hs
         let l = escapeURIString isAllowedInURI (S8.unpack l')
@@ -72,20 +73,32 @@ getRedirectedRequest prevReq req hs cookie_jar code
     cookie_jar' :: Maybe CookieJar
     cookie_jar' = fmap (const cookie_jar) $ cookieJar req
 
-    hostDiffer :: Bool
-    hostDiffer = host req /= host prevReq
+    hostDiffer :: Request -> Bool
+    hostDiffer req = host origReq /= host req
 
     shouldStripOnlyIfHostDiffer :: Bool
     shouldStripOnlyIfHostDiffer = shouldStripHeaderOnRedirectIfOnDifferentHostOnly req
 
+    mergeHeaders :: W.RequestHeaders -> W.RequestHeaders -> W.RequestHeaders
+    mergeHeaders lhs rhs = nubBy (\(a, _) (a', _) -> a == a') (lhs ++ rhs)
+    
     stripHeaders :: Request -> Request
-    stripHeaders r =
-        case (hostDiffer, shouldStripOnlyIfHostDiffer) of
+    stripHeaders r = do
+        case (hostDiffer r, shouldStripOnlyIfHostDiffer) of 
             (True, True) -> stripHeaders' r
             (True, False) -> stripHeaders' r
             (False, False) -> stripHeaders' r
-            (False, True) -> r
-    
+            (False, True) -> do
+                -- We need to check if we have omitted headers in previous
+                -- request chain. Consider request chain:
+                --
+                --  1. example-1.com 
+                --  2. example-2.com (we may have removed some headers here from 1)
+                --  3. example-1.com (since we are back at same host as 1, we need re-add stripped headers)
+                --
+                let strippedHeaders = filter (shouldStripHeaderOnRedirect r . fst) (requestHeaders origReq)
+                r{requestHeaders = mergeHeaders (requestHeaders r) strippedHeaders}
+
     stripHeaders' :: Request -> Request
     stripHeaders' r = r{requestHeaders =
                         filter (not . shouldStripHeaderOnRedirect req . fst) $
