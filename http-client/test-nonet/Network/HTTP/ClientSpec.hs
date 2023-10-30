@@ -39,6 +39,27 @@ silentIOError a = a `E.catch` \e -> do
   let _ = e :: IOError
   return ()
 
+redirectServerToDifferentHost :: Maybe Int -> (Int -> IO a) -> IO a
+redirectServerToDifferentHost maxRedirects inner = bracket
+    (N.bindRandomPortTCP "*4")
+    (NS.close . snd)
+    $ \(port, lsocket) -> withAsync
+        (N.runTCPServer (N.serverSettingsTCPSocket lsocket) app)
+        (const $ inner port)
+    where
+    redirect ad = do
+        N.appWrite ad "HTTP/1.1 301 Redirect\r\nLocation: http://example.com\r\ncontent-length: 5\r\n\r\n"
+        threadDelay 10000
+        N.appWrite ad "hello\r\n"
+        threadDelay 10000
+    app ad = Async.race_
+        (silentIOError $ forever (N.appRead ad))
+        (silentIOError $ case maxRedirects of
+            Nothing -> forever $ redirect ad
+            Just n ->
+              replicateM_ n (redirect ad) >>
+              N.appWrite ad "HTTP/1.1 200 OK\r\ncontent-length: 5\r\n\r\nhello\r\n")
+
 redirectServer :: Maybe Int
                -- ^ If Just, stop redirecting after that many hops.
                -> (Int -> IO a) -> IO a
@@ -176,6 +197,30 @@ spec = describe "Client" $ do
         withResponseHistory req man $ \hr -> do
           print $ map (requestHeaders . fst) $ hrRedirects hr
           mapM_ (\r -> requestHeaders r `shouldBe` []) $
+            map fst $ tail $ hrRedirects hr
+    it "does strips header on redirect, if hosts are different and set to strip them if host differ" $ redirectServerToDifferentHost (Just 1) $ \port -> do
+        req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+        let req = req' { requestHeaders = [(hAuthorization, "abguvatgbfrrurer")]
+                       , redirectCount = 10
+                       , shouldStripHeaderOnRedirect = (== hAuthorization)
+                       , shouldStripHeaderOnRedirectIfOnDifferentHostOnly = True
+                       }
+        man <- newManager defaultManagerSettings
+        withResponseHistory req man $ \hr -> do
+          print $ map (requestHeaders . fst) $ hrRedirects hr
+          mapM_ (\r -> requestHeaders r `shouldBe` []) $
+            map fst $ tail $ hrRedirects hr
+    it "does NOT strips header on redirect, if hosts are same and set to strip them if host differ" $ redirectServerToDifferentHost (Just 1) $ \port -> do
+        req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+        let req = req' { requestHeaders = [(hAuthorization, "abguvatgbfrrurer")]
+                       , redirectCount = 10
+                       , shouldStripHeaderOnRedirect = (== hAuthorization)
+                       , shouldStripHeaderOnRedirectIfOnDifferentHostOnly = True
+                       }
+        man <- newManager defaultManagerSettings
+        withResponseHistory req man $ \hr -> do
+          print $ map (requestHeaders . fst) $ hrRedirects hr
+          mapM_ (\r -> requestHeaders r `shouldBe` [("Authorization","abguvatgbfrrurer")]) $
             map fst $ tail $ hrRedirects hr
     it "redirecting #41" $ redirectServer Nothing $ \port -> do
         req' <- parseUrlThrow $ "http://127.0.0.1:" ++ show port

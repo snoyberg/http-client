@@ -11,3 +11,4 @@ cabal.sandbox.config
 .stack-work/
 tarballs/
 *~
+dist-newstyle/

@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.15
+
+* Adds `shouldStripHeaderOnRedirectIfOnDifferentHostOnly` option to `Request` [#520](https://github.com/snoyberg/http-client/pull/520)
+
 ## 0.7.14
 
 * Allow customizing max header length [#514](https://github.com/snoyberg/http-client/pull/514)

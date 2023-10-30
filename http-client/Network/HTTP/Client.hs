@@ -162,6 +162,7 @@ module Network.HTTP.Client
     , decompress
     , redirectCount
     , shouldStripHeaderOnRedirect
+    , shouldStripHeaderOnRedirectIfOnDifferentHostOnly
     , checkResponse
     , responseTimeout
     , cookieJar
@@ -264,6 +265,7 @@ responseOpenHistory reqOrig man0 = handle (throwIO . toHttpException reqOrig) $ 
                                             (responseBody res')
                     }
             case getRedirectedRequest
+                    req
                     req'
                     (responseHeaders res)
                     (responseCookieJar res)

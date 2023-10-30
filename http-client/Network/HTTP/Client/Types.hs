@@ -616,6 +616,13 @@ data Request = Request
     --
     -- @since 0.6.2
 
+    , shouldStripHeaderOnRedirectIfOnDifferentHostOnly :: Bool
+    -- ^ Decide whether a header must be stripped from the request
+    -- when following a redirect, if host differs from previous request
+    -- in redirect chain. Default: false (always strip regardless of host change)
+    --
+    -- @since 0.7.15
+
     , proxySecureMode :: ProxySecureMode
     -- ^ How to proxy an HTTPS request.
     --

@@ -303,6 +303,7 @@ defaultRequest = Request
                 Nothing -> throwIO se
         , requestManagerOverride = Nothing
         , shouldStripHeaderOnRedirect = const False
+        , shouldStripHeaderOnRedirectIfOnDifferentHostOnly = False
         , proxySecureMode = ProxySecureWithConnect
         , redactHeaders = Set.singleton "Authorization"
         }
