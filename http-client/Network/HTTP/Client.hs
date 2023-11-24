@@ -11,7 +11,7 @@
 -- support for things like JSON request and response bodies. For most users,
 -- this will be an easier place to start. You can read the tutorial at:
 --
--- https://haskell-lang.org/library/http-client
+-- https://github.com/snoyberg/http-client/blob/master/TUTORIAL.md
 --
 -- = Lower-level API
 --
