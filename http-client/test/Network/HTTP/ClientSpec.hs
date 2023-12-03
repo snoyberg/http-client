@@ -90,8 +90,8 @@ spec = describe "Client" $ do
 
     context "managerModifyResponse" $ do
       it "allows to modify the response status code" $ do
-        let modify :: Response BodyReader -> IO (Response BodyReader)
-            modify res = do
+        let modify :: Request -> Response BodyReader -> IO (Response BodyReader)
+            modify _req res = do
               return res {
                 responseStatus = (responseStatus res) {
                   statusCode = 201
@@ -103,8 +103,8 @@ spec = describe "Client" $ do
         (statusCode.responseStatus) res `shouldBe` 201
 
       it "modifies the response body" $ do
-        let modify :: Response BodyReader -> IO (Response BodyReader)
-            modify res = do
+        let modify :: Request -> Response BodyReader -> IO (Response BodyReader)
+            modify _req res = do
               reader <- constBodyReader [BS.pack "modified response body"]
               return res {
                 responseBody = reader

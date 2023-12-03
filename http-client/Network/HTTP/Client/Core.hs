@@ -206,7 +206,7 @@ responseOpen inputReq manager' = do
   wrapExc req0 $ mWrapException manager req0 $ do
     (req, res) <- go manager (redirectCount req0) req0
     checkResponse req req res
-    mModifyResponse manager res
+    mModifyResponse manager inputReqNoBody res
         { responseBody = wrapExc req0 (responseBody res)
         }
   where
@@ -223,6 +223,8 @@ responseOpen inputReq manager' = do
               else getRedirectedRequest req' req'' (responseHeaders res) (responseCookieJar res) (statusCode (responseStatus res))
         return (res, fromMaybe req'' mreq, isJust mreq))
       req'
+
+    inputReqNoBody = inputReq { requestBody = "" }
 
 -- | Redirect loop.
 httpRedirect
