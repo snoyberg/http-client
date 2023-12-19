@@ -184,6 +184,7 @@ module Network.HTTP.Client
     , responseBody
     , responseCookieJar
     , getOriginalRequest
+    , responseEarlyHints
     , throwErrorStatusCodes
       -- ** Response body
     , BodyReader
