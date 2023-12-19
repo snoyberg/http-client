@@ -5,6 +5,7 @@ module Network.HTTP.Client.Connection
     ( connectionReadLine
     , connectionReadLineWith
     , connectionDropTillBlankLine
+    , connectionUnreadLine
     , dummyConnection
     , openSocketConnection
     , openSocketConnectionSize
@@ -59,6 +60,11 @@ connectionReadLineWith mhl conn bs0 =
             (x, S.drop 1 -> y) -> do
                 unless (S.null y) $! connectionUnread conn y
                 return $! killCR $! S.concat $! front [x]
+
+connectionUnreadLine :: Connection -> ByteString -> IO ()
+connectionUnreadLine conn line = do
+  connectionUnread conn (S.pack [charCR, charLF])
+  connectionUnread conn line
 
 charLF, charCR :: Word8
 charLF = 10

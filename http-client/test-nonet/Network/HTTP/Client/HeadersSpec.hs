@@ -60,3 +60,21 @@ spec = describe "HeadersSpec" $ do
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
         out >>= (`shouldBe` [])
         inp >>= (`shouldBe` ["result"])
+
+    it "103 early hints" $ do
+        let input =
+                [ "HTTP/1.1 103 Early Hints\r\n"
+                , "Link: </foo.js>\r\n"
+                , "Link: </bar.js>\r\n\r\n"
+                , "HTTP/1.1 200 OK\r\n"
+                , "Content-Type: text/html\r\n\r\n"
+                , "<div></div>"
+                ]
+        (conn, _, inp) <- dummyConnection input
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing Nothing
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [
+          ("Link", "</foo.js>")
+          , ("Link", "</bar.js>")
+          , ("Content-Type", "text/html")
+          ]
+        inp >>= (`shouldBe` ["<div></div>"])

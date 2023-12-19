@@ -1,4 +1,6 @@
 {-# LANGUAGE DisambiguateRecordFields #-}
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE MultiWayIf #-}
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Headers
@@ -45,11 +47,17 @@ parseStatusHeaders mhl conn timeout' cont
             Just  s -> return s
             Nothing -> sendBody >> getStatus
 
+    nextStatusHeaders :: IO (Maybe StatusHeaders)
     nextStatusHeaders = do
         (s, v) <- nextStatusLine mhl
-        if statusCode s == 100
-            then connectionDropTillBlankLine mhl conn >> return Nothing
-            else Just . StatusHeaders s v A.<$> parseHeaders (0 :: Int) id
+        if | statusCode s == 100 -> connectionDropTillBlankLine mhl conn >> return Nothing
+           | statusCode s == 103 -> do
+               linkHeaders <- parseHeadersUntilFailure 0 id
+               nextStatusHeaders >>= \case
+                   Nothing -> return Nothing
+                   Just (StatusHeaders s' v' reqHeaders) ->
+                       return $ Just $ StatusHeaders s' v' (linkHeaders <> reqHeaders)
+           | otherwise -> Just . StatusHeaders s v A.<$> parseHeaders 0 id
 
     nextStatusLine :: Maybe MaxHeaderLength -> IO (Status, HttpVersion)
     nextStatusLine mhl = do
@@ -82,20 +90,33 @@ parseStatusHeaders mhl conn timeout' cont
             Just (i, "") -> Just i
             _ -> Nothing
 
+    parseHeaders :: Int -> ([Header] -> [Header]) -> IO [Header]
     parseHeaders 100 _ = throwHttp OverlongHeaders
     parseHeaders count front = do
         line <- connectionReadLine mhl conn
         if S.null line
             then return $ front []
-            else do
-                mheader <- parseHeader line
-                case mheader of
+            else
+                parseHeader line >>= \case
                     Just header ->
                         parseHeaders (count + 1) $ front . (header:)
                     Nothing ->
                         -- Unparseable header line; rather than throwing
                         -- an exception, ignore it for robustness.
                         parseHeaders count front
+
+    parseHeadersUntilFailure :: Int -> ([Header] -> [Header]) -> IO [Header]
+    parseHeadersUntilFailure 100 _ = throwHttp OverlongHeaders
+    parseHeadersUntilFailure count front = do
+        line <- connectionReadLine mhl conn
+        if S.null line
+            then return $ front []
+            else
+                parseHeader line >>= \case
+                    Just header -> parseHeadersUntilFailure (count + 1) $ front . (header:)
+                    Nothing -> do
+                      connectionUnreadLine conn line
+                      return $ front []
 
     parseHeader :: S.ByteString -> IO (Maybe Header)
     parseHeader bs = do
