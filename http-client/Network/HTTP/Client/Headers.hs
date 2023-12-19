@@ -52,12 +52,12 @@ parseStatusHeaders mhl conn timeout' cont
         (s, v) <- nextStatusLine mhl
         if | statusCode s == 100 -> connectionDropTillBlankLine mhl conn >> return Nothing
            | statusCode s == 103 -> do
-               linkHeaders <- parseHeadersUntilFailure 0 id
+               earlyHeaders <- parseHeadersUntilFailure 0 id
                nextStatusHeaders >>= \case
                    Nothing -> return Nothing
-                   Just (StatusHeaders s' v' reqHeaders) ->
-                       return $ Just $ StatusHeaders s' v' (linkHeaders <> reqHeaders)
-           | otherwise -> Just . StatusHeaders s v A.<$> parseHeaders 0 id
+                   Just (StatusHeaders s' v' earlyHeaders' reqHeaders) ->
+                       return $ Just $ StatusHeaders s' v' (earlyHeaders <> earlyHeaders') reqHeaders
+           | otherwise -> (Just <$>) $ StatusHeaders s v mempty A.<$> parseHeaders 0 id
 
     nextStatusLine :: Maybe MaxHeaderLength -> IO (Status, HttpVersion)
     nextStatusLine mhl = do

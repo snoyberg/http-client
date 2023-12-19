@@ -90,7 +90,7 @@ data Connection = Connection
     }
     deriving T.Typeable
 
-data StatusHeaders = StatusHeaders Status HttpVersion RequestHeaders
+data StatusHeaders = StatusHeaders Status HttpVersion RequestHeaders RequestHeaders
     deriving (Show, Eq, Ord, T.Typeable)
 
 -- | A newtype wrapper which is not exported from this library but is an
@@ -715,6 +715,11 @@ data Response body = Response
     -- via @getOriginalRequest@ instead.
     --
     -- Since 0.7.8
+    , responseEarlyHints :: ResponseHeaders
+    -- ^ Early response headers sent by the server, as part of an HTTP
+    -- 103 Early Hints section.
+    --
+    -- Since 0.7.16
     }
     deriving (Show, T.Typeable, Functor, Data.Foldable.Foldable, Data.Traversable.Traversable)
 

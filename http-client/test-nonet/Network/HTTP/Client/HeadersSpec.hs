@@ -21,7 +21,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (connection, _, _) <- dummyConnection input
         statusHeaders <- parseStatusHeaders Nothing connection Nothing Nothing
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) mempty
             [ ("foo", "bar")
             , ("baz", "bin")
             ]
@@ -35,7 +35,7 @@ spec = describe "HeadersSpec" $ do
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
         statusHeaders <- parseStatusHeaders Nothing conn Nothing (Just sendBody)
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [] [ ("foo", "bar") ]
         out >>= (`shouldBe` ["data"])
 
     it "Expect: 100-continue (failure)" $ do
@@ -45,7 +45,7 @@ spec = describe "HeadersSpec" $ do
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
         statusHeaders <- parseStatusHeaders Nothing conn Nothing (Just sendBody)
-        statusHeaders `shouldBe` StatusHeaders status417 (HttpVersion 1 1) []
+        statusHeaders `shouldBe` StatusHeaders status417 (HttpVersion 1 1) [] []
         out >>= (`shouldBe` [])
 
     it "100 Continue without expectation is OK" $ do
@@ -57,7 +57,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, inp) <- dummyConnection input
         statusHeaders <- parseStatusHeaders Nothing conn Nothing Nothing
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [] [ ("foo", "bar") ]
         out >>= (`shouldBe` [])
         inp >>= (`shouldBe` ["result"])
 
@@ -72,9 +72,10 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, _, inp) <- dummyConnection input
         statusHeaders <- parseStatusHeaders Nothing conn Nothing Nothing
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [
-          ("Link", "</foo.js>")
-          , ("Link", "</bar.js>")
-          , ("Content-Type", "text/html")
-          ]
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
+            [("Link", "</foo.js>")
+            , ("Link", "</bar.js>")
+            ]
+            [("Content-Type", "text/html")
+            ]
         inp >>= (`shouldBe` ["<div></div>"])
