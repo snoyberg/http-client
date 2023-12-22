@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.16
+
+* Add `responseEarlyHints` field to `Response`, containing any HTTP 103 Early Hints headers from the server.
+
 ## 0.7.15
 
 * Adds `shouldStripHeaderOnRedirectIfOnDifferentHostOnly` option to `Request` [#520](https://github.com/snoyberg/http-client/pull/520)
