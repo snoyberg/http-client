@@ -168,6 +168,7 @@ module Network.HTTP.Client
     , cookieJar
     , requestVersion
     , redactHeaders
+    , earlyHintHeaderReceived
       -- ** Request body
     , RequestBody (..)
     , Popper
