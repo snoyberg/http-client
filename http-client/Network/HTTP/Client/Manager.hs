@@ -259,7 +259,7 @@ mkCreateConnection ms = do
                     , "\r\n"
                     ]
                 parse conn = do
-                    StatusHeaders status _ _ _ <- parseStatusHeaders (managerMaxHeaderLength ms) conn Nothing Nothing
+                    StatusHeaders status _ _ _ <- parseStatusHeaders (managerMaxHeaderLength ms) conn Nothing (\_ -> return ()) Nothing
                     unless (status == status200) $
                         throwHttp $ ProxyConnectException ultHost ultPort status
                 in tlsProxyConnection

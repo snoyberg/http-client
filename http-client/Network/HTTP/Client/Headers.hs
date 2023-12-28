@@ -28,8 +28,8 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: Maybe MaxHeaderLength -> Connection -> Maybe Int -> Maybe (IO ()) -> IO StatusHeaders
-parseStatusHeaders mhl conn timeout' cont
+parseStatusHeaders :: Maybe MaxHeaderLength -> Connection -> Maybe Int -> (Header -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders mhl conn timeout' onEarlyHintHeader cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
   where

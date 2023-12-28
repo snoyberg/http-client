@@ -634,6 +634,11 @@ data Request = Request
     -- ^ List of header values being redacted in case we show Request.
     --
     -- @since 0.7.13
+
+    , earlyHintHeaderReceived :: Header -> IO ()
+    -- ^ Called every time an HTTP 103 Early Hints header is received from the server.
+    --
+    -- @since 0.7.16
     }
     deriving T.Typeable
 
