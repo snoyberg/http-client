@@ -2,7 +2,8 @@
 
 ## 0.7.16
 
-* Add `responseEarlyHints` field to `Response`, containing any HTTP 103 Early Hints headers from the server.
+* Add `responseEarlyHints` field to `Response`, containing a list of HTTP 103 Early Hints headers received from the server.
+* Add `earlyHintHeaderReceived` callback to `Request`, which will be called on each HTTP 103 Early Hints header received.
 
 ## 0.7.15
 
