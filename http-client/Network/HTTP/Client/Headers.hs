@@ -52,7 +52,7 @@ parseStatusHeaders mhl conn timeout' onEarlyHintHeader cont
         (s, v) <- nextStatusLine mhl
         if | statusCode s == 100 -> connectionDropTillBlankLine mhl conn >> return Nothing
            | statusCode s == 103 -> do
-               earlyHeaders <- parseHeadersUntilFailure 0 id
+               earlyHeaders <- parseEarlyHintHeadersUntilFailure 0 id
                nextStatusHeaders >>= \case
                    Nothing -> return Nothing
                    Just (StatusHeaders s' v' earlyHeaders' reqHeaders) ->
@@ -105,15 +105,17 @@ parseStatusHeaders mhl conn timeout' onEarlyHintHeader cont
                         -- an exception, ignore it for robustness.
                         parseHeaders count front
 
-    parseHeadersUntilFailure :: Int -> ([Header] -> [Header]) -> IO [Header]
-    parseHeadersUntilFailure 100 _ = throwHttp OverlongHeaders
-    parseHeadersUntilFailure count front = do
+    parseEarlyHintHeadersUntilFailure :: Int -> ([Header] -> [Header]) -> IO [Header]
+    parseEarlyHintHeadersUntilFailure 100 _ = throwHttp OverlongHeaders
+    parseEarlyHintHeadersUntilFailure count front = do
         line <- connectionReadLine mhl conn
         if S.null line
             then return $ front []
             else
                 parseHeader line >>= \case
-                    Just header -> parseHeadersUntilFailure (count + 1) $ front . (header:)
+                    Just header -> do
+                      onEarlyHintHeader header
+                      parseEarlyHintHeadersUntilFailure (count + 1) $ front . (header:)
                     Nothing -> do
                       connectionUnreadLine conn line
                       return $ front []
