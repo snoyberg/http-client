@@ -636,7 +636,7 @@ data Request = Request
     -- @since 0.7.13
 
     , earlyHintHeadersReceived :: [Header] -> IO ()
-    -- ^ Called every time an HTTP 103 Early Hints header is received from the server.
+    -- ^ Called every time an HTTP 103 Early Hints header section is received from the server.
     --
     -- @since 0.7.16
     }
