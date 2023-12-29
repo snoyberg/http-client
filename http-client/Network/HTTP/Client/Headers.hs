@@ -16,7 +16,7 @@ import qualified Data.ByteString.Char8          as S8
 import qualified Data.CaseInsensitive           as CI
 import           Data.Maybe (mapMaybe)
 import           Data.Monoid
-import Data.Word (Word8)
+import           Data.Word (Word8)
 import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
 import           Network.HTTP.Types
