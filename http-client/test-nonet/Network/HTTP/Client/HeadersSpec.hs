@@ -93,3 +93,38 @@ spec = describe "HeadersSpec" $ do
                   [("Link", "</foo.js>")
                   , ("Link", "</bar.js>")
                   ]])
+
+    it "103 early hints (multiple sections)" $ do
+        let input =
+                [ "HTTP/1.1 103 Early Hints\r\n"
+                , "Link: </foo.js>\r\n"
+                , "Link: </bar.js>\r\n\r\n"
+                , "HTTP/1.1 103 Early Hints\r\n"
+                , "Link: </baz.js>\r\n\r\n"
+                , "HTTP/1.1 200 OK\r\n"
+                , "Content-Type: text/html\r\n\r\n"
+                , "<div></div>"
+                ]
+        (conn, _, inp) <- dummyConnection input
+
+        callbackResults :: MVar (Seq.Seq [Header]) <- newMVar mempty
+        let onEarlyHintHeader h = modifyMVar_ callbackResults (return . (Seq.|> h))
+
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing onEarlyHintHeader Nothing
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
+            [("Link", "</foo.js>")
+            , ("Link", "</bar.js>")
+            , ("Link", "</baz.js>")
+            ]
+            [("Content-Type", "text/html")
+            ]
+
+        inp >>= (`shouldBe` ["<div></div>"])
+
+        readMVar callbackResults
+          >>= (`shouldBe` Seq.fromList [
+                  [("Link", "</foo.js>")
+                  , ("Link", "</bar.js>")
+                  ]
+                  , [("Link", "</baz.js>")]
+                  ])
