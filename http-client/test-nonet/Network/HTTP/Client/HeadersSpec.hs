@@ -75,7 +75,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, _, inp) <- dummyConnection input
 
-        callbackResults :: MVar (Seq.Seq Header) <- newMVar mempty
+        callbackResults :: MVar (Seq.Seq [Header]) <- newMVar mempty
         let onEarlyHintHeader h = modifyMVar_ callbackResults (return . (Seq.|> h))
 
         statusHeaders <- parseStatusHeaders Nothing conn Nothing onEarlyHintHeader Nothing
@@ -89,9 +89,7 @@ spec = describe "HeadersSpec" $ do
         inp >>= (`shouldBe` ["<div></div>"])
 
         readMVar callbackResults
-          >>= ( `shouldBe`
-                  Seq.fromList
-                    [ ("Link", "</foo.js>"),
-                      ("Link", "</bar.js>")
-                    ]
-              )
+          >>= (`shouldBe` Seq.fromList [
+                  [("Link", "</foo.js>")
+                  , ("Link", "</bar.js>")
+                  ]])

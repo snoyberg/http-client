@@ -16,11 +16,11 @@ import qualified Data.ByteString.Char8          as S8
 import qualified Data.CaseInsensitive           as CI
 import           Data.Maybe (mapMaybe)
 import           Data.Monoid
+import Data.Word (Word8)
 import           Network.HTTP.Client.Connection
 import           Network.HTTP.Client.Types
-import           System.Timeout                 (timeout)
 import           Network.HTTP.Types
-import Data.Word (Word8)
+import           System.Timeout                 (timeout)
 
 charSpace, charColon, charPeriod :: Word8
 charSpace = 32
@@ -28,8 +28,8 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: Maybe MaxHeaderLength -> Connection -> Maybe Int -> (Header -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
-parseStatusHeaders mhl conn timeout' onEarlyHintHeader cont
+parseStatusHeaders :: Maybe MaxHeaderLength -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders mhl conn timeout' onEarlyHintHeaders cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
   where
@@ -52,11 +52,12 @@ parseStatusHeaders mhl conn timeout' onEarlyHintHeader cont
         (s, v) <- nextStatusLine mhl
         if | statusCode s == 100 -> connectionDropTillBlankLine mhl conn >> return Nothing
            | statusCode s == 103 -> do
-               earlyHeaders <- parseEarlyHintHeadersUntilFailure 0 id
-               nextStatusHeaders >>= \case
-                   Nothing -> return Nothing
-                   Just (StatusHeaders s' v' earlyHeaders' reqHeaders) ->
-                       return $ Just $ StatusHeaders s' v' (earlyHeaders <> earlyHeaders') reqHeaders
+                 earlyHeaders <- parseEarlyHintHeadersUntilFailure 0 id
+                 onEarlyHintHeaders earlyHeaders
+                 nextStatusHeaders >>= \case
+                     Nothing -> return Nothing
+                     Just (StatusHeaders s' v' earlyHeaders' reqHeaders) ->
+                         return $ Just $ StatusHeaders s' v' (earlyHeaders <> earlyHeaders') reqHeaders
            | otherwise -> (Just <$>) $ StatusHeaders s v mempty A.<$> parseHeaders 0 id
 
     nextStatusLine :: Maybe MaxHeaderLength -> IO (Status, HttpVersion)
@@ -113,8 +114,7 @@ parseStatusHeaders mhl conn timeout' onEarlyHintHeader cont
             then return $ front []
             else
                 parseHeader line >>= \case
-                    Just header -> do
-                      onEarlyHintHeader header
+                    Just header ->
                       parseEarlyHintHeadersUntilFailure (count + 1) $ front . (header:)
                     Nothing -> do
                       connectionUnreadLine conn line

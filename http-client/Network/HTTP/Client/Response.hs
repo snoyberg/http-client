@@ -121,7 +121,7 @@ getResponse :: Maybe MaxHeaderLength
             -> IO (Response BodyReader)
 getResponse mhl timeout' req@(Request {..}) mconn cont = do
     let conn = managedResource mconn
-    StatusHeaders s version earlyHs hs <- parseStatusHeaders mhl conn timeout' earlyHintHeaderReceived cont
+    StatusHeaders s version earlyHs hs <- parseStatusHeaders mhl conn timeout' earlyHintHeadersReceived cont
     let mcl = lookup "content-length" hs >>= readPositiveInt . S8.unpack
         isChunked = ("transfer-encoding", CI.mk "chunked") `elem` map (second CI.mk) hs
 
