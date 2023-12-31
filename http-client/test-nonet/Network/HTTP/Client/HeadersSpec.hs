@@ -1,6 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 module Network.HTTP.Client.HeadersSpec where
 
+import           Control.Concurrent.MVar
+import qualified Data.Sequence as Seq
 import           Network.HTTP.Client.Internal
 import           Network.HTTP.Types
 import           Test.Hspec
@@ -20,8 +23,8 @@ spec = describe "HeadersSpec" $ do
                 , "\nignored"
                 ]
         (connection, _, _) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders Nothing connection Nothing Nothing
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
+        statusHeaders <- parseStatusHeaders Nothing connection Nothing (\_ -> return ()) Nothing
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) mempty
             [ ("foo", "bar")
             , ("baz", "bin")
             ]
@@ -34,8 +37,8 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing (Just sendBody)
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing (\_ -> return ()) (Just sendBody)
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [] [ ("foo", "bar") ]
         out >>= (`shouldBe` ["data"])
 
     it "Expect: 100-continue (failure)" $ do
@@ -44,8 +47,8 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing (Just sendBody)
-        statusHeaders `shouldBe` StatusHeaders status417 (HttpVersion 1 1) []
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing (\_ -> return ()) (Just sendBody)
+        statusHeaders `shouldBe` StatusHeaders status417 (HttpVersion 1 1) [] []
         out >>= (`shouldBe` [])
 
     it "100 Continue without expectation is OK" $ do
@@ -56,7 +59,72 @@ spec = describe "HeadersSpec" $ do
                 , "result"
                 ]
         (conn, out, inp) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing Nothing
-        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [ ("foo", "bar") ]
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing (\_ -> return ()) Nothing
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [] [ ("foo", "bar") ]
         out >>= (`shouldBe` [])
         inp >>= (`shouldBe` ["result"])
+
+    it "103 early hints" $ do
+        let input =
+                [ "HTTP/1.1 103 Early Hints\r\n"
+                , "Link: </foo.js>\r\n"
+                , "Link: </bar.js>\r\n\r\n"
+                , "HTTP/1.1 200 OK\r\n"
+                , "Content-Type: text/html\r\n\r\n"
+                , "<div></div>"
+                ]
+        (conn, _, inp) <- dummyConnection input
+
+        callbackResults :: MVar (Seq.Seq [Header]) <- newMVar mempty
+        let onEarlyHintHeader h = modifyMVar_ callbackResults (return . (Seq.|> h))
+
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing onEarlyHintHeader Nothing
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
+            [("Link", "</foo.js>")
+            , ("Link", "</bar.js>")
+            ]
+            [("Content-Type", "text/html")
+            ]
+
+        inp >>= (`shouldBe` ["<div></div>"])
+
+        readMVar callbackResults
+          >>= (`shouldBe` Seq.fromList [
+                  [("Link", "</foo.js>")
+                  , ("Link", "</bar.js>")
+                  ]])
+
+    it "103 early hints (multiple sections)" $ do
+        let input =
+                [ "HTTP/1.1 103 Early Hints\r\n"
+                , "Link: </foo.js>\r\n"
+                , "Link: </bar.js>\r\n\r\n"
+                , "HTTP/1.1 103 Early Hints\r\n"
+                , "Link: </baz.js>\r\n\r\n"
+                , "HTTP/1.1 200 OK\r\n"
+                , "Content-Type: text/html\r\n\r\n"
+                , "<div></div>"
+                ]
+        (conn, _, inp) <- dummyConnection input
+
+        callbackResults :: MVar (Seq.Seq [Header]) <- newMVar mempty
+        let onEarlyHintHeader h = modifyMVar_ callbackResults (return . (Seq.|> h))
+
+        statusHeaders <- parseStatusHeaders Nothing conn Nothing onEarlyHintHeader Nothing
+        statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
+            [("Link", "</foo.js>")
+            , ("Link", "</bar.js>")
+            , ("Link", "</baz.js>")
+            ]
+            [("Content-Type", "text/html")
+            ]
+
+        inp >>= (`shouldBe` ["<div></div>"])
+
+        readMVar callbackResults
+          >>= (`shouldBe` Seq.fromList [
+                  [("Link", "</foo.js>")
+                  , ("Link", "</bar.js>")
+                  ]
+                  , [("Link", "</baz.js>")]
+                  ])

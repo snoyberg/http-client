@@ -306,6 +306,7 @@ defaultRequest = Request
         , shouldStripHeaderOnRedirectIfOnDifferentHostOnly = False
         , proxySecureMode = ProxySecureWithConnect
         , redactHeaders = Set.singleton "Authorization"
+        , earlyHintHeadersReceived = \_ -> return ()
         }
 
 -- | Parses a URL via 'parseRequest_'

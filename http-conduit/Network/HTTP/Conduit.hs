@@ -179,6 +179,7 @@ module Network.HTTP.Conduit
     , responseHeaders
     , responseBody
     , responseCookieJar
+    , responseEarlyHints
       -- * Manager
     , Manager
     , newManager
