@@ -665,7 +665,7 @@ instance Show Request where
         , "  requestHeaders       = " ++ show (DL.map (redactSensitiveHeader $ redactHeaders x) (requestHeaders x))
         , "  path                 = " ++ show (path x)
         , "  queryString          = " ++ show (queryString x)
-        --, "  requestBody          = " ++ show (requestBody x)
+        , "  requestBody          = " ++ show (requestBody x)
         , "  method               = " ++ show (method x)
         , "  proxy                = " ++ show (proxy x)
         , "  rawBody              = " ++ show (rawBody x)
