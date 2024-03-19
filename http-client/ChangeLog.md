@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.17
+
+* Add `managerSetMaxHeaderLength` to `Client` to change `ManagerSettings` `MaxHeaderLength`.
+
 ## 0.7.16
 
 * Add `responseEarlyHints` field to `Response`, containing a list of all HTTP 103 Early Hints headers received from the server.

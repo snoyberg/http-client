@@ -321,6 +321,7 @@ managerSetSecureProxy po m = m { managerProxySecure = po }
 managerSetProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
 managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 
+-- @since 0.7.17
 managerSetMaxHeaderLength :: Int -> ManagerSettings -> ManagerSettings
 managerSetMaxHeaderLength l manager = manager
     { managerMaxHeaderLength = Just $ MaxHeaderLength l }
