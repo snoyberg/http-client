@@ -23,7 +23,7 @@ spec = describe "HeadersSpec" $ do
                 , "\nignored"
                 ]
         (connection, _, _) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders Nothing connection Nothing (\_ -> return ()) Nothing
+        statusHeaders <- parseStatusHeaders Nothing Nothing connection Nothing (\_ -> return ()) Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) mempty
             [ ("foo", "bar")
             , ("baz", "bin")
@@ -37,7 +37,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing (\_ -> return ()) (Just sendBody)
+        statusHeaders <- parseStatusHeaders Nothing Nothing conn Nothing (\_ -> return ()) (Just sendBody)
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [] [ ("foo", "bar") ]
         out >>= (`shouldBe` ["data"])
 
@@ -47,7 +47,7 @@ spec = describe "HeadersSpec" $ do
                 ]
         (conn, out, _) <- dummyConnection input
         let sendBody = connectionWrite conn "data"
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing (\_ -> return ()) (Just sendBody)
+        statusHeaders <- parseStatusHeaders Nothing Nothing conn Nothing (\_ -> return ()) (Just sendBody)
         statusHeaders `shouldBe` StatusHeaders status417 (HttpVersion 1 1) [] []
         out >>= (`shouldBe` [])
 
@@ -59,7 +59,7 @@ spec = describe "HeadersSpec" $ do
                 , "result"
                 ]
         (conn, out, inp) <- dummyConnection input
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing (\_ -> return ()) Nothing
+        statusHeaders <- parseStatusHeaders Nothing Nothing conn Nothing (\_ -> return ()) Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1) [] [ ("foo", "bar") ]
         out >>= (`shouldBe` [])
         inp >>= (`shouldBe` ["result"])
@@ -78,7 +78,7 @@ spec = describe "HeadersSpec" $ do
         callbackResults :: MVar (Seq.Seq [Header]) <- newMVar mempty
         let onEarlyHintHeader h = modifyMVar_ callbackResults (return . (Seq.|> h))
 
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing onEarlyHintHeader Nothing
+        statusHeaders <- parseStatusHeaders Nothing Nothing conn Nothing onEarlyHintHeader Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
             [("Link", "</foo.js>")
             , ("Link", "</bar.js>")
@@ -110,7 +110,7 @@ spec = describe "HeadersSpec" $ do
         callbackResults :: MVar (Seq.Seq [Header]) <- newMVar mempty
         let onEarlyHintHeader h = modifyMVar_ callbackResults (return . (Seq.|> h))
 
-        statusHeaders <- parseStatusHeaders Nothing conn Nothing onEarlyHintHeader Nothing
+        statusHeaders <- parseStatusHeaders Nothing Nothing conn Nothing onEarlyHintHeader Nothing
         statusHeaders `shouldBe` StatusHeaders status200 (HttpVersion 1 1)
             [("Link", "</foo.js>")
             , ("Link", "</bar.js>")

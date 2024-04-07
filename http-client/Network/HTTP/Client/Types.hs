@@ -39,6 +39,7 @@ module Network.HTTP.Client.Types
     , ResponseTimeout (..)
     , ProxySecureMode (..)
     , MaxHeaderLength (..)
+    , MaxNumberHeaders (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -821,6 +822,17 @@ data ManagerSettings = ManagerSettings
     --
     -- Since 0.4.7
     , managerMaxHeaderLength :: Maybe MaxHeaderLength
+    -- ^ TODO
+    --
+    -- Default: TODO
+    --
+    -- @since TODO
+    , managerMaxNumberHeaders :: Maybe MaxNumberHeaders
+    -- ^ TODO
+    --
+    -- Default: TODO
+    --
+    -- @since 0.7.18
     }
     deriving T.Typeable
 
@@ -845,9 +857,10 @@ data Manager = Manager
     , mWrapException :: forall a. Request -> IO a -> IO a
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
-    , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
+    , mModifyResponse :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
     , mMaxHeaderLength :: Maybe MaxHeaderLength
+    , mMaxNumberHeaders :: Maybe MaxNumberHeaders
     }
     deriving T.Typeable
 
@@ -906,4 +919,12 @@ data StreamFileStatus = StreamFileStatus
 newtype MaxHeaderLength = MaxHeaderLength
     { unMaxHeaderLength :: Int
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord, T.Typeable)
+
+-- | The maximum number of header lines.
+--
+-- @since TODO
+newtype MaxNumberHeaders = MaxNumberHeaders
+    { unMaxNumberHeaders :: Int
+    }
+    deriving (Eq, Show, Ord, T.Typeable)
