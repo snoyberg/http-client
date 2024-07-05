@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## Unreleased
+
+* Fix a space leak when storing original requests inside responses [#540](https://github.com/snoyberg/http-client/pull/540)
+
 ## 0.7.17
 
 * Add `managerSetMaxHeaderLength` to `Client` to change `ManagerSettings` `MaxHeaderLength`.

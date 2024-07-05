@@ -537,7 +537,7 @@ data Request = Request
     -- are honoured.
     --
     -- Since 0.1.0
-    , requestBody :: RequestBody
+    , requestBody :: !RequestBody
     -- ^ Request body to be sent to the server.
     --
     -- Since 0.1.0
@@ -714,7 +714,7 @@ data Response body = Response
     -- be impossible.
     --
     -- Since 0.1.0
-    , responseOriginalRequest :: Request
+    , responseOriginalRequest :: !Request
     -- ^ Holds original @Request@ related to this @Response@ (with an empty body).
     -- This field is intentionally not exported directly, but made available
     -- via @getOriginalRequest@ instead.

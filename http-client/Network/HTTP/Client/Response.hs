@@ -154,7 +154,7 @@ getResponse mhl timeout' req@(Request {..}) mconn cont = do
                     then makeGzipReader body1
                     else return body1
 
-    return Response
+    return $! Response
         { responseStatus = s
         , responseVersion = version
         , responseHeaders = hs
