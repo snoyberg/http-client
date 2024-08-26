@@ -233,7 +233,7 @@ import           Control.Applicative          as A ((<$>))
 import           Control.Monad.IO.Unlift      (MonadIO (liftIO))
 import           Control.Monad.Trans.Resource
 
-import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen, responseClose)
+import qualified Network.HTTP.Client          as Client (httpLbs, responseOpen)
 import qualified Network.HTTP.Client          as HC
 import qualified Network.HTTP.Client.Conduit  as HCC
 import           Network.HTTP.Client.Internal (createCookieJar,
@@ -244,9 +244,8 @@ import           Network.HTTP.Client.Internal (Manager, ManagerSettings,
                                                managerTlsConnection, newManager)
 import           Network.HTTP.Client          (parseUrl, parseUrlThrow, urlEncodedBody, applyBasicAuth,
                                                defaultRequest, parseRequest, parseRequest_)
-import           Network.HTTP.Client.Internal (addProxy, alwaysDecompress,
-                                               browserDecompress)
-import           Network.HTTP.Client.Internal (getRedirectedRequest)
+import           Network.HTTP.Client.Internal (ResponseClose (..), addProxy, alwaysDecompress,
+                                               browserDecompress, getRedirectedRequest)
 import           Network.HTTP.Client.TLS      (mkManagerSettings,
                                                tlsManagerSettings)
 import           Network.HTTP.Client.Internal (Cookie (..), CookieJar (..),
@@ -316,12 +315,18 @@ http :: MonadResource m
      => Request
      -> Manager
      -> m (Response (ConduitM i S.ByteString m ()))
-http req man = do
-    (key, res) <- allocate (Client.responseOpen req man) Client.responseClose
-    return res { responseBody = do
-                   HCC.bodyReaderSource $ responseBody res
-                   release key
-               }
+http req man = resourceMask $ \_ -> do
+    res <- liftIO $ Client.responseOpen req man
+    -- Move the cleanup action for the response into `ResourceT` so
+    -- that we can release it from the `ReleaseMap` as soon as the
+    -- response is closed or the body is consumed.
+    let ResponseClose cleanup = responseClose' res
+    key <- register cleanup
+    pure res { responseClose' = ResponseClose $ release key
+             , responseBody = do
+                 HCC.bodyReaderSource $ responseBody res
+                 release key
+             }
 
 requestBodySource :: Int64 -> ConduitM () S.ByteString (ResourceT IO) () -> RequestBody
 requestBodySource size = RequestBodyStream size . srcToPopper
