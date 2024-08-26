@@ -1,6 +1,6 @@
 # ChangeLog for http-conduit
 
-## Unreleased
+## 2.3.9
 
 * Fix space leaks when closing responses [#539](https://github.com/snoyberg/http-client/pull/539)
 
