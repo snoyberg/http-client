@@ -35,7 +35,7 @@ library
                  , conduit               >= 1.2
                  , conduit-extra         >= 1.1
                  , http-types            >= 0.7
-                 , http-client           >= 0.5.13  && < 0.8
+                 , http-client           >= 0.7.16  && < 0.8
                  , http-client-tls       >= 0.3     && < 0.4
                  , mtl
                  , unliftio-core
