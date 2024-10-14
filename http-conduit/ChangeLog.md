@@ -1,5 +1,9 @@
 # ChangeLog for http-conduit
 
+## 2.3.9
+
+* Fix space leaks when closing responses [#539](https://github.com/snoyberg/http-client/pull/539)
+
 ## 2.3.8.3
 
 * aeson 2.2 support [#512](https://github.com/snoyberg/http-client/pull/512)
