@@ -17,7 +17,7 @@ library
   exposed-modules:     Network.HTTP.Client.TLS
   other-extensions:    ScopedTypeVariables
   build-depends:       base >= 4.10 && < 5
-                     , data-default-class
+                     , data-default
                      , http-client >= 0.7.11
                      , crypton-connection
                      , network

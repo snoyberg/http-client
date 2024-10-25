@@ -26,7 +26,7 @@ module Network.HTTP.Client.TLS
 import Control.Applicative ((<|>))
 import Control.Arrow (first)
 import System.Environment (getEnvironment)
-import Data.Default.Class
+import Data.Default
 import Network.HTTP.Client hiding (host, port)
 import Network.HTTP.Client.Internal hiding (host, port)
 import Control.Exception
