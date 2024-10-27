@@ -48,7 +48,7 @@ import Data.Time.Clock
 import Data.Time.Calendar
 import qualified Network.Wai.Handler.WarpTLS as WT
 import Network.Connection (settingDisableCertificateValidation)
-import Data.Default.Class (def)
+import Data.Default (def)
 #ifdef VERSION_aeson
 import qualified Data.Aeson as A
 #endif
