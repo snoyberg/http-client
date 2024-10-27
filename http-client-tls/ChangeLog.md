@@ -1,5 +1,9 @@
 # Changelog for http-client-tls
 
+## 0.3.6.4
+
+* data-default-class -> data-default [#546](https://github.com/snoyberg/http-client/pull/546/files)
+
 ## 0.3.6.3
 
 * catching up to tls 1.8.0 [#515](https://github.com/snoyberg/http-client/pull/515)
