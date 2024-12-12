@@ -823,14 +823,14 @@ data ManagerSettings = ManagerSettings
     -- Since 0.4.7
     , managerMaxHeaderLength :: Maybe MaxHeaderLength
     -- ^ Configure the maximum size, in bytes, of an HTTP header field.
-    -- Set it to `Nothing` to remove this limit  (eg: for debugging purposes).
+    -- Set it to 'Nothing' to remove this limit  (eg: for debugging purposes).
     --
     -- Default: 4096
     --
     -- @since 0.7.17
     , managerMaxNumberHeaders :: Maybe MaxNumberHeaders
     -- ^ Configure the maximum number of HTTP header fields.
-    -- Set it to `Nothing` to remove this limit (eg: for debugging purposes).
+    -- Set it to 'Nothing' to remove this limit (eg: for debugging purposes).
     --
     -- Default: 100
     --
