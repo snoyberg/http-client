@@ -822,15 +822,17 @@ data ManagerSettings = ManagerSettings
     --
     -- Since 0.4.7
     , managerMaxHeaderLength :: Maybe MaxHeaderLength
-    -- ^ TODO
+    -- ^ Configure the maximum size, in bytes, of an HTTP header field.
+    -- Set it to `Nothing` to remove this limit  (eg: for debugging purposes).
     --
-    -- Default: TODO
+    -- Default: 4096
     --
-    -- @since TODO
+    -- @since 0.7.17
     , managerMaxNumberHeaders :: Maybe MaxNumberHeaders
-    -- ^ TODO
+    -- ^ Configure the maximum number of HTTP header fields.
+    -- Set it to `Nothing` to remove this limit (eg: for debugging purposes).
     --
-    -- Default: TODO
+    -- Default: 100
     --
     -- @since 0.7.18
     }
@@ -921,9 +923,9 @@ newtype MaxHeaderLength = MaxHeaderLength
     }
     deriving (Eq, Show, Ord, T.Typeable)
 
--- | The maximum number of header lines.
+-- | The maximum number of header fields.
 --
--- @since TODO
+-- @since 0.7.18
 newtype MaxNumberHeaders = MaxNumberHeaders
     { unMaxNumberHeaders :: Int
     }
