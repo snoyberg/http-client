@@ -3,6 +3,7 @@
 ## 0.7.18
 
 * Add the `managerSetMaxNumberHeaders` function to the `Client` module to configure `managerMaxNumberHeaders` in `ManagerSettings`.
+* Use `Word` in the `MaxHeaderLength` and `MaxNumberHeaders` types.
 
 ## 0.7.17
 
