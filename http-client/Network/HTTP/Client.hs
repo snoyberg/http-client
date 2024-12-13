@@ -323,14 +323,14 @@ managerSetProxy :: ProxyOverride -> ManagerSettings -> ManagerSettings
 managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 
 -- @since 0.7.17
-managerSetMaxHeaderLength :: Int -> ManagerSettings -> ManagerSettings
+managerSetMaxHeaderLength :: Word -> ManagerSettings -> ManagerSettings
 managerSetMaxHeaderLength l manager = manager
-    { managerMaxHeaderLength = Just $ MaxHeaderLength l }
+    { managerMaxHeaderLength = MaxHeaderLength l }
 
 -- @since 0.7.18
-managerSetMaxNumberHeaders :: Int -> ManagerSettings -> ManagerSettings
-managerSetMaxNumberHeaders l manager = manager
-    { managerMaxNumberHeaders = Just $ MaxNumberHeaders l }
+managerSetMaxNumberHeaders :: Word -> ManagerSettings -> ManagerSettings
+managerSetMaxNumberHeaders n manager = manager
+    { managerMaxNumberHeaders = MaxNumberHeaders n }
 
 -- $example1
 -- = Example Usage

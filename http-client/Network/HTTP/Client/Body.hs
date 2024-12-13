@@ -148,7 +148,7 @@ makeLengthReader cleanup count0 Connection {..} = do
                         return bs
 
 makeChunkedReader
-  :: Maybe MaxHeaderLength
+  :: MaxHeaderLength
   -> IO () -- ^ cleanup
   -> Bool -- ^ raw
   -> Connection

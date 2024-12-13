@@ -92,8 +92,8 @@ defaultManagerSettings = ManagerSettings
     , managerModifyResponse = return
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
-    , managerMaxHeaderLength = Just $ MaxHeaderLength 4096
-    , managerMaxNumberHeaders = Just $ MaxNumberHeaders 100
+    , managerMaxHeaderLength = 4096
+    , managerMaxNumberHeaders = 100
     }
 
 -- | Create a 'Manager'. The @Manager@ will be shut down automatically via

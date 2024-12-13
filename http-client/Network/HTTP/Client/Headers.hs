@@ -28,7 +28,7 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: Maybe MaxHeaderLength -> Maybe MaxNumberHeaders -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders :: MaxHeaderLength -> MaxNumberHeaders -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
 parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
@@ -60,7 +60,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
                          return $ Just $ StatusHeaders s' v' (earlyHeaders <> earlyHeaders') reqHeaders
            | otherwise -> (Just <$>) $ StatusHeaders s v mempty A.<$> parseHeaders 0 id
 
-    nextStatusLine :: Maybe MaxHeaderLength -> IO (Status, HttpVersion)
+    nextStatusLine :: MaxHeaderLength -> IO (Status, HttpVersion)
     nextStatusLine mhl = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
@@ -68,7 +68,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
         when (S.null bs) $ throwHttp NoResponseDataReceived
         connectionReadLineWith mhl conn bs >>= parseStatus mhl 3
 
-    parseStatus :: Maybe MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
+    parseStatus :: MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus mhl i bs | S.null bs && i > 0 = connectionReadLine mhl conn >>= parseStatus mhl (i - 1)
     parseStatus _ _ bs = do
         let (ver, bs2) = S.break (== charSpace) bs
@@ -91,16 +91,13 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
             Just (i, "") -> Just i
             _ -> Nothing
 
-    guardMaxNumberHeaders :: Int -> IO ()
-    guardMaxNumberHeaders count = case fmap unMaxNumberHeaders mnh of
-        -- We reached the maximum number of headers, let's throw an error
-        Just n | count >= n -> throwHttp OverlongHeaders
-        -- We didn't reach the maximum number of headers yet
-        Just _ -> pure ()
-        -- We do not have any limit on the number of headers
-        Nothing -> pure ()
+    guardMaxNumberHeaders :: Word -> IO ()
+    guardMaxNumberHeaders count =
+        when (count >= unMaxNumberHeaders mnh && count /= 0) $ do
+            -- We reached the maximum number of header fields.
+            throwHttp OverlongHeaders
 
-    parseHeaders :: Int -> ([Header] -> [Header]) -> IO [Header]
+    parseHeaders :: Word -> ([Header] -> [Header]) -> IO [Header]
     parseHeaders count front = do
         guardMaxNumberHeaders count
         line <- connectionReadLine mhl conn
@@ -115,7 +112,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
                         -- an exception, ignore it for robustness.
                         parseHeaders count front
 
-    parseEarlyHintHeadersUntilFailure :: Int -> ([Header] -> [Header]) -> IO [Header]
+    parseEarlyHintHeadersUntilFailure :: Word -> ([Header] -> [Header]) -> IO [Header]
     parseEarlyHintHeadersUntilFailure count front = do
         guardMaxNumberHeaders count
         line <- connectionReadLine mhl conn
