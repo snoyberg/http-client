@@ -50,12 +50,13 @@ connectionReadLineWith mhl conn bs0 =
     go bs front total =
         case S.break (== charLF) bs of
             (_, "") -> do
-                when (total >= unMaxHeaderLength mhl && total /= 0) $ do
+                let total' = total + fromIntegral (S.length bs)
+                when (total > unMaxHeaderLength mhl) $ do
                     -- We reached the maximum length for an header field.
                     throwHttp OverlongHeaders
                 bs' <- connectionRead conn
                 when (S.null bs') $ throwHttp IncompleteHeaders
-                go bs' (front . (bs:)) (total + fromIntegral (S.length bs))
+                go bs' (front . (bs:)) total'
             (x, S.drop 1 -> y) -> do
                 unless (S.null y) $! connectionUnread conn y
                 return $! killCR $! S.concat $! front [x]

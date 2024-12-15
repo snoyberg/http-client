@@ -93,9 +93,9 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
 
     guardMaxNumberHeaders :: Word -> IO ()
     guardMaxNumberHeaders count =
-        when (count >= unMaxNumberHeaders mnh && count /= 0) $ do
+        when (count >= unMaxNumberHeaders mnh) $ do
             -- We reached the maximum number of header fields.
-            throwHttp OverlongHeaders
+            throwHttp TooManyHeaders
 
     parseHeaders :: Word -> ([Header] -> [Header]) -> IO [Header]
     parseHeaders count front = do

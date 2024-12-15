@@ -8,7 +8,8 @@ import qualified Data.ByteString.Lazy.Char8 as L8
 import Test.HUnit
 import Network.Wai hiding (requestBody)
 import Network.Wai.Conduit (responseSource, sourceRequestBody)
-import Network.HTTP.Client (streamFile)
+import Network.HTTP.Client (streamFile, defaultManagerSettings)
+import Network.HTTP.Client.Internal (managerMaxNumberHeaders)
 import System.IO.Temp (withSystemTempFile)
 import qualified Network.Wai as Wai
 import Network.Wai.Handler.Warp (runSettings, defaultSettings, setPort, setBeforeMainLoop, Settings, setTimeout)
@@ -257,6 +258,18 @@ main = do
               Left e -> show (e :: SomeException) @?= show (HttpExceptionRequest req1 OverlongHeaders)
               _ -> error "Shouldn't have worked"
         it "not overlong headers" $ notOverLongHeaders $ \port -> do
+            manager <- newManager tlsManagerSettings
+            let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            _ <- httpLbs req1 manager
+            return ()
+        it "too many header fields" $ tooManyHeaderFields $ \port -> do
+            manager <- newManager tlsManagerSettings
+            let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            res1 <- try $ runResourceT $ http req1 manager
+            case res1 of
+              Left e -> show (e :: SomeException) @?= show (HttpExceptionRequest req1 TooManyHeaders)
+              _ -> error "Shouldn't have worked"
+        it "not too many header fields" $ notTooManyHeaderFields $ \port -> do
             manager <- newManager tlsManagerSettings
             let Just req1 = parseUrlThrow $ "http://127.0.0.1:" ++ show port
             _ <- httpLbs req1 manager
@@ -524,6 +537,21 @@ notOverLongHeaders = withCApp $ \app' -> do
     runConduit $ src .| appSink app'
   where
     src = sourceList $ [S.concat $ "HTTP/1.0 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 16384\r\n\r\n" : ( take 16384 $ repeat "x")]
+
+tooManyHeaderFields :: (Int -> IO ()) -> IO ()
+tooManyHeaderFields =
+    withCApp $ \app' -> runConduit $ src .| appSink app'
+  where
+    limit = fromEnum (managerMaxNumberHeaders defaultManagerSettings)
+    src = sourceList $ "HTTP/1.0 200 OK\r\n" : replicate limit "foo: bar\r\n"
+
+notTooManyHeaderFields :: (Int -> IO ()) -> IO ()
+notTooManyHeaderFields = withCApp $ \app' -> do
+    runConduit $ appSource app' .| CL.drop 1
+    runConduit $ src .| appSink app'
+  where
+    limit = fromEnum (managerMaxNumberHeaders defaultManagerSettings) - 1
+    src = sourceList $ ["HTTP/1.0 200 OK\r\n"] <> replicate limit "foo: bar\r\n" <> ["\r\n"]
 
 redir :: (Int -> IO ()) -> IO ()
 redir =

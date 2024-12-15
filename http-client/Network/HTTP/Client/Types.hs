@@ -151,12 +151,14 @@ data HttpExceptionContent
                    --
                    -- @since 0.5.0
                    | OverlongHeaders
-                   -- ^ Either too many headers, or too many total bytes in a
-                   -- single header, were returned by the server, and the
-                   -- memory exhaustion protection in this library has kicked
-                   -- in.
+                   -- ^ Too many total bytes in a single header field were
+                   -- returned by the server.
                    --
                    -- @since 0.5.0
+                   | TooManyHeaders
+                   -- ^ Too many header fields were returned by the server,
+                   --
+                   -- @since 0.7.18
                    | ResponseTimeout
                    -- ^ The server took too long to return a response. This can
                    -- be altered via 'responseTimeout' or
@@ -826,14 +828,12 @@ data ManagerSettings = ManagerSettings
     -- Since 0.4.7
     , managerMaxHeaderLength :: MaxHeaderLength
     -- ^ Configure the maximum size, in bytes, of an HTTP header field.
-    -- Set it to 0 to remove this limit (eg: for debugging purposes).
     --
     -- Default: 4096
     --
     -- @since 0.7.17
     , managerMaxNumberHeaders :: MaxNumberHeaders
     -- ^ Configure the maximum number of HTTP header fields.
-    -- Set it to 0 to remove this limit (eg: for debugging purposes).
     --
     -- Default: 100
     --
@@ -924,10 +924,10 @@ data StreamFileStatus = StreamFileStatus
 newtype MaxHeaderLength = MaxHeaderLength
     { unMaxHeaderLength :: Word
     }
-    deriving (Eq, Show, Ord, Num, T.Typeable)
+    deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
 
 noMaxHeaderLength :: MaxHeaderLength
-noMaxHeaderLength = 0
+noMaxHeaderLength = maxBound
 
 -- | The maximum number of header fields.
 --
@@ -935,7 +935,7 @@ noMaxHeaderLength = 0
 newtype MaxNumberHeaders = MaxNumberHeaders
     { unMaxNumberHeaders :: Word
     }
-    deriving (Eq, Show, Ord, Num, T.Typeable)
+    deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
 
 noMaxNumberHeaders :: MaxNumberHeaders
-noMaxNumberHeaders = 0
+noMaxNumberHeaders = maxBound
