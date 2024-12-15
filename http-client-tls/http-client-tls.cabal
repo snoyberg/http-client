@@ -46,6 +46,8 @@ test-suite spec
                      , http-client-tls
                      , http-types
                      , crypton-connection
+                     , data-default
+                     , tls
 
 benchmark benchmark
   main-is:             Bench.hs
