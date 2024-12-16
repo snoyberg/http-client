@@ -50,7 +50,7 @@ connectionReadLineWith mhl conn bs0 =
     go bs front total =
         case S.break (== charLF) bs of
             (_, "") -> do
-                let total' = total + fromIntegral (S.length bs)
+                let total' = total + S.length bs
                 when (total > unMaxHeaderLength mhl) $ do
                     -- We reached the maximum length for an header field.
                     throwHttp OverlongHeaders

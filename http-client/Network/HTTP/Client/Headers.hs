@@ -91,13 +91,13 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
             Just (i, "") -> Just i
             _ -> Nothing
 
-    guardMaxNumberHeaders :: Word -> IO ()
+    guardMaxNumberHeaders :: Int -> IO ()
     guardMaxNumberHeaders count =
         when (count >= unMaxNumberHeaders mnh) $ do
             -- We reached the maximum number of header fields.
             throwHttp TooManyHeaders
 
-    parseHeaders :: Word -> ([Header] -> [Header]) -> IO [Header]
+    parseHeaders :: Int -> ([Header] -> [Header]) -> IO [Header]
     parseHeaders count front = do
         guardMaxNumberHeaders count
         line <- connectionReadLine mhl conn
@@ -112,7 +112,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
                         -- an exception, ignore it for robustness.
                         parseHeaders count front
 
-    parseEarlyHintHeadersUntilFailure :: Word -> ([Header] -> [Header]) -> IO [Header]
+    parseEarlyHintHeadersUntilFailure :: Int -> ([Header] -> [Header]) -> IO [Header]
     parseEarlyHintHeadersUntilFailure count front = do
         guardMaxNumberHeaders count
         line <- connectionReadLine mhl conn

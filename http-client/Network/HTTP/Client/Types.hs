@@ -922,7 +922,7 @@ data StreamFileStatus = StreamFileStatus
 --
 -- @since 0.7.14
 newtype MaxHeaderLength = MaxHeaderLength
-    { unMaxHeaderLength :: Word
+    { unMaxHeaderLength :: Int
     }
     deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
 
@@ -933,7 +933,7 @@ noMaxHeaderLength = maxBound
 --
 -- @since 0.7.18
 newtype MaxNumberHeaders = MaxNumberHeaders
-    { unMaxNumberHeaders :: Word
+    { unMaxNumberHeaders :: Int
     }
     deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
 
