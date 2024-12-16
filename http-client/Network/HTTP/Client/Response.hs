@@ -113,8 +113,8 @@ lbsResponse res = do
         { responseBody = L.fromChunks bss
         }
 
-getResponse :: MaxHeaderLength
-            -> MaxNumberHeaders
+getResponse :: Maybe MaxHeaderLength
+            -> Maybe MaxNumberHeaders
             -> Maybe Int
             -> Request
             -> Managed Connection

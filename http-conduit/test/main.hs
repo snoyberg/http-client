@@ -56,6 +56,7 @@ import qualified Data.Aeson as A
 import qualified Network.HTTP.Simple as Simple
 import Data.Monoid (mempty)
 import Control.Monad.Trans.Resource (runResourceT)
+import Data.Maybe (fromJust)
 
 past :: UTCTime
 past = UTCTime (ModifiedJulianDay 56200) (secondsToDiffTime 0)
@@ -542,7 +543,7 @@ tooManyHeaderFields :: (Int -> IO ()) -> IO ()
 tooManyHeaderFields =
     withCApp $ \app' -> runConduit $ src .| appSink app'
   where
-    limit = fromEnum (managerMaxNumberHeaders defaultManagerSettings)
+    limit = fromEnum (fromJust $ managerMaxNumberHeaders defaultManagerSettings)
     src = sourceList $ "HTTP/1.0 200 OK\r\n" : replicate limit "foo: bar\r\n"
 
 notTooManyHeaderFields :: (Int -> IO ()) -> IO ()
@@ -550,7 +551,7 @@ notTooManyHeaderFields = withCApp $ \app' -> do
     runConduit $ appSource app' .| CL.drop 1
     runConduit $ src .| appSink app'
   where
-    limit = fromEnum (managerMaxNumberHeaders defaultManagerSettings) - 1
+    limit = fromEnum (fromJust $ managerMaxNumberHeaders defaultManagerSettings) - 1
     src = sourceList $ ["HTTP/1.0 200 OK\r\n"] <> replicate limit "foo: bar\r\n" <> ["\r\n"]
 
 redir :: (Int -> IO ()) -> IO ()

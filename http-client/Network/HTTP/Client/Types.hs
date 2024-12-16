@@ -40,9 +40,7 @@ module Network.HTTP.Client.Types
     , ResponseTimeout (..)
     , ProxySecureMode (..)
     , MaxHeaderLength (..)
-    , noMaxHeaderLength
     , MaxNumberHeaders (..)
-    , noMaxNumberHeaders
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -826,13 +824,13 @@ data ManagerSettings = ManagerSettings
     -- Default: respect the @proxy@ value on the @Request@ itself.
     --
     -- Since 0.4.7
-    , managerMaxHeaderLength :: MaxHeaderLength
+    , managerMaxHeaderLength :: Maybe MaxHeaderLength
     -- ^ Configure the maximum size, in bytes, of an HTTP header field.
     --
     -- Default: 4096
     --
     -- @since 0.7.17
-    , managerMaxNumberHeaders :: MaxNumberHeaders
+    , managerMaxNumberHeaders :: Maybe MaxNumberHeaders
     -- ^ Configure the maximum number of HTTP header fields.
     --
     -- Default: 100
@@ -864,8 +862,8 @@ data Manager = Manager
     , mSetProxy :: Request -> Request
     , mModifyResponse :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
-    , mMaxHeaderLength :: MaxHeaderLength
-    , mMaxNumberHeaders :: MaxNumberHeaders
+    , mMaxHeaderLength :: Maybe MaxHeaderLength
+    , mMaxNumberHeaders :: Maybe MaxNumberHeaders
     }
     deriving T.Typeable
 
@@ -926,9 +924,6 @@ newtype MaxHeaderLength = MaxHeaderLength
     }
     deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
 
-noMaxHeaderLength :: MaxHeaderLength
-noMaxHeaderLength = maxBound
-
 -- | The maximum number of header fields.
 --
 -- @since 0.7.18
@@ -936,6 +931,3 @@ newtype MaxNumberHeaders = MaxNumberHeaders
     { unMaxNumberHeaders :: Int
     }
     deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
-
-noMaxNumberHeaders :: MaxNumberHeaders
-noMaxNumberHeaders = maxBound

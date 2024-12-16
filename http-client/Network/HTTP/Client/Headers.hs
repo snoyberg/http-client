@@ -28,7 +28,7 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: MaxHeaderLength -> MaxNumberHeaders -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders :: Maybe MaxHeaderLength -> Maybe MaxNumberHeaders -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
 parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
@@ -60,7 +60,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
                          return $ Just $ StatusHeaders s' v' (earlyHeaders <> earlyHeaders') reqHeaders
            | otherwise -> (Just <$>) $ StatusHeaders s v mempty A.<$> parseHeaders 0 id
 
-    nextStatusLine :: MaxHeaderLength -> IO (Status, HttpVersion)
+    nextStatusLine :: Maybe MaxHeaderLength -> IO (Status, HttpVersion)
     nextStatusLine mhl = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
@@ -68,7 +68,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
         when (S.null bs) $ throwHttp NoResponseDataReceived
         connectionReadLineWith mhl conn bs >>= parseStatus mhl 3
 
-    parseStatus :: MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
+    parseStatus :: Maybe MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus mhl i bs | S.null bs && i > 0 = connectionReadLine mhl conn >>= parseStatus mhl (i - 1)
     parseStatus _ _ bs = do
         let (ver, bs2) = S.break (== charSpace) bs
@@ -92,10 +92,9 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
             _ -> Nothing
 
     guardMaxNumberHeaders :: Int -> IO ()
-    guardMaxNumberHeaders count =
-        when (count >= unMaxNumberHeaders mnh) $ do
-            -- We reached the maximum number of header fields.
-            throwHttp TooManyHeaders
+    guardMaxNumberHeaders count = case fmap unMaxNumberHeaders mnh of
+        Nothing -> pure ()
+        Just n -> when (count >= n) $ throwHttp TooManyHeaders
 
     parseHeaders :: Int -> ([Header] -> [Header]) -> IO [Header]
     parseHeaders count front = do
