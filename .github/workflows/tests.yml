@@ -16,11 +16,12 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
         args:
+        - "--resolver lts-23"
+        - "--resolver lts-22"
+        - "--resolver lts-21"
         - "--resolver lts-20"
         - "--resolver lts-19"
         - "--resolver lts-18"
-        - "--resolver lts-17"
-        - "--resolver lts-16"
 
     steps:
       - name: Clone project
