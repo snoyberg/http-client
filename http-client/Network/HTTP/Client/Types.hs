@@ -149,12 +149,12 @@ data HttpExceptionContent
                    --
                    -- @since 0.5.0
                    | OverlongHeaders
-                   -- ^ Too many total bytes in a single header field were
-                   -- returned by the server.
+                   -- ^ Too many total bytes in the HTTP header were returned
+                   -- by the server.
                    --
                    -- @since 0.5.0
-                   | TooManyHeaders
-                   -- ^ Too many header fields were returned by the server,
+                   | TooManyHeaderFields
+                   -- ^ Too many HTTP header fields were returned by the server.
                    --
                    -- @since 0.7.18
                    | ResponseTimeout

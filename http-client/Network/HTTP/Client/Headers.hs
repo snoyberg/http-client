@@ -94,7 +94,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
     guardMaxNumberHeaders :: Int -> IO ()
     guardMaxNumberHeaders count = case fmap unMaxNumberHeaders mnh of
         Nothing -> pure ()
-        Just n -> when (count >= n) $ throwHttp TooManyHeaders
+        Just n -> when (count >= n) $ throwHttp TooManyHeaderFields
 
     parseHeaders :: Int -> ([Header] -> [Header]) -> IO [Header]
     parseHeaders count front = do

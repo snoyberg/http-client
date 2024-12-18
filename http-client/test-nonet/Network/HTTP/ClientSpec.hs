@@ -31,6 +31,9 @@ notWindows _ = return ()
 notWindows x = x
 #endif
 
+crlf :: S.ByteString
+crlf = "\r\n"
+
 main :: IO ()
 main = hspec spec
 
@@ -323,3 +326,24 @@ spec = describe "Client" $ do
       case parseRequest "https://o_O:18446744072699450606" of
         Left _ -> pure () :: IO ()
         Right req -> error $ "Invalid request: " ++ show req
+
+    it "too many header fields" $ do
+        let message = S.concat $
+                ["HTTP/1.1 200 OK", crlf] <> replicate 120 ("foo: bar" <> crlf) <> [crlf, "body"]
+
+        serveWith message $ \port -> do
+            man <- newManager $ managerSetMaxNumberHeaders 120 defaultManagerSettings
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            httpLbs req man `shouldThrow` \e -> case e of
+                HttpExceptionRequest _ TooManyHeaderFields -> True
+                _otherwise -> False
+
+    it "not too many header fields" $ do
+        let message = S.concat $
+                ["HTTP/1.1 200 OK", crlf] <> replicate 120 ("foo: bar" <> crlf) <> [crlf, "body"]
+
+        serveWith message $ \port -> do
+            man <- newManager $ managerSetMaxNumberHeaders 121 defaultManagerSettings
+            req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
+            res <- httpLbs req man
+            responseBody res `shouldBe` "body"
