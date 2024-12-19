@@ -81,10 +81,10 @@ getRedirectedRequest origReq req hs cookie_jar code
 
     mergeHeaders :: W.RequestHeaders -> W.RequestHeaders -> W.RequestHeaders
     mergeHeaders lhs rhs = nubBy (\(a, _) (a', _) -> a == a') (lhs ++ rhs)
-    
+
     stripHeaders :: Request -> Request
     stripHeaders r = do
-        case (hostDiffer r, shouldStripOnlyIfHostDiffer) of 
+        case (hostDiffer r, shouldStripOnlyIfHostDiffer) of
             (True, True) -> stripHeaders' r
             (True, False) -> stripHeaders' r
             (False, False) -> stripHeaders' r
@@ -92,7 +92,7 @@ getRedirectedRequest origReq req hs cookie_jar code
                 -- We need to check if we have omitted headers in previous
                 -- request chain. Consider request chain:
                 --
-                --  1. example-1.com 
+                --  1. example-1.com
                 --  2. example-2.com (we may have removed some headers here from 1)
                 --  3. example-1.com (since we are back at same host as 1, we need re-add stripped headers)
                 --
@@ -114,14 +114,15 @@ lbsResponse res = do
         }
 
 getResponse :: Maybe MaxHeaderLength
+            -> Maybe MaxNumberHeaders
             -> Maybe Int
             -> Request
             -> Managed Connection
             -> Maybe (IO ()) -- ^ Action to run in case of a '100 Continue'.
             -> IO (Response BodyReader)
-getResponse mhl timeout' req@(Request {..}) mconn cont = do
+getResponse mhl mnh timeout' req@(Request {..}) mconn cont = do
     let conn = managedResource mconn
-    StatusHeaders s version earlyHs hs <- parseStatusHeaders mhl conn timeout' earlyHintHeadersReceived cont
+    StatusHeaders s version earlyHs hs <- parseStatusHeaders mhl mnh conn timeout' earlyHintHeadersReceived cont
     let mcl = lookup "content-length" hs >>= readPositiveInt . S8.unpack
         isChunked = ("transfer-encoding", CI.mk "chunked") `elem` map (second CI.mk) hs
 

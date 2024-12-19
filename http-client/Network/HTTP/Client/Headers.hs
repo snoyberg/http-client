@@ -28,8 +28,8 @@ charColon = 58
 charPeriod = 46
 
 
-parseStatusHeaders :: Maybe MaxHeaderLength -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
-parseStatusHeaders mhl conn timeout' onEarlyHintHeaders cont
+parseStatusHeaders :: Maybe MaxHeaderLength -> Maybe MaxNumberHeaders -> Connection -> Maybe Int -> ([Header] -> IO ()) -> Maybe (IO ()) -> IO StatusHeaders
+parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
     | Just k <- cont = getStatusExpectContinue k
     | otherwise      = getStatus
   where
@@ -91,9 +91,14 @@ parseStatusHeaders mhl conn timeout' onEarlyHintHeaders cont
             Just (i, "") -> Just i
             _ -> Nothing
 
+    guardMaxNumberHeaders :: Int -> IO ()
+    guardMaxNumberHeaders count = case fmap unMaxNumberHeaders mnh of
+        Nothing -> pure ()
+        Just n -> when (count >= n) $ throwHttp TooManyHeaderFields
+
     parseHeaders :: Int -> ([Header] -> [Header]) -> IO [Header]
-    parseHeaders 100 _ = throwHttp OverlongHeaders
     parseHeaders count front = do
+        guardMaxNumberHeaders count
         line <- connectionReadLine mhl conn
         if S.null line
             then return $ front []
@@ -107,8 +112,8 @@ parseStatusHeaders mhl conn timeout' onEarlyHintHeaders cont
                         parseHeaders count front
 
     parseEarlyHintHeadersUntilFailure :: Int -> ([Header] -> [Header]) -> IO [Header]
-    parseEarlyHintHeadersUntilFailure 100 _ = throwHttp OverlongHeaders
     parseEarlyHintHeadersUntilFailure count front = do
+        guardMaxNumberHeaders count
         line <- connectionReadLine mhl conn
         if S.null line
             then return $ front []

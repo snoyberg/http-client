@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.18
+
+* Add the `managerSetMaxNumberHeaders` function to the `Client` module to configure `managerMaxNumberHeaders` in `ManagerSettings`.
+
 ## 0.7.17
 
 * Add `managerSetMaxHeaderLength` to `Client` to change `ManagerSettings` `MaxHeaderLength`.

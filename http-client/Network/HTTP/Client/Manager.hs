@@ -93,6 +93,7 @@ defaultManagerSettings = ManagerSettings
     , managerProxyInsecure = defaultProxy
     , managerProxySecure = defaultProxy
     , managerMaxHeaderLength = Just $ MaxHeaderLength 4096
+    , managerMaxNumberHeaders = Just $ MaxNumberHeaders 100
     }
 
 -- | Create a 'Manager'. The @Manager@ will be shut down automatically via
@@ -133,6 +134,7 @@ newManager ms = do
                     then httpsProxy req
                     else httpProxy req
             , mMaxHeaderLength = managerMaxHeaderLength ms
+            , mMaxNumberHeaders = managerMaxNumberHeaders ms
             }
     return manager
 
@@ -259,7 +261,9 @@ mkCreateConnection ms = do
                     , "\r\n"
                     ]
                 parse conn = do
-                    StatusHeaders status _ _ _ <- parseStatusHeaders (managerMaxHeaderLength ms) conn Nothing (\_ -> return ()) Nothing
+                    let mhl = managerMaxHeaderLength ms
+                        mnh = managerMaxNumberHeaders ms
+                    StatusHeaders status _ _ _ <- parseStatusHeaders mhl mnh conn Nothing (\_ -> return ()) Nothing
                     unless (status == status200) $
                         throwHttp $ ProxyConnectException ultHost ultPort status
                 in tlsProxyConnection

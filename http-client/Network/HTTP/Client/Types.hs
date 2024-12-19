@@ -1,8 +1,9 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE DeriveTraversable #-}
-{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE RankNTypes #-}
 module Network.HTTP.Client.Types
     ( BodyReader
     , Connection (..)
@@ -39,6 +40,7 @@ module Network.HTTP.Client.Types
     , ResponseTimeout (..)
     , ProxySecureMode (..)
     , MaxHeaderLength (..)
+    , MaxNumberHeaders (..)
     ) where
 
 import qualified Data.Typeable as T (Typeable)
@@ -147,12 +149,14 @@ data HttpExceptionContent
                    --
                    -- @since 0.5.0
                    | OverlongHeaders
-                   -- ^ Either too many headers, or too many total bytes in a
-                   -- single header, were returned by the server, and the
-                   -- memory exhaustion protection in this library has kicked
-                   -- in.
+                   -- ^ Too many total bytes in the HTTP header were returned
+                   -- by the server.
                    --
                    -- @since 0.5.0
+                   | TooManyHeaderFields
+                   -- ^ Too many HTTP header fields were returned by the server.
+                   --
+                   -- @since 0.7.18
                    | ResponseTimeout
                    -- ^ The server took too long to return a response. This can
                    -- be altered via 'responseTimeout' or
@@ -821,6 +825,17 @@ data ManagerSettings = ManagerSettings
     --
     -- Since 0.4.7
     , managerMaxHeaderLength :: Maybe MaxHeaderLength
+    -- ^ Configure the maximum size, in bytes, of an HTTP header field.
+    --
+    -- Default: 4096
+    --
+    -- @since 0.7.17
+    , managerMaxNumberHeaders :: Maybe MaxNumberHeaders
+    -- ^ Configure the maximum number of HTTP header fields.
+    --
+    -- Default: 100
+    --
+    -- @since 0.7.18
     }
     deriving T.Typeable
 
@@ -845,9 +860,10 @@ data Manager = Manager
     , mWrapException :: forall a. Request -> IO a -> IO a
     , mModifyRequest :: Request -> IO Request
     , mSetProxy :: Request -> Request
-    , mModifyResponse      :: Response BodyReader -> IO (Response BodyReader)
+    , mModifyResponse :: Response BodyReader -> IO (Response BodyReader)
     -- ^ See 'managerProxy'
     , mMaxHeaderLength :: Maybe MaxHeaderLength
+    , mMaxNumberHeaders :: Maybe MaxNumberHeaders
     }
     deriving T.Typeable
 
@@ -906,4 +922,12 @@ data StreamFileStatus = StreamFileStatus
 newtype MaxHeaderLength = MaxHeaderLength
     { unMaxHeaderLength :: Int
     }
-    deriving (Eq, Show)
+    deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)
+
+-- | The maximum number of header fields.
+--
+-- @since 0.7.18
+newtype MaxNumberHeaders = MaxNumberHeaders
+    { unMaxNumberHeaders :: Int
+    }
+    deriving (Eq, Show, Ord, Num, Enum, Bounded, T.Typeable)

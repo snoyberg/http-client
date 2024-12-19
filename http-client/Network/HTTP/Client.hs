@@ -113,6 +113,7 @@ module Network.HTTP.Client
     , managerSetInsecureProxy
     , managerSetSecureProxy
     , managerSetMaxHeaderLength
+    , managerSetMaxNumberHeaders
     , ProxyOverride
     , proxyFromRequest
     , noProxy
@@ -325,6 +326,11 @@ managerSetProxy po = managerSetInsecureProxy po . managerSetSecureProxy po
 managerSetMaxHeaderLength :: Int -> ManagerSettings -> ManagerSettings
 managerSetMaxHeaderLength l manager = manager
     { managerMaxHeaderLength = Just $ MaxHeaderLength l }
+
+-- @since 0.7.18
+managerSetMaxNumberHeaders :: Int -> ManagerSettings -> ManagerSettings
+managerSetMaxNumberHeaders n manager = manager
+    { managerMaxNumberHeaders = Just $ MaxNumberHeaders n }
 
 -- $example1
 -- = Example Usage
