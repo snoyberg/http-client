@@ -94,6 +94,19 @@ httpRaw' req0 m = do
             now <- getCurrentTime
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
         Nothing -> return (req', Data.Monoid.mempty)
+    res <- makeRequest req m
+    case cookieJar req' of
+        Just _ -> do
+            now' <- getCurrentTime
+            let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
+            return (req, res {responseCookieJar = cookie_jar})
+        Nothing -> return (req, res)
+
+makeRequest
+     :: Request
+     -> Manager
+     -> IO (Response BodyReader)
+makeRequest req m = do
     (timeout', mconn) <- getConnectionWrapper
         (responseTimeout' req)
         (getConn req m)
@@ -111,7 +124,7 @@ httpRaw' req0 m = do
         -- Connection was reused, and might have been closed. Try again
         Left e | managedReused mconn && mRetryableException m e -> do
             managedRelease mconn DontReuse
-            httpRaw' req m
+            makeRequest req m
         -- Not reused, or a non-retry, so this is a real exception
         Left e -> do
           -- Explicitly release connection for all real exceptions:
@@ -120,12 +133,7 @@ httpRaw' req0 m = do
           throwIO e
         -- Everything went ok, so the connection is good. If any exceptions get
         -- thrown in the response body, just throw them as normal.
-        Right res -> case cookieJar req' of
-            Just _ -> do
-                now' <- getCurrentTime
-                let (cookie_jar, _) = updateCookieJar res req now' cookie_jar'
-                return (req, res {responseCookieJar = cookie_jar})
-            Nothing -> return (req, res)
+        Right res -> return res
   where
     getConnectionWrapper mtimeout f =
         case mtimeout of
