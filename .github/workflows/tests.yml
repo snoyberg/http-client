@@ -19,6 +19,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - run: stack test --resolver nightly --haddock --no-haddock-deps --lock-file read-write --dry-run
+      - uses: actions/cache@v4
+        with:
+          path: ~/.stack
+          key: ${{ runner.os }}-${{ hashFiles('stack.yaml.lock') }}
       - run: stack test --resolver nightly --haddock --no-haddock-deps
 
   build:
