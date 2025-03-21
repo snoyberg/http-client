@@ -97,8 +97,7 @@ httpRaw' req0 m = do
             now <- getCurrentTime
             return $ insertCookiesIntoRequest req' (evictExpiredCookies cj now) now
         Nothing -> return (req', Data.Monoid.mempty)
-    action <- readIORef requestAction
-    res <- action req m
+    res <- makeRequest req m
     case cookieJar req' of
         Just _ -> do
             now' <- getCurrentTime
@@ -106,70 +105,78 @@ httpRaw' req0 m = do
             return (req, res {responseCookieJar = cookie_jar})
         Nothing -> return (req, res)
 
+makeRequest
+    :: Request
+    -> Manager
+    -> IO (Response BodyReader)
+makeRequest req m = do
+    action <- readIORef requestAction
+    action req m
+
 requestAction :: IORef (Request -> Manager -> IO (Response BodyReader))
 {-# NOINLINE requestAction #-}
-requestAction = unsafePerformIO (newIORef makeRequest)
-
-makeRequest
-     :: Request
-     -> Manager
-     -> IO (Response BodyReader)
-makeRequest req m = do
-    (timeout', mconn) <- getConnectionWrapper
-        (responseTimeout' req)
-        (getConn req m)
-
-    -- Originally, we would only test for exceptions when sending the request,
-    -- not on calling @getResponse@. However, some servers seem to close
-    -- connections after accepting the request headers, so we need to check for
-    -- exceptions in both.
-    ex <- try $ do
-        cont <- requestBuilder (dropProxyAuthSecure req) (managedResource mconn)
-
-        getResponse (mMaxHeaderLength m) (mMaxNumberHeaders m) timeout' req mconn cont
-
-    case ex of
-        -- Connection was reused, and might have been closed. Try again
-        Left e | managedReused mconn && mRetryableException m e -> do
-            managedRelease mconn DontReuse
-            makeRequest req m
-        -- Not reused, or a non-retry, so this is a real exception
-        Left e -> do
-          -- Explicitly release connection for all real exceptions:
-          -- https://github.com/snoyberg/http-client/pull/454
-          managedRelease mconn DontReuse
-          throwIO e
-        -- Everything went ok, so the connection is good. If any exceptions get
-        -- thrown in the response body, just throw them as normal.
-        Right res -> return res
+requestAction = unsafePerformIO (newIORef action)
   where
-    getConnectionWrapper mtimeout f =
-        case mtimeout of
-            Nothing -> fmap ((,) Nothing) f
-            Just timeout' -> do
-                before <- getCurrentTime
-                mres <- timeout timeout' f
-                case mres of
-                     Nothing -> throwHttp ConnectionTimeout
-                     Just mConn -> do
-                         now <- getCurrentTime
-                         let timeSpentMicro = diffUTCTime now before * 1000000
-                             remainingTime = round $ fromIntegral timeout' - timeSpentMicro
-                         if remainingTime <= 0
-                             then do
-                                 managedRelease mConn DontReuse
-                                 throwHttp ConnectionTimeout
-                             else return (Just remainingTime, mConn)
+    action
+        :: Request
+        -> Manager
+        -> IO (Response BodyReader)
+    action req m = do
+        (timeout', mconn) <- getConnectionWrapper
+            (responseTimeout' req)
+            (getConn req m)
 
-    responseTimeout' req =
-        case responseTimeout req of
-            ResponseTimeoutDefault ->
-                case mResponseTimeout m of
-                    ResponseTimeoutDefault -> Just 30000000
-                    ResponseTimeoutNone -> Nothing
-                    ResponseTimeoutMicro u -> Just u
-            ResponseTimeoutNone -> Nothing
-            ResponseTimeoutMicro u -> Just u
+        -- Originally, we would only test for exceptions when sending the request,
+        -- not on calling @getResponse@. However, some servers seem to close
+        -- connections after accepting the request headers, so we need to check for
+        -- exceptions in both.
+        ex <- try $ do
+            cont <- requestBuilder (dropProxyAuthSecure req) (managedResource mconn)
+
+            getResponse (mMaxHeaderLength m) (mMaxNumberHeaders m) timeout' req mconn cont
+
+        case ex of
+            -- Connection was reused, and might have been closed. Try again
+            Left e | managedReused mconn && mRetryableException m e -> do
+                managedRelease mconn DontReuse
+                action req m
+            -- Not reused, or a non-retry, so this is a real exception
+            Left e -> do
+              -- Explicitly release connection for all real exceptions:
+              -- https://github.com/snoyberg/http-client/pull/454
+              managedRelease mconn DontReuse
+              throwIO e
+            -- Everything went ok, so the connection is good. If any exceptions get
+            -- thrown in the response body, just throw them as normal.
+            Right res -> return res
+      where
+        getConnectionWrapper mtimeout f =
+            case mtimeout of
+                Nothing -> fmap ((,) Nothing) f
+                Just timeout' -> do
+                    before <- getCurrentTime
+                    mres <- timeout timeout' f
+                    case mres of
+                        Nothing -> throwHttp ConnectionTimeout
+                        Just mConn -> do
+                            now <- getCurrentTime
+                            let timeSpentMicro = diffUTCTime now before * 1000000
+                                remainingTime = round $ fromIntegral timeout' - timeSpentMicro
+                            if remainingTime <= 0
+                                then do
+                                    managedRelease mConn DontReuse
+                                    throwHttp ConnectionTimeout
+                                else return (Just remainingTime, mConn)
+
+        responseTimeout' req =
+            case responseTimeout req of
+                ResponseTimeoutDefault ->
+                    case mResponseTimeout m of
+                        ResponseTimeoutDefault -> Just 30000000
+                        ResponseTimeoutNone -> Nothing
+                        ResponseTimeoutMicro u -> Just u
+                ResponseTimeoutNone -> Nothing
+                ResponseTimeoutMicro u -> Just u
 
 -- | The used Manager can be overridden (by requestManagerOverride) and the used
 -- Request can be modified (through managerModifyRequest). This function allows
