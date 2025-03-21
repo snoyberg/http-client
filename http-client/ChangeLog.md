@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.19
+
+* Make mockable via `Network.HTTP.Client.Internal.requestAction` [#554](https://github.com/snoyberg/http-client/pull/554)
+
 ## 0.7.18
 
 * Add the `managerSetMaxNumberHeaders` function to the `Client` module to configure `managerMaxNumberHeaders` in `ManagerSettings`.
