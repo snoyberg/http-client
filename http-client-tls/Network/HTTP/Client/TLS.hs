@@ -56,7 +56,7 @@ import qualified Network.URI as U
 mkManagerSettings :: NC.TLSSettings
                   -> Maybe NC.SockSettings
                   -> ManagerSettings
-mkManagerSettings = mkManagerSettingsContext Nothing
+mkManagerSettings = mkManagerSettingsContext (Just globalContext)
 
 -- | Same as 'mkManagerSettings', but also takes an optional
 -- 'NC.ConnectionContext'. Providing this externally can be an
@@ -116,6 +116,10 @@ mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
 -- | Default TLS-enabled manager settings
 tlsManagerSettings :: ManagerSettings
 tlsManagerSettings = mkManagerSettings def Nothing
+
+globalContext :: NC.ConnectionContext
+globalContext = unsafePerformIO NC.initConnectionContext
+{-# NOINLINE globalContext #-}
 
 getTlsConnection :: Maybe NC.ConnectionContext
                  -> Maybe NC.TLSSettings
