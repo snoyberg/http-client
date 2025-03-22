@@ -113,6 +113,13 @@ makeRequest req m = do
     action <- readIORef requestAction
     action req m
 
+-- | This action is used by `httpRaw'` to perform the actual request.
+--
+-- Testing and mocking frameworks can modify the `IORef` to intercept requests.
+--
+-- You do not normally want to touch this!
+--
+-- Since 0.7.19
 requestAction :: IORef (Request -> Manager -> IO (Response BodyReader))
 {-# NOINLINE requestAction #-}
 requestAction = unsafePerformIO (newIORef action)
