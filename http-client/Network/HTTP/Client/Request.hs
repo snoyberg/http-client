@@ -130,6 +130,8 @@ throwErrorStatusCodes req res = do
 --
 -- A 'Request' created by this function won't cause exceptions on non-2XX
 -- response status codes.
+-- 
+-- The URI string will be escaped, and should not be URI escaped.
 --
 -- To create a request which throws on non-2XX status codes, see 'parseUrlThrow'
 --
