@@ -21,7 +21,7 @@ library
                      , http-client >= 0.7.11
                      , crypton-connection
                      , network
-                     , tls >= 1.2
+                     , tls >= 2.1.2
                      , bytestring
                      , case-insensitive
                      , transformers
