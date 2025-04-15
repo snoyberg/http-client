@@ -97,7 +97,13 @@ mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
                 | ((fromException e)::(Maybe TLS.TLSError))==Just TLS.Error_EOF -> True
 #endif
                 | otherwise -> managerRetryableException defaultManagerSettings e
-    , managerWrapException = \req ->
+    -- NOTE: mkManagerSettingsContext' is applied multiple times. The assumption
+    -- may have been that this is idempotent in nature. This change of using the
+    -- previous manager setting breaks idempotency as a side-effect this
+    -- function wraps the handler multiple times around an action. This might
+    -- have some inadvertent side effects. Fixing this in a cleaner way will
+    -- require some effort.
+    , managerWrapException = \req act ->
         let wrapper se
               | Just (_ :: IOException)          <- fromException se = se'
               | Just (_ :: TLS.TLSException)     <- fromException se = se'
@@ -110,7 +116,7 @@ mkManagerSettingsContext' set mcontext tls sockHTTP sockHTTPS = set
               | otherwise = se
               where
                 se' = toException $ HttpExceptionRequest req $ InternalException se
-         in handle $ throwIO . wrapper
+         in handle (throwIO . wrapper) (managerWrapException set req act)
     }
 
 -- | Default TLS-enabled manager settings
