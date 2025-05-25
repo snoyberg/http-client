@@ -115,7 +115,10 @@ makeConnection r w c = do
     return $! Connection
         { connectionRead = do
             closed <- readIORef closedVar
-            when closed $ throwHttp ConnectionClosed
+            when closed $ do
+              v <- readIORef istack
+              -- When the stack is empty and the connection is closed, throw an exception.
+              when (v == []) $ throwHttp ConnectionClosed
             join $ atomicModifyIORef istack $ \stack ->
               case stack of
                   x:xs -> (xs, return x)
