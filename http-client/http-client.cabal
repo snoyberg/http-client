@@ -56,7 +56,6 @@ library
                      , random
                      , filepath
                      , mime-types
-                     , ghc-prim
                      , stm               >= 2.3
                      , iproute           >= 1.7.5
                      , async             >= 2.0
