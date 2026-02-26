@@ -1,5 +1,9 @@
 # Changelog for http-client
 
+## 0.7.20
+
+* Fix connectionRead in makeConnection to flush all stacks and throw connectionClosed afterwards.
+
 ## 0.7.19
 
 * Make mockable via `Network.HTTP.Client.Internal.requestAction` [#554](https://github.com/snoyberg/http-client/pull/554)
