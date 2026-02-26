@@ -223,15 +223,15 @@ insertCheckedCookie :: Cookie    -- ^ The 'SetCookie' the cookie jar is receivin
                     -> Bool      -- ^ Whether or not this request is coming from an \"http\" source (not javascript or anything like that)
                     -> CookieJar -- ^ Updated (or not) cookie jar
 insertCheckedCookie c cookie_jar is_http_api = case (do
-  (cookie_jar', cookie') <- existanceTest c cookie_jar
+  (cookie_jar', cookie') <- existenceTest c cookie_jar
   return $ insertIntoCookieJar cookie' cookie_jar') of
   Just cj -> cj
   Nothing -> cookie_jar
-  where existanceTest cookie cookie_jar' = existanceTestHelper cookie $ removeExistingCookieFromCookieJar cookie cookie_jar'
-        existanceTestHelper new_cookie (Just old_cookie, cookie_jar')
+  where existenceTest cookie cookie_jar' = existenceTestHelper cookie $ removeExistingCookieFromCookieJar cookie cookie_jar'
+        existenceTestHelper new_cookie (Just old_cookie, cookie_jar')
           | not is_http_api && cookie_http_only old_cookie = Nothing
           | otherwise = return (cookie_jar', new_cookie {cookie_creation_time = cookie_creation_time old_cookie})
-        existanceTestHelper new_cookie (Nothing, cookie_jar') = return (cookie_jar', new_cookie)
+        existenceTestHelper new_cookie (Nothing, cookie_jar') = return (cookie_jar', new_cookie)
 
 -- | Turn a SetCookie into a Cookie, if it is valid
 generateCookie :: SetCookie      -- ^ The 'SetCookie' we are encountering

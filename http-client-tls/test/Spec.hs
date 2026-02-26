@@ -16,7 +16,7 @@ main = hspec $ do
     -- the `supportedExtendedMainSecret` parameter `is `RequireEMS`, this means
     -- that all the connections to a server not supporting TLS1.2+EMS will fail.
     -- The badssl.com service does not yet support TLS1.2+EMS connections, so
-    -- let's switch to the value `AllowEMS`, ie: TLS1.2 conenctions without EMS.
+    -- let's switch to the value `AllowEMS`, ie: TLS1.2 connections without EMS.
 #if MIN_VERSION_crypton_connection(0,4,0)
             {settingClientSupported = def {TLS.supportedExtendedMainSecret = TLS.AllowEMS}}
 #endif
