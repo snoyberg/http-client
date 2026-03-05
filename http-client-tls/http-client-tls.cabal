@@ -27,7 +27,7 @@ library
                      , transformers
                      , http-types
                      , crypton
-                     , memory
+                     , ram
                      , exceptions
                      , containers
                      , text
