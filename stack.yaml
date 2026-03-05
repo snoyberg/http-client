@@ -1,4 +1,4 @@
-resolver: nightly-2025-03-20
+snapshot: lts-24.33 # GHC 9.10.3
 packages:
 - http-client
 - http-client-tls
