@@ -22,7 +22,7 @@
 
 ## 0.2.1.1
 
-* Fix a connection-bug with http-proxy(Previous version closes a connection before reading all respose-data.)
+* Fix a connection-bug with http-proxy(Previous version closes a connection before reading all response-data.)
 
 ## 0.2.1.0
 
