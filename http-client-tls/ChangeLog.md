@@ -1,5 +1,10 @@
 # Changelog for http-client-tls
 
+## 0.4.0
+
+* For MD5 hashes in Base16 format, depend on packages `cryptohash-md5` and
+  `base16` rather than `crypton` and `memory` (the latter is unmaintained).
+
 ## 0.3.6.4
 
 * data-default-class -> data-default [#546](https://github.com/snoyberg/http-client/pull/546/files)
