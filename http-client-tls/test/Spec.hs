@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE OverloadedStrings #-}
+
+import Data.IORef (newIORef, readIORef, modifyIORef')
 import Test.Hspec
 import Network.Connection
 import Network.HTTP.Client
@@ -85,3 +87,14 @@ main = hspec $ do
         request <- parseRequest "https://httpbin.org"
         response <- httpNoBody request manager
         responseStatus response `shouldBe` status200
+
+    it "propagates input manager settings" $ do
+        ref <- newIORef 0
+        let
+          tlsManagerSettings' = tlsManagerSettings
+            { managerWrapException = \_ act -> modifyIORef' ref (+1) >> act
+            }
+        manager <- newTlsManagerWith tlsManagerSettings'
+        request <- parseRequest "https://httpbin.org"
+        _ <- httpNoBody request manager
+        readIORef ref `shouldReturn` 1
