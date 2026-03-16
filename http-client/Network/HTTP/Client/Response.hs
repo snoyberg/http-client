@@ -175,7 +175,7 @@ hasNoBody _ 204 = True
 hasNoBody _ 304 = True
 hasNoBody _ i = 100 <= i && i < 200
 
--- | Retrieve the orignal 'Request' from a 'Response'
+-- | Retrieve the original 'Request' from a 'Response'
 --
 -- Note that the 'requestBody' is not available and always set to empty.
 --

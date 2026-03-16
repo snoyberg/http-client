@@ -118,11 +118,11 @@ headJust (Nothing:xs)     = headJust xs
 headJust ((y@(Just _)):_) = y
 
 systemProxyHelper :: Maybe T.Text -> ProxyProtocol -> EnvHelper -> IO (Request -> Request)
-systemProxyHelper envOveride prot eh = do
+systemProxyHelper envOverride prot eh = do
     let envName' Nothing     = envName prot
         envName' (Just name) = name
 
-    modifier <- envHelper (envName' envOveride)
+    modifier <- envHelper (envName' envOverride)
 
 -- Under Windows try first env. variables override then Windows proxy settings
 #if defined(mingw32_HOST_OS)
