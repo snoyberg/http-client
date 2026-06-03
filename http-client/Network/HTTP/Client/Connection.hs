@@ -47,7 +47,7 @@ connectionReadLineMaybe mhl conn = go id 0
         case S.break (== charLF) bs of
             ("", "") -> pure Nothing -- read returned empty, so EOF
             (x, rest) -> do
-                let total' = total + S.length bs
+                let total' = total + S.length x
                 case fmap unMaxHeaderLength mhl of -- check for length limit
                     Nothing -> pure ()
                     Just n -> when (total' > n) $ throwHttp OverlongHeaders
