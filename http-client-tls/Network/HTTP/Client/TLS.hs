@@ -124,15 +124,18 @@ getTlsConnection :: Maybe NC.ConnectionContext
                  -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
-    return $ \_ha host port -> bracketOnError
-        (NC.connectTo context NC.ConnectionParams
-            { NC.connectionHostname = strippedHostName host
-            , NC.connectionPort = fromIntegral port
-            , NC.connectionUseSecure = tls
-            , NC.connectionUseSocks = sock
-            })
-        NC.connectionClose
-        convertConnection
+    return $ \ha host port -> do
+        let params = NC.ConnectionParams
+              { NC.connectionHostname = strippedHostName host
+              , NC.connectionPort = fromIntegral port
+              , NC.connectionUseSecure = tls
+              , NC.connectionUseSocks = sock
+              }
+        withSocket (const $ pure ()) ha host port $ \socket -> do
+            -- This block is exception-safe thanks to withSocket.
+            -- We won't send TLS bye in case of exception, but that's OK
+            conn <- NC.connectFromSocket context socket params
+            convertConnection conn
 
 getTlsProxyConnection
     :: Maybe NC.ConnectionContext
@@ -141,18 +144,21 @@ getTlsProxyConnection
     -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsProxyConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
-    return $ \connstr checkConn serverName _ha host port -> bracketOnError
-        (NC.connectTo context NC.ConnectionParams
-            { NC.connectionHostname = strippedHostName serverName
-            , NC.connectionPort = fromIntegral port
-            , NC.connectionUseSecure = Nothing
-            , NC.connectionUseSocks =
-                case sock of
-                    Just _ -> error "Cannot use SOCKS and TLS proxying together"
-                    Nothing -> Just $ NC.OtherProxy (strippedHostName host) $ fromIntegral port
-            })
-        NC.connectionClose
-        $ \conn -> do
+    return $ \connstr checkConn serverName ha host port -> do
+        let params = NC.ConnectionParams
+              { NC.connectionHostname = strippedHostName serverName
+              , NC.connectionPort = fromIntegral port
+              , NC.connectionUseSecure = Nothing
+              , NC.connectionUseSocks =
+                  case sock of
+                      Just _ -> error "Cannot use SOCKS and TLS proxying together"
+                      Nothing -> Just $ NC.OtherProxy (strippedHostName host)
+                          $ fromIntegral port
+              }
+        withSocket (const $ pure ()) ha host port $ \socket -> do
+            -- This block is exception-safe thanks to withSocket.
+            -- We won't send TLS bye in case of exception, but that's OK
+            conn <- NC.connectFromSocket context socket params
             NC.connectionPut conn connstr
             conn' <- convertConnection conn
 
