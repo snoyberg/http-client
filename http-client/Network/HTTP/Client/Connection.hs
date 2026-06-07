@@ -3,7 +3,7 @@
 {-# LANGUAGE ViewPatterns #-}
 module Network.HTTP.Client.Connection
     ( connectionReadLine
-    , connectionReadLineWith
+    , connectionReadLineMaybe
     , connectionDropTillBlankLine
     , connectionUnreadLine
     , dummyConnection
@@ -33,33 +33,40 @@ import Data.Word (Word8)
 
 connectionReadLine :: Maybe MaxHeaderLength -> Connection -> IO ByteString
 connectionReadLine mhl conn = do
-    bs <- connectionRead conn
-    when (S.null bs) $ throwHttp IncompleteHeaders
-    connectionReadLineWith mhl conn bs
+    mbs <- connectionReadLineMaybe mhl conn
+    case mbs of
+        Nothing -> throwHttp IncompleteHeaders
+        Just bs -> pure bs
+
+-- | Return a line or Nothing if EOF is reached.
+connectionReadLineMaybe :: Maybe MaxHeaderLength -> Connection -> IO (Maybe ByteString)
+connectionReadLineMaybe mhl conn = go id 0
+  where
+    go front total = do
+        bs <- connectionRead conn
+        case S.break (== charLF) bs of
+            ("", "") -> pure Nothing -- read returned empty, so EOF
+            (x, rest) -> do
+                let total' = total + S.length x
+                case fmap unMaxHeaderLength mhl of -- check for length limit
+                    Nothing -> pure ()
+                    Just n -> when (total' > n) $ throwHttp OverlongHeaders
+                if S.null rest
+                    then -- no LF so keep going
+                        go (front . (bs :)) total'
+                    else do
+                        -- put back everything after LF
+                        let
+                            rest' = S.drop 1 rest
+                        unless (S.null rest') $ connectionUnread conn rest'
+                        -- compose final result
+                        pure $! Just $! killCR $! S.concat $! front [x]
 
 -- | Keep dropping input until a blank line is found.
 connectionDropTillBlankLine :: Maybe MaxHeaderLength -> Connection -> IO ()
 connectionDropTillBlankLine mhl conn = fix $ \loop -> do
     bs <- connectionReadLine mhl conn
     unless (S.null bs) loop
-
-connectionReadLineWith :: Maybe MaxHeaderLength -> Connection -> ByteString -> IO ByteString
-connectionReadLineWith mhl conn bs0 =
-    go bs0 id 0
-  where
-    go bs front total =
-        case S.break (== charLF) bs of
-            (_, "") -> do
-                let total' = total + S.length bs
-                case fmap unMaxHeaderLength mhl of
-                    Nothing -> pure ()
-                    Just n -> when (total' > n) $ throwHttp OverlongHeaders
-                bs' <- connectionRead conn
-                when (S.null bs') $ throwHttp IncompleteHeaders
-                go bs' (front . (bs:)) total'
-            (x, S.drop 1 -> y) -> do
-                unless (S.null y) $! connectionUnread conn y
-                return $! killCR $! S.concat $! front [x]
 
 connectionUnreadLine :: Connection -> ByteString -> IO ()
 connectionUnreadLine conn line = do

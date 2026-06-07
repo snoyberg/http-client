@@ -64,9 +64,10 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
     nextStatusLine mhl = do
         -- Ensure that there is some data coming in. If not, we want to signal
         -- this as a connection problem and not a protocol problem.
-        bs <- connectionRead conn
-        when (S.null bs) $ throwHttp NoResponseDataReceived
-        connectionReadLineWith mhl conn bs >>= parseStatus mhl 3
+        mbs <- connectionReadLineMaybe mhl conn
+        case mbs of
+            Nothing -> throwHttp NoResponseDataReceived
+            Just bs -> parseStatus mhl 3 bs
 
     parseStatus :: Maybe MaxHeaderLength -> Int -> S.ByteString -> IO (Status, HttpVersion)
     parseStatus mhl i bs | S.null bs && i > 0 = connectionReadLine mhl conn >>= parseStatus mhl (i - 1)

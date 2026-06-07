@@ -326,7 +326,7 @@ main = do
             manager <- newManager tlsManagerSettings
             eres <- try $ httpLbs req manager
             liftIO $ either (Left . (show :: HttpException -> String)) (Right . id) eres
-             `shouldBe` Left (show (HttpExceptionRequest req IncompleteHeaders))
+             `shouldBe` Left (show (HttpExceptionRequest req InvalidChunkHeaders))
         it "incomplete chunk" $ wrongLengthChunk2 $ \port -> do
             req <- parseUrlThrow $ "http://127.0.0.1:" ++ show port
             manager <- newManager tlsManagerSettings

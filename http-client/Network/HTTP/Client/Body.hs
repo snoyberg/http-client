@@ -202,11 +202,11 @@ makeChunkedReader mhl cleanup raw conn@Connection {..} = do
           | otherwise = return (x, 0)
 
     requireNewline = do
-        bs <- connectionReadLine mhl conn
+        bs <- readLine
         unless (S.null bs) $ throwHttp InvalidChunkHeaders
 
     readHeader = do
-        bs <- connectionReadLine mhl conn
+        bs <- readLine
         case parseHex bs of
             Nothing -> throwHttp InvalidChunkHeaders
             Just hex -> return (bs `S.append` "\r\n", hex)
@@ -229,9 +229,15 @@ makeChunkedReader mhl cleanup raw conn@Connection {..} = do
         | otherwise = Nothing
 
     readTrailersRaw = do
-        bs <- connectionReadLine mhl conn
+        bs <- readLine
         if S.null bs
         then pure "\r\n"
         else (bs `S.append` "\r\n" `S.append`) <$> readTrailersRaw
 
     consumeTrailers = connectionDropTillBlankLine mhl conn
+
+    readLine = do
+        mbs <- connectionReadLineMaybe mhl conn
+        case mbs of
+            Nothing -> throwHttp InvalidChunkHeaders
+            Just bs -> pure bs
