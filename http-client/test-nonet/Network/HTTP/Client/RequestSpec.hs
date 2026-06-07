@@ -158,4 +158,3 @@ spec = do
                 case xs of
                     (x:xs') -> (xs', x)
                     [] -> ([], "")
- 

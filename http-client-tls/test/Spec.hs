@@ -25,7 +25,7 @@ main = hspec $ do
 
     it "make a TLS connection" $ do
         manager <- newManager tlsManagerSettings
-        withResponse "https://httpbin.org/status/418" manager $ \res ->
+        withResponse "https://httpcan.org/status/418" manager $ \res ->
             responseStatus res `shouldBe` status418
 
     it "digest authentication" $ do
@@ -33,14 +33,14 @@ main = hspec $ do
         req <- join $ applyDigestAuth
             "user"
             "passwd"
-            "http://httpbin.org/digest-auth/qop/user/passwd"
+            "http://httpcan.org/digest-auth/auth/user/passwd"
             man
         response <- httpNoBody req man
         responseStatus response `shouldBe` status200
 
     it "incorrect digest authentication" $ do
         man <- newManager defaultManagerSettings
-        join (applyDigestAuth "user" "passwd" "http://httpbin.org/" man)
+        join (applyDigestAuth "user" "passwd" "http://httpcan.org/" man)
             `shouldThrow` \(DigestAuthException _ _ det) ->
                 det == UnexpectedStatusCode
 
@@ -82,6 +82,6 @@ main = hspec $ do
 
     it "global supports TLS" $ do
         manager <- getGlobalManager
-        request <- parseRequest "https://httpbin.org"
+        request <- parseRequest "https://httpcan.org"
         response <- httpNoBody request manager
         responseStatus response `shouldBe` status200
