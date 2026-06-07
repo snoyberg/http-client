@@ -125,14 +125,14 @@ getTlsConnection :: Maybe NC.ConnectionContext
                  -> IO (Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
-    return $ \_ha host port -> do
+    return $ \ha host port -> do
         let params = NC.ConnectionParams
               { NC.connectionHostname = strippedHostName host
               , NC.connectionPort = fromIntegral port
               , NC.connectionUseSecure = tls
               , NC.connectionUseSocks = sock
               }
-        withConnection context params
+        withConnection context params ha host port
             convertConnection
 
 getTlsProxyConnection
@@ -142,7 +142,7 @@ getTlsProxyConnection
     -> IO (S.ByteString -> (Connection -> IO ()) -> String -> Maybe HostAddress -> String -> Int -> IO Connection)
 getTlsProxyConnection mcontext tls sock = do
     context <- maybe NC.initConnectionContext return mcontext
-    return $ \connstr checkConn serverName _ha host port -> do
+    return $ \connstr checkConn serverName ha host port -> do
         let params = NC.ConnectionParams
               { NC.connectionHostname = strippedHostName serverName
               , NC.connectionPort = fromIntegral port
@@ -152,7 +152,7 @@ getTlsProxyConnection mcontext tls sock = do
                       Just _ -> error "Cannot use SOCKS and TLS proxying together"
                       Nothing -> Just $ NC.OtherProxy (strippedHostName host) $ fromIntegral port
               }
-        withConnection context params $ \conn -> do
+        withConnection context params ha host port $ \conn -> do
             NC.connectionPut conn connstr
             conn' <- convertConnection conn
 
@@ -162,8 +162,9 @@ getTlsProxyConnection mcontext tls sock = do
 
             return conn'
 
-withConnection :: NC.ConnectionContext -> NC.ConnectionParams -> (NC.Connection -> IO a) -> IO a
-withConnection context params = bracketOnError (NC.connectTo context params) NC.connectionClose
+withConnection :: NC.ConnectionContext -> NC.ConnectionParams -> Maybe HostAddress -> String -> Int -> (NC.Connection -> IO a) -> IO a
+withConnection context params ha host port action = withSocket (const $ pure ()) ha host port $ \socket -> do
+  NC.connectFromSocket context socket params >>= action
 
 convertConnection :: NC.Connection -> IO Connection
 convertConnection conn = makeConnection
