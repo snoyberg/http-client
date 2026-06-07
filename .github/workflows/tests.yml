@@ -7,11 +7,11 @@ concurrency:
 on:
   push:
     branches:
-      - master
+      - main
       - ci
   pull_request:
     branches:
-      - master
+      - main
   schedule:
     - cron: 0 0 * * *
 
