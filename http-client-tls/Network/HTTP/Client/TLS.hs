@@ -132,8 +132,6 @@ getTlsConnection mcontext tls sock = do
               , NC.connectionUseSocks = sock
               }
         withSocket (const $ pure ()) ha host port $ \socket -> do
-            -- This block is exception-safe thanks to withSocket.
-            -- We won't send TLS bye in case of exception, but that's OK
             conn <- NC.connectFromSocket context socket params
             convertConnection conn
 
@@ -156,8 +154,6 @@ getTlsProxyConnection mcontext tls sock = do
                           $ fromIntegral port
               }
         withSocket (const $ pure ()) ha host port $ \socket -> do
-            -- This block is exception-safe thanks to withSocket.
-            -- We won't send TLS bye in case of exception, but that's OK
             conn <- NC.connectFromSocket context socket params
             NC.connectionPut conn connstr
             conn' <- convertConnection conn
