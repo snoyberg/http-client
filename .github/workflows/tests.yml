@@ -19,7 +19,7 @@ jobs:
   stack:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - run: stack dot --global-hints --resolver nightly --lock-file read-write
       - uses: actions/cache@v4
         with:
@@ -47,14 +47,27 @@ jobs:
           - '9.12'
         include:
           - os: macos-latest
-            ghc: system
+            ghc: '9.12'
           - os: windows-latest
-            ghc: system
+            ghc: '9.12'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - uses: hspec/setup-haskell@v1
         with:
           ghc-version: ${{ matrix.ghc }}
       - uses: sol/run-haskell-tests@v2
         with:
           caching: true
+
+  success:
+    needs: build
+    runs-on: ubuntu-latest
+    if: always() # this is required as GitHub considers "skipped" jobs as "passed" when checking branch protection rules
+
+    steps:
+      - run: false
+        if: needs.build.result != 'success'
+
+      - uses: actions/checkout@v6
+      - name: Check for trailing whitespace
+        run: '! git grep -I "\s\+$"'
