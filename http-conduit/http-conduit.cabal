@@ -58,7 +58,7 @@ test-suite test
     type: exitcode-stdio-1.0
     hs-source-dirs: test
 
-    ghc-options:   -Wall
+    ghc-options:   -Wall -threaded
     cpp-options:   -DDEBUG
     build-depends: base >= 4 && < 5
                  , HUnit
@@ -68,7 +68,7 @@ test-suite test
                  , warp-tls
                  , tls < 1.5 || >= 1.5.2
                  , time
-                 , time-manager < 0.3
+                 , time-manager
                  , blaze-builder
                  , bytestring
                  , text
@@ -77,7 +77,7 @@ test-suite test
                  , utf8-string
                  , case-insensitive
                  , unliftio
-                 , wai >= 3.0 && < 3.3
+                 , wai >= 3.0
                  , warp >= 3.0.0.2
                  , wai-conduit
                  , http-types
