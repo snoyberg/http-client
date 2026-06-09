@@ -32,7 +32,8 @@ jobs:
       - uses: hspec/setup-haskell@v1
         with:
           ghc-version: ${{ matrix.ghc }}
-      - run: sudo apt install httpbin
+      - run: sudo apt-get update  
+      - run: sudo apt-get install httpbin
       - run: which httpbin
       - run: httpbin
       - uses: sol/run-haskell-tests@v2
