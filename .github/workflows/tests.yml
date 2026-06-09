@@ -28,12 +28,12 @@ jobs:
         ghc:
           - '9.12'
     steps:
+      - run: pipx install httpbin
       - uses: actions/checkout@v6
       - uses: hspec/setup-haskell@v1
         with:
           ghc-version: ${{ matrix.ghc }}
       - run: sudo apt-get update  
-      - run: sudo apt-get install httpbin
       - run: which httpbin
       - run: httpbin
       - uses: sol/run-haskell-tests@v2
