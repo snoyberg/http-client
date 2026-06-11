@@ -107,7 +107,7 @@ parseStatusHeaders mhl mnh conn timeout' onEarlyHintHeaders cont
                     Just header ->
                         parseHeaders (count + 1) $ front . (header:)
                     Nothing ->
-                        -- Unparseable header line; rather than throwing
+                        -- Unparsable header line; rather than throwing
                         -- an exception, ignore it for robustness.
                         parseHeaders count front
 

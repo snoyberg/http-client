@@ -147,8 +147,8 @@ testCookieEqualitySuccess = assertEqual "The same cookies should be equal"
   cookie cookie
   where cookie = default_cookie
 
-testCookieEqualityResiliance :: IO ()
-testCookieEqualityResiliance = assertBool "Cookies should still be equal if extra options are changed" $
+testCookieEqualityResilience :: IO ()
+testCookieEqualityResilience = assertBool "Cookies should still be equal if extra options are changed" $
   (default_cookie {cookie_persistent = True}) `equivCookie` (default_cookie {cookie_host_only = True})
 
 testDomainChangesEquality :: IO ()
@@ -159,8 +159,8 @@ testRemoveCookie :: IO ()
 testRemoveCookie = assertEqual "Removing a cookie works"
   (Just default_cookie, createCookieJar []) (removeExistingCookieFromCookieJar default_cookie $ createCookieJar [default_cookie])
 
-testRemoveNonexistantCookie :: IO ()
-testRemoveNonexistantCookie = assertEqual "Removing a nonexistent cookie doesn't work"
+testRemoveNonexistentCookie :: IO ()
+testRemoveNonexistentCookie = assertEqual "Removing a nonexistent cookie doesn't work"
   (Nothing, createCookieJar [default_cookie]) (removeExistingCookieFromCookieJar (default_cookie {cookie_name = fromString "key2"}) $ createCookieJar [default_cookie])
 
 testRemoveCorrectCookie :: IO ()
@@ -503,13 +503,13 @@ pathMatchingTests = do
 equalityTests :: Spec
 equalityTests = do
     it "The same cookie should be equal to itself" testCookieEqualitySuccess
-    it "Changing extra options shouldn't change equality" testCookieEqualityResiliance
+    it "Changing extra options shouldn't change equality" testCookieEqualityResilience
     it "Changing a cookie's domain should change its equality" testDomainChangesEquality
 
 removeTests :: Spec
 removeTests = do
     it "Removing a cookie works" testRemoveCookie
-    it "Removing a nonexistent cookie doesn't work" testRemoveNonexistantCookie
+    it "Removing a nonexistent cookie doesn't work" testRemoveNonexistentCookie
     it "Removing the correct cookie" testRemoveCorrectCookie
 
 evictionTests :: Spec
